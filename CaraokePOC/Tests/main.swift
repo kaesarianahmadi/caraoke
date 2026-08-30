@@ -518,6 +518,80 @@ final class TestRunner {
             check("cacheClearsAll", caCache.retrieve(for: "track-a") == nil && caCache.retrieve(for: "track-b") == nil)
         }
 
+        // MARK: SyncEngine + now-playing arbiter (ported from DriveVerse)
+        do {
+            func nowPlayingState(title: String = "S", posMs: Int, playedAgo: TimeInterval, playing: Bool,
+                                 at now: Date, source: MusicSource = .spotify, duration: Int? = 100_000) -> NowPlayingState {
+                NowPlayingState(title: title, artist: "A", album: nil, durationMs: duration,
+                                positionMs: posMs, isPlaying: playing, source: source,
+                                capturedAt: now.addingTimeInterval(-playedAgo))
+            }
+            let t0 = Date(timeIntervalSince1970: 1_000_000)
+
+            // position extrapolation
+            let playingAnchor = nowPlayingState(posMs: 10_000, playedAgo: 5, playing: true, at: t0)
+            check("syncExtrapolate", SyncEngine.extrapolatedPositionMs(anchor: playingAnchor, at: t0) == 15_000)
+            check("syncExtrapolatePaused", SyncEngine.extrapolatedPositionMs(
+                anchor: nowPlayingState(posMs: 10_000, playedAgo: 5, playing: false, at: t0), at: t0) == 10_000)
+            check("syncExtrapolateClamps", SyncEngine.extrapolatedPositionMs(
+                anchor: nowPlayingState(posMs: 99_000, playedAgo: 5, playing: true, at: t0), at: t0) == 100_000)
+
+            // binary-search line index
+            let lines = [LRCLine(timeMs: 1000, text: "a"), LRCLine(timeMs: 5000, text: "b"), LRCLine(timeMs: 9000, text: "c")]
+            check("syncLineBefore", SyncEngine.lineIndex(forPositionMs: 500, in: lines) == nil)
+            check("syncLineExact", SyncEngine.lineIndex(forPositionMs: 5000, in: lines) == 1)
+            check("syncLineBetween", SyncEngine.lineIndex(forPositionMs: 7000, in: lines) == 1)
+            check("syncLineLast", SyncEngine.lineIndex(forPositionMs: 99_999, in: lines) == 2)
+            check("syncLineEmpty", SyncEngine.lineIndex(forPositionMs: 0, in: []) == nil)
+
+            // position building
+            let pos = SyncEngine.position(atMs: 7000, lines: lines, durationMs: 12_000, isPlaying: true)
+            check("syncPosCurrent", pos.currentLine == "b" && pos.nextLine == "c")
+            check("syncPosLineProgress", abs(pos.lineProgress - 0.5) < 0.001)
+            check("syncPosTrackProgress", abs(pos.trackProgress - 7000.0 / 12000.0) < 0.001)
+
+            // engine apply semantics: jitter kept, seek snaps, track snaps, pause freezes
+            var clock = t0
+            let engine = SyncEngine(now: { clock })
+            var positions: [LyricsPosition?] = []
+            let cancellable = engine.positionSubject.sink { positions.append($0) }
+            engine.setLyrics(lines)
+            engine.apply(playingAnchor)
+            clock = t0
+            engine.tick()
+            check("syncEngineTickLine", positions.last??.currentLine == "c")
+
+            let jitter = nowPlayingState(posMs: 15_500, playedAgo: 0, playing: true, at: t0)
+            engine.apply(jitter)
+            check("syncEngineJitterKeptAnchor", engine.anchor?.positionMs == 10_000)
+
+            let seek = nowPlayingState(posMs: 20_500, playedAgo: 0, playing: true, at: t0)
+            engine.apply(seek)
+            check("syncEngineSeekSnaps", engine.anchor?.positionMs == 20_500)
+
+            engine.apply(nowPlayingState(title: "T2", posMs: 1_000, playedAgo: 0, playing: true, at: t0))
+            check("syncEngineTrackSnaps", engine.anchor?.title == "T2")
+
+            engine.apply(nowPlayingState(title: "T2", posMs: 3_000, playedAgo: 0, playing: false, at: t0))
+            clock = t0.addingTimeInterval(9)
+            engine.tick()
+            check("syncEnginePausedFreezes", positions.last??.positionMs == 3_000)
+            check("syncEnginePausedLine", positions.last??.currentLine == "a")
+            _ = cancellable
+
+            // arbiter
+            let applePlaying = nowPlayingState(posMs: 1, playedAgo: 0, playing: true, at: t0, source: .appleMusic)
+            let spotifyPlaying = nowPlayingState(title: "Sp", posMs: 2, playedAgo: 0, playing: true, at: t0, source: .spotify)
+            check("arbiterAppleWins", NowPlayingArbiter.arbitrate(apple: applePlaying, spotify: spotifyPlaying, pin: .auto, previous: nil)?.title == "S")
+            check("arbiterSpotifyWhenAppleIdle", NowPlayingArbiter.arbitrate(apple: nil, spotify: spotifyPlaying, pin: .auto, previous: nil)?.title == "Sp")
+            let bothIdle = NowPlayingArbiter.arbitrate(apple: applePlaying.with(isPlaying: false),
+                                                       spotify: spotifyPlaying.with(isPlaying: false),
+                                                       pin: .auto, previous: nil)
+            check("arbiterBothIdle", bothIdle?.title == "S" && bothIdle?.isPlaying == false)
+            check("arbiterPinnedSpotify", NowPlayingArbiter.arbitrate(apple: applePlaying, spotify: spotifyPlaying, pin: .spotify, previous: nil)?.title == "Sp")
+            check("arbiterPinnedMissing", NowPlayingArbiter.arbitrate(apple: nil, spotify: spotifyPlaying, pin: .appleMusic, previous: nil) == nil)
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {

@@ -1,62 +1,84 @@
-# Phase B — Setup Checklist (your two accounts + one push)
+# Phase B — Setup Checklist (updated 2026-08-31, with your 3 questions answered)
 
-Everything code-side is ready (`​.github/workflows/ci.yml` runs the full suite
-on GitHub's macOS cloud the moment the repo exists). Three actions unlock it.
+Everything code-side is ready (CI runs the full suite + builds the app on
+GitHub's macOS cloud once the repo exists). Three actions unlock progress.
 
-## 1. Apple Developer Program (the $99 gate — everything depends on this)
+## 1. Apple Developer Program — you do NOT need the Apple Developer app
 
-1. https://developer.apple.com/programs/enroll/ — enroll as an **Individual**
-   (simplest; the app publishes under your name — an Organization needs a
-   registered business entity + D-U-N-S).
-2. Apple ID verification + identity check: typically approved in 24–48 h.
-3. After approval, tell me — I'll prep the App Store Connect record details
-   (bundle ID `app.caraoke.ios` or similar, IAP products, privacy answers).
+**Important:** the macOS **Apple Developer app** is a convenience/news
+companion and is NOT required — and yes, it wants newer macOS than your
+Ventura machine, so just skip it. Enrollment and ALL management are web-based
+and work fine in Safari on Ventura:
 
-## 2. Spotify developer app (needed for the Spotify you insisted on)
+1. Enroll at **https://developer.apple.com/programs/enroll/** (Web, in Safari).
+   Choose **Individual** (simplest; Organization needs a D-U-N-S number).
+2. After enrollment (~24–48 h approval), everything else happens at:
+   - **App Store Connect** — https://appstoreconnect.apple.com (Web):
+     app record, IAP products, TestFlight, privacy answers, review submission.
+   - **Certificates, IDs & Profiles** — same portal, Web: bundle IDs,
+     provisioning.
+3. **No Xcode on this Mac is not a blocker.** Builds/signing happen in cloud
+   CI. Hand signing to CI with an **App Store Connect API Key**:
+   appstoreconnect.apple.com → **Users and Access → Integrations → App Store
+   Connect API** → create a key (Issuer ID + Key ID + .p8 download). I wire it
+   into the GitHub workflow so the runner produces signed TestFlight builds —
+   zero local Xcode required.
 
-1. https://developer.spotify.com/dashboard → Create app:
-   - Name: `Caraoke` · Redirect URI: `caraoke://callback`
-   - APIs: Web API · Scopes we use: `user-read-currently-playing`,
-     `user-read-playback-state`
-2. Copy the **Client ID** into `CaraokePOC/iOS/Resources/Secrets.plist`
-   (copy `Secrets.example.plist`; the file is gitignored).
-3. Submit the extended-quota request (draft ready:
-   `research/spotify-quota-request-draft.md`). Approval takes days–weeks —
-   this is why we start now, before launch.
+> Bottom line: ignore the "macOS incompatible" app; use the web portals + my
+> CI workflow. Tell me "enrolled" and I'll generate the App Store Connect
+> record details.
 
-## 3. GitHub repo (I take over after step 1 of this)
+## 2. Spotify — exact click-path (web, works on Ventura)
 
-**Option A — install GitHub CLI, then hand control to me:**
+1. **https://developer.spotify.com/dashboard** → log in with your Spotify
+   account → **Create app**.
+2. Fill: Name **Caraoke**, Description ("shows synced song lyrics in the
+   car"), Website (optional), **Redirect URI: `caraoke://callback`**,
+   tick **Web API**.
+3. On the app page, copy the **Client ID**. (The **Client Secret** is NOT
+   needed — Caraoke uses PKCE, a public client, so the secret never ships.
+   Keep it private regardless.)
+4. Paste the Client ID into
+   **`CaraokePOC/iOS/Resources/Secrets.plist`** → replace
+   `YOUR_SPOTIFY_CLIENT_ID` in the `SpotifyClientID` key (the file is
+   gitignored; a copy already exists with the placeholder).
+5. **Extended quota:** on the app page find **"Request extended quota"**
+   (a "Quota"/"Development mode" link). Submit the draft from
+   `research/spotify-quota-request-draft.md`. Approval takes days–weeks —
+   this is why we start now.
+6. The two scopes (`user-read-currently-playing`,
+   `user-read-playback-state`) are requested by the app at connect time — no
+   further dashboard config needed.
+
+## 3. GitHub — YES, connect your OAuth account and I do the rest
+
+GitHub CLI gains the machine access, then I create/push/watch CI myself. One
+quick approval from you (no password ever shared):
+
 ```sh
-brew install gh
-gh auth login          # browser flow
+# I'll install gh (already running). Then run THIS ONCE — in your Terminal or
+# I print the device code for you to enter:
+gh auth login
+#   → Which host? GitHub.com
+#   → Protocol: HTTPS
+#   → Authenticate with: Login with a web browser
+#   → It prints a one-time CODE; open the URL, click "Next", the browser
+#     shows the code, approve the "repo" + "workflow" scopes.
 ```
-Then tell me "repo it" — I create the private repo, push the baseline, and
-watch the first CI run myself.
 
-**Option B — manual, no tools:**
-1. github.com/new → name `caraoke` → **Private** → create (no README).
-2. Give me the repo URL (e.g. `https://github.com/<you>/caraoke.git`) — I'll
-   push. Pushing needs credentials: either
-   - a **Personal Access Token** (github.com/settings/tokens → classic, `repo`
-     scope) pasted to me, or
-   - you run the two commands yourself:
-     ```sh
-     git remote add origin https://github.com/<you>/caraoke.git
-     git push -u origin main
-     ```
+That's an OAuth device-flow authorization done by you the human; the machine
+then holds a token I can use to:
+- `gh repo create caraoke --private --source=. --push`
+- watch the first CI run and fix anything the real iOS SDK surfaces
 
-## 4. What CI gives us immediately
+> Prefer tokens? You can instead create a fine-grained PAT
+> (github.com/settings/tokens, `repo` + `workflow`) and paste it to me — but
+> the device-flow above is cleaner.
 
-- Full 115-check suite on macOS cloud + `swift test` (XCTest)
-- **`CaraokeCore` compiled against the real iOS SDK** — the first true
-  ActivityKit-era compile, impossible on this Mac
-- Every future commit verified before it touches device testing
+## What I'm doing right now in parallel (no action needed from you)
 
-## Still pending on this checklist after your actions
-
-- Phase C: TestFlight build on your iPhone + one real-car CarPlay session
-  (decides the background-update mechanism — see
-  `research/background-update-strategy.md`)
-- App Store Connect record + IAP products (after enrollment approval)
-- Privacy policy + terms pages (I draft; you host on GitHub Pages for free)
+- Installing `gh` (done/background).
+- The sync engine is now ported & tested (137/137) — the app-side wiring is
+  ready to become a real app the moment there's a device build.
+- `Caraoke.storekit`, legal page drafts, CI workflow, xcodegen project all
+  committed and waiting.

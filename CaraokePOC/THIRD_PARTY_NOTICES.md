@@ -39,6 +39,8 @@ SOFTWARE.
 | `iOS/RideModeIntents.swift` | `DriveVerse/App/DriveModeIntents.swift` (Ride Mode naming) |
 | `Sources/CaraokeCore/SpotifyAuthCore.swift` | `DriveVerse/Core/Auth/SpotifyAuth.swift` (PKCE, token policy, token client) |
 | `Sources/CaraokeCore/SpotifySource.swift` | `DriveVerse/Core/NowPlaying/SpotifySource.swift` (official Web API polling) |
+| `Sources/CaraokeCore/SyncEngine.swift` | `DriveVerse/Core/Sync/SyncEngine.swift` (position extrapolation + line mapping) |
+| `Sources/CaraokeCore/NowPlayingCoordinator.swift` | `DriveVerse/Core/NowPlaying/NowPlayingCoordinator.swift` (arbiter + source pin) |
 | `iOS/SpotifyAuth.swift` | `DriveVerse/Core/Auth/SpotifyAuth.swift` (Keychain store, OAuth flow, presenter) |
 
 Deliberately **not** ported: driveverse's `LRCLIBClient` (Caraoke implements
