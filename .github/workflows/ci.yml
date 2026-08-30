@@ -66,3 +66,59 @@ jobs:
       - name: swift test
         working-directory: CaraokePOC
         run: swift test
+
+  testflight:
+    # Signed TestFlight archive via App Store Connect API-key automatic
+    # signing. SKIPPED (job-level `if`) until the repo has these four
+    # secrets — the moment the user adds them (post Apple-approval), every
+    # push produces a signed .xcarchive without any local Xcode:
+    #   ASC_ISSUER_ID / ASC_KEY_ID / ASC_KEY_P8   (App Store Connect →
+    #       Users and Access → Integrations → App Store Connect API)
+    #   ASC_DEVELOPMENT_TEAM                      (10-char Team ID)
+    # Upload to TestFlight is added once the first signed archive proves
+    # out (fastlane pilot or altool — decided live).
+    if: ${{ vars.HAS_ASC_CREDENTIALS == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare App Store Connect API key
+        working-directory: CaraokePOC
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect"
+          printf '%s' "$ASC_KEY_P8" | sed 's/\\n/\n/g' > "$HOME/.appstoreconnect/AuthKey_$ASC_KEY_ID.p8"
+          echo "ASC_KEY_PATH=$HOME/.appstoreconnect/AuthKey_$ASC_KEY_ID.p8" >> "$GITHUB_ENV"
+
+      - name: Generate Xcode project
+        working-directory: CaraokePOC
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Archive with automatic signing (ASC API key)
+        working-directory: CaraokePOC
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
+        run: |
+          xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/Caraoke.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/.appstoreconnect/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$ASC_DEVELOPMENT_TEAM" \
+            archive
+
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Caraoke-xcarchive
+          path: CaraokePOC/build/Caraoke.xcarchive

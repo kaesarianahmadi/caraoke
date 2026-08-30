@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caraoke — Lyrics for the ride</title>
+<style>
+  :root { --bg:#0f1220; --fg:#eef1ff; --muted:#9aa3c0; --accent:#f6b73c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+         color:var(--fg); background:linear-gradient(180deg,#0b0e1a,#10142a 60%,#0b0e1a); min-height:100vh; }
+  main { max-width:620px; margin:0 auto; padding:72px 24px 48px; text-align:center; }
+  .brand { font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+  h1 { font-size:clamp(30px,6vw,44px); line-height:1.1; margin:16px 0 12px; font-weight:700; }
+  h1 em { font-style:normal; color:var(--accent); }
+  p.lede { color:var(--muted); font-size:18px; margin:0 0 36px; }
+  form { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  input { padding:12px 16px; border-radius:12px; border:1px solid #2a3155; background:#14182c;
+          color:var(--fg); min-width:260px; font-size:16px; }
+  button { padding:12px 20px; border-radius:12px; border:0; background:var(--accent);
+           color:#14182c; font-weight:700; font-size:16px; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  .note { color:var(--muted); font-size:13px; margin-top:16px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:48px 0 8px; }
+  .grid div { background:#14182c; border:1px solid #232a4e; border-radius:14px; padding:18px 12px; }
+  .grid b { display:block; color:var(--accent); font-size:20px; margin-bottom:4px; }
+  .grid span { color:var(--muted); font-size:13px; }
+  footer { color:#5b6590; font-size:12px; margin-top:44px; line-height:1.6; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">Caraoke</div>
+  <h1>Every ride has a chorus.<br>See it on <em>CarPlay</em>.</h1>
+  <p class="lede">Live lyrics for the whole car — the current line and the next one, on your CarPlay screen, for whatever you're already playing.</p>
+
+  <form onsubmit="return false">
+    <input type="email" placeholder="you@example.com" aria-label="Email">
+    <button type="submit">Join the waitlist</button>
+  </form>
+  <p class="note">Be first to know when Caraoke ships. iPhone · CarPlay · Apple Music &amp; Spotify.</p>
+
+  <div class="grid">
+    <div><b>1 tap</b><span>Start Ride Mode before you leave</span></div>
+    <div><b>2 lines</b><span>Current line big, next line quieter</span></div>
+    <div><b>0 distractions</b><span>No setup mid-drive, ever</span></div>
+  </div>
+
+  <footer>
+    Lyrics via the community database <a href="https://lrclib.net" style="color:var(--muted)">LRCLIB</a> · Use while parked, designed for passengers.<br>
+    © Caraoke. Supported on the Apple App Store (coming soon).
+  </footer>
+</main>
+</body>
+</html>
