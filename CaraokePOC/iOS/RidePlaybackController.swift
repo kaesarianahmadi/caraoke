@@ -36,7 +36,7 @@ final class RidePlaybackController: ObservableObject {
         self.provider = provider
         self.apple = AppleMusicSource()
         self.spotifyAuth = spotifyAuth ?? SpotifyAuth()
-        self.spotify = SpotifySource(tokenProvider: spotifyAuth)
+        self.spotify = SpotifySource(tokenProvider: self.spotifyAuth)
         self.coordinator = NowPlayingCoordinator(
             applePublisher: apple.statePublisher,
             spotifyPublisher: spotify.statePublisher

@@ -76,6 +76,8 @@ enum SpotifyClientIDStore {
 
     /// Resolution order: the user's own pasted Client ID first, then the
     /// developer-bundled one (Secrets.plist), if present.
+    static var hasClientID: Bool { effective != nil }
+
     static var effective: String? {
         stored ?? SecretsLoader.spotifyClientID
     }
