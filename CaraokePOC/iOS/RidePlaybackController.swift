@@ -30,23 +30,30 @@ final class RidePlaybackController: ObservableObject {
     private var lastLyricsKey: String?
 
     init(activity: CaraokeActivityController,
-         provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider()) {
+         provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider(),
+         spotifyAuth: SpotifyAuth = SpotifyAuth()) {
         self.activity = activity
         self.provider = provider
         self.apple = AppleMusicSource()
-        self.spotifyAuth = SpotifyAuth()
+        self.spotifyAuth = spotifyAuth
         self.spotify = SpotifySource(tokenProvider: spotifyAuth)
         self.coordinator = NowPlayingCoordinator(
             applePublisher: apple.statePublisher,
             spotifyPublisher: spotify.statePublisher
         )
         self.engine = SyncEngine()
+        // CombineLatest3 emits only after ALL inputs fire at least once — a
+        // gated Spotify source must still announce its idle state or Apple
+        // Music updates would be silently swallowed.
+        spotify.emitIdle()
         wire()
     }
 
     func start() {
         apple.start()
-        spotify.start()
+        if FeatureFlags.spotifyEnabled {
+            spotify.start()
+        }
         engine.startTicking()
     }
 

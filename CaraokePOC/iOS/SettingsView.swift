@@ -8,6 +8,7 @@ struct SettingsView: View {
     var presentingPaywall: Binding<Bool>
     var cache = LyricsDiskCache(directory: LyricsDiskCache.defaultDirectory())
     @State private var cacheCleared = false
+    @StateObject private var spotifyAuth = SpotifyAuth()
 
     var body: some View {
         NavigationStack {
@@ -18,6 +19,10 @@ struct SettingsView: View {
                     } label: {
                         LabeledContent("Plans & pricing", value: "View")
                     }
+                }
+
+                if FeatureFlags.spotifyEnabled {
+                    spotifySection
                 }
 
                 Section("Ride") {
@@ -62,6 +67,34 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+        }
+    }
+
+    /// Public Spotify section (user decision 2026-08-31). Development mode
+    /// allows only 5 allowlisted accounts; non-allowlisted users get 403, so
+    /// the UI says "limited beta" instead of implying full support. Shares
+    /// the Keychain token with the playback pipeline.
+    @ViewBuilder
+    private var spotifySection: some View {
+        Section {
+            if spotifyAuth.hasClientID {
+                LabeledContent("Connection", value: spotifyAuth.isConnected ? "Connected" : "Not connected")
+                if spotifyAuth.isConnected {
+                    Button("Disconnect Spotify") { spotifyAuth.disconnect() }
+                } else {
+                    Button("Connect Spotify") {
+                        Task { try? await spotifyAuth.connect() }
+                    }
+                }
+            } else {
+                Text("Add your Spotify Client ID to Secrets.plist to enable.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Spotify (beta)")
+        } footer: {
+            Text("Spotify support is currently a limited beta: access is restricted to a small allowlist of testers during development mode. Apple Music is fully supported.")
         }
     }
 
