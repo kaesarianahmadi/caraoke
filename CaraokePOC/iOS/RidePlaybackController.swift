@@ -31,11 +31,11 @@ final class RidePlaybackController: ObservableObject {
 
     init(activity: CaraokeActivityController,
          provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider(),
-         spotifyAuth: SpotifyAuth = SpotifyAuth()) {
+         spotifyAuth: SpotifyAuth? = nil) {
         self.activity = activity
         self.provider = provider
         self.apple = AppleMusicSource()
-        self.spotifyAuth = spotifyAuth
+        self.spotifyAuth = spotifyAuth ?? SpotifyAuth()
         self.spotify = SpotifySource(tokenProvider: spotifyAuth)
         self.coordinator = NowPlayingCoordinator(
             applePublisher: apple.statePublisher,

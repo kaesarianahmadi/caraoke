@@ -50,11 +50,42 @@ final class KeychainTokenStore: SpotifyTokenStore {
     }
 }
 
+// MARK: - Client ID storage
+
+/// Where the Spotify Client ID used for OAuth lives. Caraoke (like the
+/// category leader) uses the "bring your own Client ID" model: each user
+/// creates their own development-mode app (owner is exempt from the 5-user
+/// allowlist) and pastes their Client ID here. Public IDs, so UserDefaults
+/// is appropriate — the OAuth token stays in the Keychain.
+enum SpotifyClientIDStore {
+    static let key = "spotify.customClientID"
+
+    static var stored: String? {
+        get {
+            let value = UserDefaults.standard.string(forKey: key)
+            return (value?.isEmpty == false) ? value : nil
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+    }
+
+    /// Resolution order: the user's own pasted Client ID first, then the
+    /// developer-bundled one (Secrets.plist), if present.
+    static var effective: String? {
+        stored ?? SecretsLoader.spotifyClientID
+    }
+}
+
 // MARK: - Secrets
 
 enum SecretsLoader {
-    /// Reads the Spotify client ID from Secrets.plist (gitignored — copy
-    /// Secrets.example.plist and fill in your own). Never hardcoded.
+    /// Reads the developer-bundled Spotify Client ID from Secrets.plist
+    /// (gitignored — copy Secrets.example.plist). Never hardcoded.
     static var spotifyClientID: String? {
         guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
               let dict = NSDictionary(contentsOf: url) as? [String: Any],
@@ -69,6 +100,8 @@ enum SecretsLoader {
 // MARK: - Auth manager
 
 /// Owns the PKCE authorization flow, token persistence, and refresh.
+/// The Client ID is resolved lazily via `clientIDProvider` so a user-pasted
+/// ID takes effect without recreating the auth manager.
 @MainActor
 final class SpotifyAuth: NSObject, ObservableObject {
     static let redirectURI = "caraoke://callback"
@@ -81,7 +114,7 @@ final class SpotifyAuth: NSObject, ObservableObject {
     @Published private(set) var isConnected: Bool
     @Published var needsReconnect = false
 
-    let clientID: String?
+    let clientIDProvider: () -> String?
     private let store: SpotifyTokenStore
     private let tokenClient: SpotifyTokenClient
     private var refreshTask: Task<SpotifyToken, Error>?
@@ -91,16 +124,16 @@ final class SpotifyAuth: NSObject, ObservableObject {
     init(
         store: SpotifyTokenStore = KeychainTokenStore(),
         session: URLSession = .shared,
-        clientID: String? = SecretsLoader.spotifyClientID
+        clientIDProvider: @escaping () -> String? = { SpotifyClientIDStore.effective }
     ) {
         self.store = store
         self.tokenClient = SpotifyTokenClient(session: session)
-        self.clientID = clientID
+        self.clientIDProvider = clientIDProvider
         self.isConnected = store.load() != nil
         super.init()
     }
 
-    var hasClientID: Bool { clientID != nil }
+    var hasClientID: Bool { clientIDProvider() != nil }
 
     // The polling source talks to us through this seam.
     var tokenProvider: SpotifyTokenProviding { self as SpotifyTokenProviding }
@@ -144,7 +177,7 @@ final class SpotifyAuth: NSObject, ObservableObject {
         if let task = refreshTask {
             return try await task.value
         }
-        guard let token = store.load(), let clientID else {
+        guard let token = store.load(), let clientID = clientIDProvider() else {
             throw SpotifyAuthError.notConnected
         }
         let client = tokenClient
@@ -171,7 +204,7 @@ final class SpotifyAuth: NSObject, ObservableObject {
 
     /// Full authorization-code-with-PKCE flow via ASWebAuthenticationSession.
     func connect() async throws {
-        guard let clientID else { throw SpotifyAuthError.missingClientID }
+        guard let clientID = clientIDProvider() else { throw SpotifyAuthError.missingClientID }
 
         let verifier = SpotifyPKCE.randomVerifier()
         let state = UUID().uuidString
