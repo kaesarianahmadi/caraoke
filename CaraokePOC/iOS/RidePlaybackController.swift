@@ -82,7 +82,7 @@ final class RidePlaybackController: ObservableObject {
         Task { [weak self] in
             guard let track = try? await self?.provider.lyrics(for: signature) else { return }
             self?.engine.setLyrics(
-                (track?.lines ?? []).map { LRCLine(timeMs: $0.startMs, text: $0.text) }
+                track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
             )
         }
     }
