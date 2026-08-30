@@ -62,8 +62,14 @@ Ride Mode, live lyrics on CarPlay, Apple Music + Spotify, lifetime option.
   system-rendered Live Activity (`.supplementalActivityFamilies([.small])`).
 - **Playback detection:** reads the public MediaPlayer framework's
   `MPMusicPlayerController.systemMusicPlayer` (Apple Music) and the official
-  Spotify Web API (OAuth 2.0 + PKCE, read-only scopes). The app never plays or
-  modifies audio; it only reads the now-playing state.
+  Spotify Web API (OAuth 2.0 + PKCE, read-only scopes). **Spotify connect
+  uses a bring-your-own-Client-ID flow:** the user creates their own private
+  Spotify app at developer.spotify.com/dashboard (guided in-app, 2–3 min)
+  and pastes its Client ID in Settings; authorization then runs entirely
+  through Spotify's official OAuth with the token stored in the iOS
+  Keychain. The app never plays or modifies audio; it only reads the
+  now-playing state. A Spotify Premium subscription (Spotify's requirement
+  for Web API access since Feb 2026) is disclosed in the setup UI.
 - **Lyrics source:** LRCLIB (lrclib.net), displayed with attribution in
   Settings (Community lyrics via LRCLIB). Requests carry only the track's
   title/artist/duration. No lyrics stored server-side (the app has no server);
