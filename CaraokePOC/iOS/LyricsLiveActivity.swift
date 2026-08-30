@@ -8,16 +8,10 @@ import WidgetKit
 struct LyricsLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LyricsActivityAttributes.self) { context in
-            LyricTileView(
-                title: context.state.title,
-                artist: context.state.artist,
-                currentLine: context.state.currentLine,
-                nextLine: context.state.nextLine,
-                isPlaying: context.state.isPlaying,
-                progress: context.state.progress,
-                isCarPlaySmall: context.activityFamily == .small
-            )
-            .activityBackgroundTint(.black.opacity(0.7))
+            // The CarPlay small family is exposed via the environment, not
+            // on the context (ActivityFamily reads only work inside a View).
+            FamilyAdaptiveTile(context: context)
+                .activityBackgroundTint(.black.opacity(0.7))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -51,5 +45,25 @@ struct LyricsLiveActivity: Widget {
             }
         }
         .supplementalActivityFamilies([.small])
+    }
+}
+
+/// Reads the presentation family from the environment inside a real View,
+/// then adapts the shared tile: CarPlay / Watch Smart Stack get the compact
+/// small-family layout, everything else the full Lock Screen banner.
+private struct FamilyAdaptiveTile: View {
+    let context: ActivityViewContext<LyricsActivityAttributes>
+    @Environment(\.activityFamily) private var activityFamily
+
+    var body: some View {
+        LyricTileView(
+            title: context.state.title,
+            artist: context.state.artist,
+            currentLine: context.state.currentLine,
+            nextLine: context.state.nextLine,
+            isPlaying: context.state.isPlaying,
+            progress: context.state.progress,
+            isCarPlaySmall: activityFamily == .small
+        )
     }
 }

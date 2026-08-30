@@ -34,29 +34,11 @@ jobs:
           done
           exit $FAIL
 
-  ios-sdk-compile:
-    # Compiles CaraokeCore (timing, lyrics, provider, Spotify, entitlements)
-    # against the REAL iOS SDK — the check this dev machine cannot run.
-    # covers: "does the core build for iOS", not the SwiftUI app target
-    # (that needs the Xcode project, added before TestFlight).
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Build CaraokeCore for iOS
-        working-directory: CaraokePOC
-        run: |
-          xcodebuild -scheme CaraokeCore \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath .build/derived build
-
   ios-app-compile:
     # Generates the full Xcode project (app + widget + test targets) with
-    # xcodegen, then builds the whole app for the iOS Simulator. This is the
-    # first end-to-end compile of the SwiftUI/ActivityKit/StoreKit layer.
+    # xcodegen, then builds the whole app for the iOS Simulator. This compiles
+    # CaraokeCore against the real iOS SDK too (app target includes it) —
+    # the first end-to-end compile of the SwiftUI/ActivityKit/StoreKit layer.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
