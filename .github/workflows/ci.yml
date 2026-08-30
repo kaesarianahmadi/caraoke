@@ -53,6 +53,27 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath .build/derived build
 
+  ios-app-compile:
+    # Generates the full Xcode project (app + widget + test targets) with
+    # xcodegen, then builds the whole app for the iOS Simulator. This is the
+    # first end-to-end compile of the SwiftUI/ActivityKit/StoreKit layer.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Xcode project
+        working-directory: CaraokePOC
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build full app for iOS Simulator (no signing)
+        working-directory: CaraokePOC
+        run: |
+          xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build
+
   spm-tests:
     # The XCTest target via SwiftPM (mirror of the standalone suite that
     # runs inside Xcode locally).

@@ -1,0 +1,74 @@
+name: Caraoke
+options:
+  bundleIdPrefix: app.caraoke
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: false
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  Caraoke:
+    type: application
+    platform: iOS
+    sources:
+      - path: iOS
+        excludes:
+          - "CaraokeWidgetBundle.swift"
+          - "LyricsLiveActivity.swift"
+          - "Info.plist"
+          - "WidgetInfo.plist"
+          - "Caraoke.entitlements"
+          - "Resources/Secrets.example.plist"
+      - path: Sources/CaraokeCore
+        excludes:
+          - "Resources"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.caraoke.ios
+        INFOPLIST_FILE: iOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: iOS/Caraoke.entitlements
+    dependencies:
+      - target: CaraokeWidgets
+        embed: true
+        codeSign: true
+  CaraokeWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - iOS/CaraokeWidgetBundle.swift
+      - iOS/LyricsLiveActivity.swift
+      - iOS/LyricsActivityAttributes.swift
+      - iOS/LyricTileView.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.caraoke.ios.widgets
+        INFOPLIST_FILE: iOS/WidgetInfo.plist
+        CODE_SIGN_ENTITLEMENTS: iOS/Caraoke.entitlements
+  CaraokeCoreTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/CaraokeCoreTests
+      - path: Sources/CaraokeCore
+        excludes:
+          - "Resources"
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        PRODUCT_BUNDLE_IDENTIFIER: app.caraoke.ios.tests
+    dependencies:
+      - target: Caraoke
+schemes:
+  Caraoke:
+    build:
+      targets:
+        Caraoke: all
+        CaraokeWidgets: all
+    test:
+      targets:
+        - CaraokeCoreTests

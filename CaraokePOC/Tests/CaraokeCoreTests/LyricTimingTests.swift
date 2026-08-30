@@ -1,5 +1,10 @@
 import XCTest
+// Under SwiftPM, CaraokeCore is an imported module. When the Xcode project
+// (project.yml) compiles the same sources into the test bundle directly,
+// there is no separate module — the import is dropped via canImport.
+#if canImport(CaraokeCore)
 @testable import CaraokeCore
+#endif
 
 final class LyricTimingTests: XCTestCase {
 

@@ -9,7 +9,13 @@ enum FixtureLoader {
         #if SWIFT_PACKAGE
         url = Bundle.module.url(forResource: "demo_lyrics", withExtension: "tsv")!
         #else
-        url = URL(fileURLWithPath: "Sources/CaraokeCore/Resources/demo_lyrics.tsv")
+        // Xcode app and unit-test bundles carry the fixture as a resource;
+        // the standalone harness falls back to the package-relative path.
+        if let bundleURL = Bundle.main.url(forResource: "demo_lyrics", withExtension: "tsv") {
+            url = bundleURL
+        } else {
+            url = URL(fileURLWithPath: "Sources/CaraokeCore/Resources/demo_lyrics.tsv")
+        }
         #endif
         let raw = try! String(contentsOf: url, encoding: .utf8)
         return LyricTrack(lines: TimedLyricParser.parse(raw))
