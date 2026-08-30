@@ -27,11 +27,13 @@ targets:
       - path: Sources/CaraokeCore
         excludes:
           - "Resources"
+      - path: Assets.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.caraoke.ios
         INFOPLIST_FILE: iOS/Info.plist
         CODE_SIGN_ENTITLEMENTS: iOS/Caraoke.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: CaraokeWidgets
         embed: true
