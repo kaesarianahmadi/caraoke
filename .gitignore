@@ -1,0 +1,17 @@
+# Build artifacts
+.build/
+*.o
+*.testrunner
+modulecache/
+
+# Secrets — NEVER commit
+CaraokePOC/iOS/Resources/Secrets.plist
+
+# macOS
+.DS_Store
+*.swp
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
