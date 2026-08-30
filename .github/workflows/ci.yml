@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Two macOS jobs. Minutes are budget-conscious (free tier macOS = 10× multiplier):
+# each run is a few minutes; well within 200 macOS minutes/month.
+
+jobs:
+  core-suite:
+    # Full standalone suite: timing, LRC, matcher, policy, throttle,
+    # LRCLIB provider (mocked URLProtocol), Spotify PKCE/token/parser,
+    # entitlements. No simulator, no signing — pure swiftc.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build + run standalone suite
+        working-directory: CaraokePOC
+        run: |
+          swiftc -Onone -module-cache-path .build/modulecache \
+            Sources/CaraokeCore/*.swift Tests/main.swift -o .build/testrunner
+          .build/testrunner
+
+      - name: SwiftUI/ActivityKit/StoreKit layer syntax check
+        working-directory: CaraokePOC
+        run: |
+          FAIL=0
+          for f in iOS/*.swift; do
+            swiftc -parse "$f" || { echo "PARSE FAIL: $f"; FAIL=1; }
+          done
+          exit $FAIL
+
+  ios-sdk-compile:
+    # Compiles CaraokeCore (timing, lyrics, provider, Spotify, entitlements)
+    # against the REAL iOS SDK — the check this dev machine cannot run.
+    # covers: "does the core build for iOS", not the SwiftUI app target
+    # (that needs the Xcode project, added before TestFlight).
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build CaraokeCore for iOS
+        working-directory: CaraokePOC
+        run: |
+          xcodebuild -scheme CaraokeCore \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .build/derived build
+
+  spm-tests:
+    # The XCTest target via SwiftPM (mirror of the standalone suite that
+    # runs inside Xcode locally).
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: swift test
+        working-directory: CaraokePOC
+        run: swift test
