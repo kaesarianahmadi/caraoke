@@ -124,6 +124,19 @@ jobs:
           name: Caraoke-xcarchive
           path: CaraokePOC/build/Caraoke.xcarchive
 
+      - name: Install distribution certificate
+        env:
+          DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+        run: |
+          printf '%s' "$DIST_CERT_P12" | base64 -d > /tmp/dist.p12
+          security import /tmp/dist.p12 -P "$DIST_CERT_PASSWORD" -A -t cert -f pkcs12 \
+            -k "$HOME/Library/Keychains/login.keychain-db"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" \
+            "$HOME/Library/Keychains/login.keychain-db" >/dev/null
+          rm /tmp/dist.p12
+          security find-identity -v -p codesigning "$HOME/Library/Keychains/login.keychain-db" | head -5
+
       - name: Export + upload to TestFlight (destination=upload)
         working-directory: CaraokePOC
         env:
