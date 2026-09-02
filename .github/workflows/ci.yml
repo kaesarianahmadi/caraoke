@@ -109,13 +109,14 @@ jobs:
           xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
             -destination 'generic/platform=iOS' \
             -archivePath "$PWD/build/Caraoke.xcarchive" \
-            -allowProvisioningUpdates \
             -authenticationKeyPath "$HOME/.appstoreconnect/AuthKey_$ASC_KEY_ID.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$ASC_DEVELOPMENT_TEAM" \
+            CODE_SIGNING_ALLOWED=NO \
             archive
+        # Archive is UNSIGNED: development profiles need a registered device
+        # (team has none — irrelevant for TestFlight). exportArchive below
+        # applies App Store distribution signing, which needs no device.
 
       - name: Upload archive artifact
         uses: actions/upload-artifact@v4
