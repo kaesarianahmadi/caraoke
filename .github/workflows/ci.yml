@@ -130,12 +130,17 @@ jobs:
           DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
         run: |
           printf '%s' "$DIST_CERT_P12" | base64 -d > /tmp/dist.p12
+          # Dedicated keychain: the runner login keychain rejects scripted
+          # imports (SecKeychainItemSetAccessWithPassword), a fresh one does not.
+          security create-keychain -p caraoke-ci build.keychain
+          security unlock-keychain -p caraoke-ci build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
           security import /tmp/dist.p12 -P "$DIST_CERT_PASSWORD" -A -t cert -f pkcs12 \
-            -k "$HOME/Library/Keychains/login.keychain-db"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" \
-            "$HOME/Library/Keychains/login.keychain-db" >/dev/null
+            -k build.keychain
+          security list-keychain -d user -s build.keychain login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -s -k caraoke-ci build.keychain >/dev/null
           rm /tmp/dist.p12
-          security find-identity -v -p codesigning "$HOME/Library/Keychains/login.keychain-db" | head -5
+          security find-identity -v -p codesigning build.keychain
 
       - name: Export + upload to TestFlight (destination=upload)
         working-directory: CaraokePOC
