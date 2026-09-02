@@ -99,31 +99,6 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
-      - name: Archive with automatic signing (ASC API key)
-        working-directory: CaraokePOC
-        env:
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
-        run: |
-          xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$PWD/build/Caraoke.xcarchive" \
-            -authenticationKeyPath "$HOME/.appstoreconnect/AuthKey_$ASC_KEY_ID.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            CODE_SIGNING_ALLOWED=NO \
-            archive
-        # Archive is UNSIGNED: development profiles need a registered device
-        # (team has none — irrelevant for TestFlight). exportArchive below
-        # applies App Store distribution signing, which needs no device.
-
-      - name: Upload archive artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Caraoke-xcarchive
-          path: CaraokePOC/build/Caraoke.xcarchive
-
       - name: Install distribution certificate
         env:
           DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
@@ -137,10 +112,43 @@ jobs:
           security set-keychain-settings -lut 21600 build.keychain
           security import /tmp/dist.p12 -P "$DIST_CERT_PASSWORD" -A -t cert -f pkcs12 \
             -k build.keychain
-          security list-keychain -d user -s build.keychain login.keychain-db
+          security list-keychain -d user -s build.keychain build.keychain
           security set-key-partition-list -S apple-tool:,apple: -s -k caraoke-ci build.keychain >/dev/null
           rm /tmp/dist.p12
           security find-identity -v -p codesigning build.keychain
+
+      - name: Install committed profiles
+        run: |
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp CaraokePOC/profiles/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          ls "$HOME/Library/MobileDevice/Provisioning Profiles/"
+
+      - name: Archive with manual signing (dist cert + committed profiles)
+        working-directory: CaraokePOC
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
+        run: |
+          # The archive MUST be signed: an unsigned archive (the old
+          # CODE_SIGNING_ALLOWED=NO workaround) carries NO entitlements, and
+          # export-time re-sign cannot add them back — the app then ships
+          # without aps-environment and push-type Live Activity requests are
+          # rejected on device (ActivityInputError, build 7 diagnosis).
+          xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/Caraoke.xcarchive" \
+            -authenticationKeyPath "$HOME/.appstoreconnect/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$ASC_DEVELOPMENT_TEAM" \
+            archive
+
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Caraoke-xcarchive
+          path: CaraokePOC/build/Caraoke.xcarchive
 
       - name: Export + upload to TestFlight (destination=upload)
         working-directory: CaraokePOC
@@ -172,12 +180,11 @@ jobs:
           </dict>
           </plist>
           EOF
-          # Install committed profiles where manual export expects them
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp profiles/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
-          # Debug: show what the built bundle actually declares
+          # Debug: show what the signed archive actually carries
           APP_PLIST="$PWD/build/Caraoke.xcarchive/Products/Applications/Caraoke.app/Info.plist"
           plutil -p "$APP_PLIST" | grep -iE 'DeviceFamily|Orientation' || echo "no plist at $APP_PLIST"
+          echo "--- entitlements embedded in signed archive:"
+          codesign -d --entitlements :- "$PWD/build/Caraoke.xcarchive/Products/Applications/Caraoke.app" 2>/dev/null || echo "codesign read failed"
           xcodebuild -exportArchive \
             -archivePath "$PWD/build/Caraoke.xcarchive" \
             -exportOptionsPlist ExportOptions.plist \
