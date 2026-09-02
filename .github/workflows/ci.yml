@@ -119,30 +119,27 @@ jobs:
           rm /tmp/dist.p12
           security find-identity -v -p codesigning build.keychain
 
-      - name: Archive with automatic signing (distribution identity)
+      - name: Install committed profiles
+        run: |
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp CaraokePOC/profiles/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          ls "$HOME/Library/MobileDevice/Provisioning Profiles/"
+
+      - name: Archive with manual signing (dist cert + committed profiles)
         working-directory: CaraokePOC
         env:
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
         run: |
-          # Automatic signing is REQUIRED: Xcode's own profile generator adds
-          # the implied entitlement com.apple.developer.usernotifications.
-          # live-activities (the ASC REST API + manual profiles cannot —
-          # verified: the API capabilityType list has no Live Activities
-          # entry; without it push-type requests fail on device with
-          # ActivityInputError 0, so the relay never gets a token and
-          # lyrics freeze on lock).
-          # CODE_SIGN_IDENTITY=Apple Distribution forces an App Store
-          # distribution profile (no device needed); the identity comes from
-          # the default keychain set above.
+          # Manual signing with the ASC-API-created distribution profiles:
+          # "Caraoke TF Store Push" carries aps-environment=production, which
+          # is ALL a push-updated Live Activity needs (the old
+          # com.apple.developer.usernotifications.live-activities entry was
+          # removed - Apple DTS confirmed it is not a real entitlement;
+          # ActivityKit push updates require no entitlement, only
+          # pushType: .token at request time).
           xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
             -destination 'generic/platform=iOS' \
             -archivePath "$PWD/build/Caraoke.xcarchive" \
-            -authenticationKeyPath "$HOME/.appstoreconnect/AuthKey_$ASC_KEY_ID.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            -allowProvisioningUpdates \
             DEVELOPMENT_TEAM="$ASC_DEVELOPMENT_TEAM" \
             archive
 
@@ -155,13 +152,13 @@ jobs:
       - name: Export + upload to TestFlight (destination=upload)
         working-directory: CaraokePOC
         env:
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_KEY_PATH: ${{ env.ASC_KEY_PATH }}
           ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
         run: |
-          # Automatic export: Xcode re-signs with the same auto-generated
-          # profiles (which include the live-activity implied entitlement).
+          # Manual export with the same committed profiles (deterministic;
+          # export-time cloud signing fails with "cloud signing permission
+          # error" on this account even with an Admin API key).
           cat > ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -170,14 +167,17 @@ jobs:
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
             <key>uploadSymbols</key><true/>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
             <key>teamID</key><string>$ASC_DEVELOPMENT_TEAM</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>app.caraoke.ios</key><string>Caraoke TF Store Push</string>
+              <key>app.caraoke.ios.widgets</key><string>Caraoke Widgets TF Store</string>
+            </dict>
           </dict>
           </plist>
           EOF
-          # Debug: show what the archived archive actually carries
-          APP_PLIST="$PWD/build/Caraoke.xcarchive/Products/Applications/Caraoke.app/Info.plist"
-          plutil -p "$APP_PLIST" | grep -iE 'DeviceFamily|Orientation' || echo "no plist at $APP_PLIST"
+          # Debug: show what the signed archive actually carries
           echo "--- entitlements embedded in signed archive:"
           codesign -d --entitlements :- "$PWD/build/Caraoke.xcarchive/Products/Applications/Caraoke.app" 2>/dev/null || echo "codesign read failed"
           xcodebuild -exportArchive \
@@ -186,5 +186,4 @@ jobs:
             -exportPath "$PWD/build/export" \
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            -allowProvisioningUpdates
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
