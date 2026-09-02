@@ -166,7 +166,7 @@ jobs:
             <key>teamID</key><string>$ASC_DEVELOPMENT_TEAM</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>app.caraoke.ios</key><string>Caraoke TF Store</string>
+              <key>app.caraoke.ios</key><string>Caraoke TF Store Push</string>
               <key>app.caraoke.ios.widgets</key><string>Caraoke Widgets TF Store</string>
             </dict>
           </dict>

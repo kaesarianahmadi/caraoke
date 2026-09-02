@@ -38,6 +38,11 @@ final class CaraokeActivityController {
     /// relay client can register the app-side session (mechanism #2).
     var onPushToken: ((Data) -> Void)?
 
+    /// Human-readable status for the ride screen. Every path that could
+    /// silently prevent the activity from appearing reports here — a no-show
+    /// with zero feedback cost us a device-test round-trip (build 4).
+    var onDiagnostic: ((String) -> Void)?
+
     var isActive: Bool { activity != nil }
 
     init() {
@@ -109,17 +114,36 @@ final class CaraokeActivityController {
     }
 
     private func beginSession(snapshot: LyricSnapshot) {
-        guard activity == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        guard activity == nil else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            onDiagnostic?("Live Activities are OFF — Settings → Caraoke → Live Activities")
+            return
+        }
         do {
             // pushType: .token makes the activity receive an APNs push token
             // that a server can use to UPDATE it (mechanism #2 relay). The
             // widget is unchanged — a pushed ContentState renders exactly like
             // a local update. (`.liveActivity` is only for push-to-START.)
-            let requested = try Activity.request(
-                attributes: LyricsActivityAttributes(),
-                content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil),
-                pushType: .token
-            )
+            //
+            // Fallback: if the push-type request throws (e.g. profile without
+            // push, provisioning race), retry WITHOUT pushType so the lyrics
+            // tile still appears — foreground sync is the product baseline;
+            // the relay is an enhancement on top.
+            let requested: Activity<LyricsActivityAttributes>
+            do {
+                requested = try Activity.request(
+                    attributes: LyricsActivityAttributes(),
+                    content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil),
+                    pushType: .token
+                )
+                onDiagnostic?("Live Activity started (push-capable)")
+            } catch {
+                requested = try Activity.request(
+                    attributes: LyricsActivityAttributes(),
+                    content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil)
+                )
+                onDiagnostic?("Live Activity started (no push: \(error.localizedDescription))")
+            }
             activity = requested
             watch(requested)
             observePushToken(requested)
@@ -132,6 +156,7 @@ final class CaraokeActivityController {
                 isPlaying: snapshot.isPlaying
             )
         } catch {
+            onDiagnostic?("Could not start Live Activity: \(error.localizedDescription)")
             Self.log.error("Activity.request failed: \(error.localizedDescription, privacy: .public)")
             activity = nil
         }

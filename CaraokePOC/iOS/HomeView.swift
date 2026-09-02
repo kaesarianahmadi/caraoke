@@ -69,6 +69,17 @@ struct HomeView: View {
             .padding()
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
 
+            // Live Activity diagnostic — makes a no-show observable on device
+            // instead of a silent failure (cost us a test round-trip on
+            // build 4).
+            if !model.activityStatus.isEmpty {
+                Text(model.activityStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+            }
+
             Spacer()
         }
         .padding(.horizontal)

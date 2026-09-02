@@ -26,6 +26,8 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var elapsedMs = 0
     @Published private(set) var currentLine = ""
     @Published private(set) var nextLine: String?
+    /// Latest Live Activity diagnostic (why it did/didn't appear).
+    @Published private(set) var activityStatus = ""
 
     private var rideModel = RideModeModel()
     private let track = DemoLyrics.track
@@ -42,6 +44,12 @@ final class RideModeViewModel: ObservableObject {
 
     /// Ride length across all rides (for the Settings screen).
     var totalRideMs: Int { rideModel.totalRideMs }
+
+    init() {
+        activity.onDiagnostic = { [weak self] message in
+            self?.activityStatus = message
+        }
+    }
 
     func resetStats() {
         rideModel.resetStats()
