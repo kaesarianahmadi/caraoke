@@ -8,7 +8,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "5"
+    CURRENT_PROJECT_VERSION: "6"
     GENERATE_INFOPLIST_FILE: false
     TARGETED_DEVICE_FAMILY: "1"
 targets:
@@ -50,7 +50,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.caraoke.ios.widgets
         INFOPLIST_FILE: iOS/WidgetInfo.plist
-        CODE_SIGN_ENTITLEMENTS: iOS/Caraoke.entitlements
+        CODE_SIGN_ENTITLEMENTS: iOS/CaraokeWidgets.entitlements
   CaraokeCoreTests:
     type: bundle.unit-test
     platform: iOS
