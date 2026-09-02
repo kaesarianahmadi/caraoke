@@ -41,6 +41,8 @@
 	<array>
 		<integer>1</integer>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
