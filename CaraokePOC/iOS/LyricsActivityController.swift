@@ -28,10 +28,15 @@ final class CaraokeActivityController {
     private var throttle = ActivityUpdateThrottle(minInterval: CaraokeActivityController.minLineUpdateInterval)
     private var endTask: Task<Void, Never>?
     private var stateWatcher: Task<Void, Never>?
+    private var pushTokenTask: Task<Void, Never>?
     private var pendingTask: Task<Void, Never>?
     private var pendingContent: LyricsActivityAttributes.ContentState?
     private var lastSentTrackKey: String?
     private var lastSentIsPlaying: Bool?
+
+    /// Delivers the activity's APNs push token as it arrives/rotates, so the
+    /// relay client can register the app-side session (mechanism #2).
+    var onPushToken: ((Data) -> Void)?
 
     var isActive: Bool { activity != nil }
 
@@ -106,12 +111,18 @@ final class CaraokeActivityController {
     private func beginSession(snapshot: LyricSnapshot) {
         guard activity == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         do {
+            // pushType: .liveActivity makes the activity subscribable to APNs
+            // pushes (mechanism #2) and exposes its push token; the widget is
+            // unchanged — a pushed ContentState renders exactly like a local
+            // update. Falls back to a local-only activity on any failure.
             let requested = try Activity.request(
                 attributes: LyricsActivityAttributes(),
-                content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil)
+                content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil),
+                pushType: .liveActivity
             )
             activity = requested
             watch(requested)
+            observePushToken(requested)
             throttle.noteSent(now: Date())
             lastSentTrackKey = Self.trackKey(for: snapshot)
             lastSentIsPlaying = snapshot.isPlaying
@@ -123,6 +134,17 @@ final class CaraokeActivityController {
         } catch {
             Self.log.error("Activity.request failed: \(error.localizedDescription, privacy: .public)")
             activity = nil
+        }
+    }
+
+    /// Streams the activity's push token (APNs tokens rotate; a fresh token
+    /// invalidates the old one, so the relay must re-register on each emit).
+    private func observePushToken(_ requested: Activity<LyricsActivityAttributes>) {
+        pushTokenTask?.cancel()
+        pushTokenTask = Task { [weak self] in
+            for await token in requested.pushToken {
+                self?.onPushToken?(token)
+            }
         }
     }
 

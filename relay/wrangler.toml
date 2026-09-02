@@ -1,0 +1,10 @@
+name = "caraoke-lyrics-relay"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+[durable_objects]
+bindings = [{ name = "LyricsSession", class_name = "LyricsSession" }]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["LyricsSession"]

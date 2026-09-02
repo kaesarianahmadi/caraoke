@@ -26,14 +26,17 @@ final class RidePlaybackController: ObservableObject {
     private let spotify: SpotifySource
     private let coordinator: NowPlayingCoordinator
     private let engine: SyncEngine
+    private let relay: LyricsRelayClient
     private var cancellables: Set<AnyCancellable> = []
     private var lastLyricsKey: String?
 
     init(activity: CaraokeActivityController,
          provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider(),
-         spotifyAuth: SpotifyAuth? = nil) {
+         spotifyAuth: SpotifyAuth? = nil,
+         relay: LyricsRelayClient = LyricsRelayClient()) {
         self.activity = activity
         self.provider = provider
+        self.relay = relay
         self.apple = AppleMusicSource()
         self.spotifyAuth = spotifyAuth ?? SpotifyAuth()
         self.spotify = SpotifySource(tokenProvider: self.spotifyAuth)
@@ -46,6 +49,11 @@ final class RidePlaybackController: ObservableObject {
         // gated Spotify source must still announce its idle state or Apple
         // Music updates would be silently swallowed.
         spotify.emitIdle()
+        // Relay (mechanism #2): the activity's push token + the lyric
+        // schedule together arm the background push session.
+        activity.onPushToken = { [weak self] token in
+            Task { @MainActor [weak self] in self?.relay.setPushToken(token) }
+        }
         wire()
     }
 
@@ -91,7 +99,24 @@ final class RidePlaybackController: ObservableObject {
             self?.engine.setLyrics(
                 track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
             )
+            self?.armRelay(track: track)
         }
+    }
+
+    /// Arms the background relay with the lyric schedule + the track's
+    /// wall-clock start (anchor.capturedAt - positionMs). The relay client
+    /// holds it until the activity's push token arrives, then POSTs once.
+    private func armRelay(track: LyricTrack) {
+        guard let anchor = engine.anchor else { return }
+        let startEpochMs = Int(anchor.capturedAt.timeIntervalSince1970 * 1000)
+            - anchor.positionMs
+        relay.register(
+            trackTitle: anchor.title,
+            trackArtist: anchor.artist,
+            lines: track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) },
+            startEpochMs: startEpochMs,
+            durationMs: anchor.durationMs
+        )
     }
 
     /// Renders the extrapolated position: UI lines + Live Activity snapshot.

@@ -16,6 +16,14 @@ enum FeatureFlags {
     /// Revisit extended quota once the business can qualify (org + scale).
     static let spotifyEnabled = true
 
+    /// Background lyric relay (mechanism #2, research/background-update-
+    /// strategy.md): the app POSTs the lyric schedule + activity push token
+    /// here once per session; the relay fires APNs live-activity pushes at
+    /// each line boundary so lyrics survive app-process suspension (driving
+    /// case). Off until a relay is deployed — the user supplies the worker
+    /// URL after provisioning the APNs push key (see relay/README.md).
+    static let relayBaseURL: URL? = nil
+
     /// Reserved for other build-gated surfaces.
     static let developmentOnlyFeatures = false
 }

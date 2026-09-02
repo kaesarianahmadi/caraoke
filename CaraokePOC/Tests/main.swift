@@ -592,6 +592,33 @@ final class TestRunner {
             check("arbiterPinnedMissing", NowPlayingArbiter.arbitrate(apple: nil, spotify: spotifyPlaying, pin: .appleMusic, previous: nil) == nil)
         }
 
+        // MARK: relay payload
+        do {
+            let lines = [LRCLine(timeMs: 0, text: "a"),
+                         LRCLine(timeMs: 4000, text: "b")]
+            let payload = LyricsRelayPayload(
+                activityPushToken: "abcd",
+                trackTitle: "T",
+                trackArtist: "A",
+                startEpochMs: 1_700_000_000_000,
+                lines: LyricsRelayPayload.lines(from: lines),
+                endAtEpochMs: 1_700_000_000_000 + 300_000
+            )
+            checkEqual("relayLinesMapped", payload.lines.count, 2)
+            checkEqual("relayLineTimes", payload.lines.map(\.t), [0, 4000])
+            checkEqual("relayLineText", payload.lines.last?.text, "b")
+            let json = try LyricsRelayPayloadEncoder.encode(payload)
+            let obj = try JSONSerialization.jsonObject(with: json) as? [String: Any]
+            check("relayJSONHasToken", obj?["activityPushToken"] as? String == "abcd")
+            check("relayJSONHasStartEpochMs", obj?["startEpochMs"] as? Int == 1_700_000_000_000)
+            check("relayJSONLinesCount", (obj?["lines"] as? [[String: Any]])?.count == 2)
+            // Sorted-keys encoding must be stable/deterministic.
+            let json2 = try LyricsRelayPayloadEncoder.encode(payload)
+            check("relayJSONDeterministic", json == json2)
+        } catch {
+            check("relayEncoding", false)
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {
