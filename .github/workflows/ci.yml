@@ -99,24 +99,43 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
-      - name: Archive with automatic signing (cloud signing live-activity profile)
+      - name: Install distribution certificate (into searchable keychain)
+        env:
+          DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+        run: |
+          printf '%s' "$DIST_CERT_P12" | base64 -d > /tmp/dist.p12
+          # Dedicated keychain (login keychain rejects scripted imports),
+          # then make it the DEFAULT keychain so Xcode's automatic signing
+          # finds the distribution identity.
+          security create-keychain -p caraoke-ci build.keychain
+          security unlock-keychain -p caraoke-ci build.keychain
+          security set-keychain-settings -lut 21600 build.keychain
+          security import /tmp/dist.p12 -P "$DIST_CERT_PASSWORD" -A -t cert -f pkcs12 \
+            -k build.keychain
+          security list-keychain -d user -s build.keychain login.keychain-db
+          security default-keychain -s build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k caraoke-ci build.keychain >/dev/null
+          rm /tmp/dist.p12
+          security find-identity -v -p codesigning build.keychain
+
+      - name: Archive with automatic signing (distribution identity)
         working-directory: CaraokePOC
         env:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
         run: |
-          # Automatic (cloud) signing is REQUIRED: the entitlement
-          # com.apple.developer.usernotifications.live-activities is an
-          # "implied capability" that Xcode adds to generated profiles ONLY
-          # when using automatic signing with -allowProvisioningUpdates.
-          # Manual/supplied ASC-API profiles never include it (verified
-          # 2026-09-02: the REST API capabilityType list has no entry for
-          # Live Activities). Without this entitlement push-type Live
-          # Activity requests fail on device with ActivityInputError 0,
-          # the relay never receives a token, and lyrics freeze on any
-          # lock/wake. Cloud signing auto-creates distribution profiles
-          # that include the implied entitlement.
+          # Automatic signing is REQUIRED: Xcode's own profile generator adds
+          # the implied entitlement com.apple.developer.usernotifications.
+          # live-activities (the ASC REST API + manual profiles cannot —
+          # verified: the API capabilityType list has no Live Activities
+          # entry; without it push-type requests fail on device with
+          # ActivityInputError 0, so the relay never gets a token and
+          # lyrics freeze on lock).
+          # CODE_SIGN_IDENTITY=Apple Distribution forces an App Store
+          # distribution profile (no device needed); the identity comes from
+          # the default keychain set above.
           xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
             -destination 'generic/platform=iOS' \
             -archivePath "$PWD/build/Caraoke.xcarchive" \
@@ -124,6 +143,8 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM="$ASC_DEVELOPMENT_TEAM" \
             archive
 
