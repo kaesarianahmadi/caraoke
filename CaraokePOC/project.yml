@@ -71,6 +71,10 @@ schemes:
       targets:
         Caraoke: all
         CaraokeWidgets: all
+    run:
+      config: Debug
+    archive:
+      config: Release
     test:
       targets:
         - CaraokeCoreTests
