@@ -20,9 +20,9 @@ enum FeatureFlags {
     /// strategy.md): the app POSTs the lyric schedule + activity push token
     /// here once per session; the relay fires APNs live-activity pushes at
     /// each line boundary so lyrics survive app-process suspension (driving
-    /// case). Off until a relay is deployed — the user supplies the worker
-    /// URL after provisioning the APNs push key (see relay/README.md).
-    static let relayBaseURL: URL? = nil
+    /// case). Deployed 2026-09-02: relay/worker.js on caraoke-lyrics.
+    /// workers.dev with APNs key 4QTX8TX9K5 (see relay/README.md).
+    static let relayBaseURL: URL? = URL(string: "https://caraoke-lyrics-relay.caraoke-lyrics.workers.dev")
 
     /// Reserved for other build-gated surfaces.
     static let developmentOnlyFeatures = false

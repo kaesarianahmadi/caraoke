@@ -87,6 +87,10 @@ async function push(env, deviceToken, aps) {
     },
     body: JSON.stringify({ aps }),
   });
+  if (res.status !== 200) {
+    // Visible in `wrangler tail` — the only way to debug APNs rejections.
+    console.log(`APNs ${res.status}: ${await res.text()}`);
+  }
   return res.status;
 }
 
@@ -104,7 +108,7 @@ function lineAt(lines, nowMs, startEpochMs) {
 }
 
 // Next line boundary strictly after nowMs, or null past the schedule end.
-function nextBoundaryAt(lines, startEpochMs, endAtEpochMs, nowMs) {
+function nextBoundaryAt(lines, startEpochMs, nowMs) {
   for (const line of lines) {
     const at = startEpochMs + line.t;
     if (at > nowMs + 250) return at; // 250 ms cushion
@@ -161,8 +165,12 @@ export class LyricsSession {
     await this.scheduleFrom(Date.now());
   }
 
-  // Fires a push at the first future line boundary, or the end event when
-  // the session is done, and re-arms itself for the next boundary.
+  // Fired by the DO alarm (one per line boundary) and by session POSTs.
+  // Push-then-arm: at each wake, push the CURRENT line, then arm for the
+  // next boundary strictly in the future. This handles both the normal
+  // path (alarm fires exactly at a boundary) and catch-up (long sleep ->
+  // several boundaries passed: one push with the current line, next arm
+  // at the following boundary).
   async scheduleFrom(nowMs) {
     const session = await this.state.storage.get("session");
     if (!session) return;
@@ -177,40 +185,19 @@ export class LyricsSession {
       return;
     }
 
-    const boundary = nextBoundaryAt(session.lines, session.startEpochMs, session.endAtEpochMs, nowMs);
-    if (boundary === null) {
-      // All lines done but the track is still within endAt: keep the last
-      // line fresh with a light heartbeat so the activity never pends.
-      await push(this.env, session.activityPushToken, {
-        timestamp: Math.floor(nowMs / 1000),
-        event: "update",
-        "content-state": contentState(session, nowMs),
-      });
-      await this.state.storage.setAlarm(new Date(Math.min(nowMs + 15_000, session.endAtEpochMs)));
-      return;
-    }
+    // Push the line that is playing RIGHT NOW (lineAt is boundary-inclusive).
+    await push(this.env, session.activityPushToken, {
+      timestamp: Math.floor(nowMs / 1000),
+      event: "update",
+      "content-state": contentState(session, nowMs),
+    });
 
-    if (boundary <= nowMs) {
-      // Already passed (clock skew): send the current line immediately,
-      // then re-arm for the next boundary in the future.
-      await push(this.env, session.activityPushToken, {
-        timestamp: Math.floor(nowMs / 1000),
-        event: "update",
-        "content-state": contentState(session, nowMs),
-      });
-      await this.scheduleFromObjectClear(boundary);
-      return;
-    }
-
-    await this.state.storage.setAlarm(new Date(boundary));
-  }
-
-  // Recursion guard: compute and arm from a boundary that's already past.
-  async scheduleFromObjectClear(fakeNow) {
-    const session = await this.state.storage.get("session");
-    if (!session) return;
-    const now = Date.now();
-    await this.state.storage.setAlarm(new Date(Math.max(now + 500, fakeNow)));
+    // Arm for the next boundary strictly after now (250 ms cushion avoids
+    // re-firing on the same instant), or a 15 s heartbeat past the last
+    // line so the tile stays fresh until endAt.
+    const boundary = nextBoundaryAt(session.lines, session.startEpochMs, nowMs);
+    const nextWake = boundary ?? Math.min(nowMs + 15_000, session.endAtEpochMs);
+    await this.state.storage.setAlarm(new Date(nextWake));
   }
 }
 
