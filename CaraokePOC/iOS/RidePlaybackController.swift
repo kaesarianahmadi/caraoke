@@ -33,10 +33,13 @@ final class RidePlaybackController: ObservableObject {
     init(activity: CaraokeActivityController,
          provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider(),
          spotifyAuth: SpotifyAuth? = nil,
-         relay: LyricsRelayClient = LyricsRelayClient()) {
+         relay: LyricsRelayClient? = nil) {
         self.activity = activity
         self.provider = provider
-        self.relay = relay
+        // Created here (MainActor-isolated init) — a default-argument
+        // expression would run in a nonisolated context and fail to call the
+        // @MainActor initializer.
+        self.relay = relay ?? LyricsRelayClient()
         self.apple = AppleMusicSource()
         self.spotifyAuth = spotifyAuth ?? SpotifyAuth()
         self.spotify = SpotifySource(tokenProvider: self.spotifyAuth)
