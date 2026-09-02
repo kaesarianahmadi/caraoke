@@ -152,6 +152,7 @@ jobs:
       - name: Export + upload to TestFlight (destination=upload)
         working-directory: CaraokePOC
         env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_KEY_PATH: ${{ env.ASC_KEY_PATH }}
           ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
