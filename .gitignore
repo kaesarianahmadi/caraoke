@@ -6,6 +6,8 @@ modulecache/
 
 # Secrets — NEVER commit
 CaraokePOC/iOS/Resources/Secrets.plist
+Apple Developer Info/
+AuthKey_*.p8
 
 # macOS
 .DS_Store
