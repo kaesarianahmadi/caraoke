@@ -111,14 +111,14 @@ final class CaraokeActivityController {
     private func beginSession(snapshot: LyricSnapshot) {
         guard activity == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         do {
-            // pushType: .liveActivity makes the activity subscribable to APNs
-            // pushes (mechanism #2) and exposes its push token; the widget is
-            // unchanged — a pushed ContentState renders exactly like a local
-            // update. Falls back to a local-only activity on any failure.
+            // pushType: .token makes the activity receive an APNs push token
+            // that a server can use to UPDATE it (mechanism #2 relay). The
+            // widget is unchanged — a pushed ContentState renders exactly like
+            // a local update. (`.liveActivity` is only for push-to-START.)
             let requested = try Activity.request(
                 attributes: LyricsActivityAttributes(),
                 content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil),
-                pushType: .liveActivity
+                pushType: .token
             )
             activity = requested
             watch(requested)
@@ -139,10 +139,12 @@ final class CaraokeActivityController {
 
     /// Streams the activity's push token (APNs tokens rotate; a fresh token
     /// invalidates the old one, so the relay must re-register on each emit).
+    /// `pushTokenUpdates` is the async sequence; `pushToken` is a one-shot
+    /// `Data?` and NOT iterable.
     private func observePushToken(_ requested: Activity<LyricsActivityAttributes>) {
         pushTokenTask?.cancel()
         pushTokenTask = Task { [weak self] in
-            for await token in requested.pushToken {
+            for await token in requested.pushTokenUpdates {
                 self?.onPushToken?(token)
             }
         }
