@@ -35,6 +35,8 @@
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Caraoke reads what song is playing on your phone so it can show synchronized lyrics on CarPlay. No music library access happens without your permission.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
