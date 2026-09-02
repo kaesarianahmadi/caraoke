@@ -32,29 +32,10 @@ function base64url(bytes) {
   return btoa(out).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-// WebCrypto ECDSA returns ASN.1 DER (r, s); JWT ES256 needs raw r||s.
-function derSignatureToRaw(der) {
-  let p = 0;
-  if (der[p++] !== 0x30) throw new Error("not a DER sequence");
-  const readInt = () => {
-    if (der[p++] !== 0x02) throw new Error("not an INTEGER");
-    const len = der[p++];
-    const start = p;
-    p += len;
-    let bytes = der.slice(start, p);
-    while (bytes.length > 32 && bytes[0] === 0) bytes = bytes.slice(1);
-    if (bytes.length > 32) throw new Error("INTEGER too long for P-256");
-    const out = new Uint8Array(32);
-    out.set(bytes, 32 - bytes.length);
-    return out;
-  };
-  const r = readInt();
-  const s = readInt();
-  const out = new Uint8Array(64);
-  out.set(r, 0);
-  out.set(s, 32);
-  return out;
-}
+// Cloudflare Workers' crypto.subtle.sign("ECDSA", ...) returns the signature
+// as RAW r||s (64 bytes for P-256), which is EXACTLY what a JWT ES256 header
+// needs. It is NOT DER-encoded. (A prior version assumed DER and threw
+// "not a DER sequence" on every push — the live-activity freeze root cause.)
 
 async function apnsProviderToken(env) {
   const der = pemToDer(env.APNS_KEY_P8);
@@ -70,7 +51,7 @@ async function apnsProviderToken(env) {
     { name: "ECDSA", hash: "SHA-256" }, key,
     new TextEncoder().encode(signingInput)
   );
-  const raw = derSignatureToRaw(new Uint8Array(sig));
+  const raw = new Uint8Array(sig); // Cloudflare Workers' WebCrypto.sign() returns raw r||s (64 bytes), not DER-encoded
   return `${signingInput}.${base64url(raw)}`;
 }
 
@@ -89,7 +70,10 @@ async function push(env, deviceToken, aps) {
   });
   if (res.status !== 200) {
     // Visible in `wrangler tail` — the only way to debug APNs rejections.
-    console.log(`APNs ${res.status}: ${await res.text()}`);
+    const body = await res.text();
+    console.log(`APNs ${res.status} ${body.slice(0, 200)}`);
+  } else {
+    console.log(`APNs 200 ok event=${aps.event} line="${(aps["content-state"]?.currentLine ?? "").slice(0, 40)}"`);
   }
   return res.status;
 }
@@ -154,8 +138,10 @@ export class LyricsSession {
     }
     const session = await request.json();
     if (!session.activityPushToken || !Array.isArray(session.lines) || !session.startEpochMs) {
+      console.log(`REJECT bad session: token=${!!session.activityPushToken} lines=${session.lines?.length} start=${session.startEpochMs}`);
       return new Response("invalid session", { status: 400 });
     }
+    console.log(`REGISTER track="${session.trackTitle}" lines=${session.lines.length} startEpochMs=${session.startEpochMs} endAt=${session.endAtEpochMs} tokenPrefix=${String(session.activityPushToken).slice(0, 8)}`);
     await this.state.storage.put("session", session);
     await this.scheduleFrom(Date.now());
     return new Response("ok", { status: 200 });
@@ -173,7 +159,10 @@ export class LyricsSession {
   // at the following boundary).
   async scheduleFrom(nowMs) {
     const session = await this.state.storage.get("session");
-    if (!session) return;
+    if (!session) {
+      console.log(`schedule: no session stored`);
+      return;
+    }
 
     if (nowMs >= session.endAtEpochMs) {
       await push(this.env, session.activityPushToken, {
@@ -182,22 +171,35 @@ export class LyricsSession {
         "content-state": contentState(session, session.endAtEpochMs),
       });
       await this.state.storage.delete("session");
+      console.log("schedule: session ended + deleted");
       return;
     }
 
     // Push the line that is playing RIGHT NOW (lineAt is boundary-inclusive).
-    await push(this.env, session.activityPushToken, {
-      timestamp: Math.floor(nowMs / 1000),
-      event: "update",
-      "content-state": contentState(session, nowMs),
-    });
+    const index = lineAt(session.lines, nowMs, session.startEpochMs);
+    const cur = index === null ? (session.lines[0]?.text ?? "") : session.lines[index].text;
+    console.log(`schedule: push line#${index} "${cur.slice(0, 30)}" now=${nowMs}`);
+    try {
+      await push(this.env, session.activityPushToken, {
+        timestamp: Math.floor(nowMs / 1000),
+        event: "update",
+        "content-state": contentState(session, nowMs),
+      });
+    } catch (err) {
+      console.log(`schedule: push threw ${err.message}`);
+    }
 
     // Arm for the next boundary strictly after now (250 ms cushion avoids
     // re-firing on the same instant), or a 15 s heartbeat past the last
     // line so the tile stays fresh until endAt.
     const boundary = nextBoundaryAt(session.lines, session.startEpochMs, nowMs);
     const nextWake = boundary ?? Math.min(nowMs + 15_000, session.endAtEpochMs);
-    await this.state.storage.setAlarm(new Date(nextWake));
+    try {
+      await this.state.storage.setAlarm(new Date(nextWake));
+      console.log(`schedule: armed next alarm in ${Math.round((nextWake - nowMs) / 1000)}s`);
+    } catch (err) {
+      console.log(`schedule: setAlarm threw ${err.message}`);
+    }
   }
 }
 

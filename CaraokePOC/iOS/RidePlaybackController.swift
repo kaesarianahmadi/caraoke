@@ -57,6 +57,9 @@ final class RidePlaybackController: ObservableObject {
         activity.onPushToken = { [weak self] token in
             Task { @MainActor [weak self] in self?.relay.setPushToken(token) }
         }
+        self.relay.onStatus = { [weak activity] message in
+            activity?.onDiagnostic?(message)
+        }
         wire()
     }
 

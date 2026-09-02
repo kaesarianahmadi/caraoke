@@ -29,6 +29,9 @@ final class LyricsRelayClient {
 
     var isEnabled: Bool { baseURL != nil }
 
+    /// Surfaced on the HomeView diagnostic line via the activity controller.
+    var onStatus: ((String) -> Void)?
+
     /// Called by the ride pipeline once a track's lyrics are known and
     /// playing. `startEpochMs` = wall-clock time the track started
     /// (= anchor.capturedAt - anchor.positionMs). Re-sends on track change.
@@ -55,7 +58,8 @@ final class LyricsRelayClient {
         trySend()
     }
 
-    /// Best effort; failures are silent (foreground path still works).
+    /// Best effort; failures are reported via `onStatus` (the foreground
+    /// playback path itself is unaffected).
     private func trySend() {
         guard isEnabled, let schedule, let token = pendingPushToken else { return }
         var payload = schedule
@@ -66,8 +70,16 @@ final class LyricsRelayClient {
         request.httpMethod = "POST"
         request.httpBody = body
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        Task {
-            _ = try? await session.data(for: request)
+        Task { [weak self] in
+            do {
+                let (_, response) = try await session.data(for: request)
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                self?.onStatus?(code == 200
+                    ? "Relay armed (APNs will update lyrics when locked)"
+                    : "Relay rejected registration (HTTP \(code))")
+            } catch {
+                self?.onStatus?("Relay unreachable: \(error.localizedDescription)")
+            }
         }
     }
 }
