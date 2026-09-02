@@ -174,7 +174,7 @@ jobs:
           EOF
           # Install committed profiles where manual export expects them
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp CaraokePOC/profiles/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          cp profiles/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
           xcodebuild -exportArchive \
             -archivePath "$PWD/build/Caraoke.xcarchive" \
             -exportOptionsPlist ExportOptions.plist \
