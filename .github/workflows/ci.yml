@@ -175,6 +175,9 @@ jobs:
           # Install committed profiles where manual export expects them
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp profiles/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          # Debug: show what the built bundle actually declares
+          APP_PLIST="$PWD/build/Caraoke.xcarchive/Products/Applications/Caraoke.app/Info.plist"
+          plutil -p "$APP_PLIST" | grep -iE 'DeviceFamily|Orientation' || echo "no plist at $APP_PLIST"
           xcodebuild -exportArchive \
             -archivePath "$PWD/build/Caraoke.xcarchive" \
             -exportOptionsPlist ExportOptions.plist \
