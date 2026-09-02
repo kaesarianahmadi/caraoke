@@ -13,8 +13,14 @@ import Combine
 @MainActor
 final class RideModeViewModel: ObservableObject {
 
-    /// Flips to `false` after Phase C device validation of the real path.
-    static let useSimulatedPlayback = true
+    /// Phase C: real playback path is LIVE (Apple Music/Spotify → arbiter →
+    /// sync engine → LRCLIB → Live Activity). The simulated demo clock is OFF
+    /// because the user's locked-phone test proved iOS suspends the app process
+    /// at ~30 s — the same suspension hits the simulated path, so the demo is
+    /// no longer a useful stand-in for the driving case (see research/
+    /// background-update-strategy.md: mechanism #2 relay is required; its
+    /// infra needs an APNs push key + a relay host, both user-supplied).
+    static let useSimulatedPlayback = false
 
     @Published private(set) var isOn = false
     @Published private(set) var elapsedMs = 0
