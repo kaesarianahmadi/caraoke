@@ -252,11 +252,17 @@ export class LyricsSession {
       // NOTHING. The tile stays until the client re-registers on resume
       // (a fresh POST with a new startEpochMs that re-enters this method
       // with isPlaying:true). No end push at track end while paused.
-      await push(this.env, session.activityPushToken, {
-        timestamp: Math.floor(nowMs / 1000),
-        event: "update",
-        "content-state": contentState(session, nowMs),
-      });
+      try {
+        await push(this.env, session.activityPushToken, {
+          timestamp: Math.floor(nowMs / 1000),
+          event: "update",
+          "content-state": contentState(session, nowMs),
+        });
+      } catch (err) {
+        // Push failure (410 Unregistered / 400 BadDeviceToken if the tile
+        // died) must not skip the alarm cleanup below.
+        console.log(`schedule: paused push threw ${err.message}`);
+      }
       await this.state.storage.deleteAlarm();
       console.log(`schedule: PAUSED (frozen push sent, no alarms)`);
       return;
