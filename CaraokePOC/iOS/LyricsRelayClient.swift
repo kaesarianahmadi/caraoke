@@ -34,9 +34,11 @@ final class LyricsRelayClient {
 
     /// Called by the ride pipeline once a track's lyrics are known and
     /// playing. `startEpochMs` = wall-clock time the track started
-    /// (= anchor.capturedAt - anchor.positionMs). Re-sends on track change.
+    /// (= anchor.capturedAt - anchor.positionMs). Re-sends on track change,
+    /// seek (new startEpochMs), and play/pause flips (isPlaying).
     func register(trackTitle: String, trackArtist: String,
-                  lines: [LRCLine], startEpochMs: Int, durationMs: Int?) {
+                  lines: [LRCLine], startEpochMs: Int, durationMs: Int?,
+                  isPlaying: Bool = true) {
         let endMs = startEpochMs + (durationMs ?? (lines.last?.timeMs ?? 0) + 30_000)
         schedule = LyricsRelayPayload(
             activityPushToken: "", // filled when the push token arrives
@@ -44,9 +46,24 @@ final class LyricsRelayClient {
             trackArtist: trackArtist,
             startEpochMs: startEpochMs,
             lines: LyricsRelayPayload.lines(from: lines),
-            endAtEpochMs: endMs
+            endAtEpochMs: endMs,
+            isPlaying: isPlaying
         )
         trySend()
+    }
+
+    /// Ride stop: tell the relay to end and drop the session so no stale
+    /// pushes continue into a tile we're about to dismiss.
+    func end() {
+        guard isEnabled else { return }
+        guard let body = try? JSONSerialization.data(withJSONObject: ["action": "end"]) else { return }
+        var request = URLRequest(url: baseURL!.appendingPathComponent("sessions"))
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        Task { [weak self] in
+            _ = try? await self?.session.data(for: request)
+        }
     }
 
     /// Called on every push-token emit from the activity (first arrival +

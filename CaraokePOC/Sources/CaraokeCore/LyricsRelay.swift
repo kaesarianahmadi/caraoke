@@ -27,6 +27,9 @@ struct LyricsRelayPayload: Equatable, Encodable {
     let lines: [Line]
     /// Wall-clock epoch ms when the session should end (track end or grace).
     let endAtEpochMs: Int
+    /// False = playback paused: the relay pushes the frozen state once and
+    /// stops scheduling until the client re-registers (isPlaying true).
+    var isPlaying: Bool = true
 
     static func lines(from lyricLines: [LRCLine]) -> [Line] {
         lyricLines.map { Line(t: $0.timeMs, text: $0.text) }

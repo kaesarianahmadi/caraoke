@@ -30,6 +30,15 @@ final class RidePlaybackController: ObservableObject {
     private let relay: LyricsRelayClient
     private var cancellables: Set<AnyCancellable> = []
     private var lastLyricsKey: String?
+    /// Last lyric track handed to the relay — re-registration on seek/pause
+    /// reuses its schedule without refetching.
+    private var lastTrack: LyricTrack?
+    private var lastRelayStartMs: Int?
+    private var lastRelayIsPlaying: Bool?
+    /// A re-registration is triggered when the track's virtual start moves by
+    /// more than this (a real seek). Smaller drift is polling jitter and the
+    /// relay schedule tolerates it; the app-side engine snaps at 2 s.
+    private let relaySeekThresholdMs = 3000
 
     init(activity: CaraokeActivityController,
          provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider(),
@@ -78,6 +87,7 @@ final class RidePlaybackController: ObservableObject {
         spotify.stop()
         engine.stopTicking()
         audioKeeper.stop()
+        relay.end()
     }
 
     private func wire() {
@@ -91,25 +101,35 @@ final class RidePlaybackController: ObservableObject {
 
     /// Feeds every arbitrated playback report into the sync engine, and — on
     /// a real track change — fetches synced lyrics (cached by the provider).
+    /// On the same track it re-arms the relay when the player seeks or
+    /// pauses/resumes (the relay otherwise holds a stale wall-clock schedule
+    /// and overwrites the tile with out-of-sync lines).
     private func handle(_ state: NowPlayingState?) {
         engine.apply(state)
         guard let state else { return }
         let key = TrackMatcher.signature(
             title: state.title, artist: state.artist, durationMs: state.durationMs
         )
-        guard key != lastLyricsKey else { return }
-        lastLyricsKey = key
-        let signature = TrackSignature(
-            title: state.title, artist: state.artist,
-            album: state.album, durationMs: state.durationMs
-        )
-        Task { [weak self] in
-            guard let track = try? await self?.provider.lyrics(for: signature) else { return }
-            self?.engine.setLyrics(
-                track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
+        guard key == lastLyricsKey else {
+            lastLyricsKey = key
+            let signature = TrackSignature(
+                title: state.title, artist: state.artist,
+                album: state.album, durationMs: state.durationMs
             )
-            self?.armRelay(track: track)
+            Task { [weak self] in
+                guard let track = try? await self?.provider.lyrics(for: signature) else { return }
+                self?.lastTrack = track
+                self?.engine.setLyrics(
+                    track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
+                )
+                self?.armRelay(track: track)
+            }
+            return
         }
+        // Same track: re-register only if a seek or play/pause flip moved the
+        // relay's timeline (the 1 s poll makes this near-instant).
+        guard lastTrack != nil else { return }
+        rearmRelayIfNeeded()
     }
 
     /// Arms the background relay with the lyric schedule + the track's
@@ -119,13 +139,29 @@ final class RidePlaybackController: ObservableObject {
         guard let anchor = engine.anchor else { return }
         let startEpochMs = Int(anchor.capturedAt.timeIntervalSince1970 * 1000)
             - anchor.positionMs
+        lastTrack = track
+        lastRelayStartMs = startEpochMs
+        lastRelayIsPlaying = anchor.isPlaying
         relay.register(
             trackTitle: anchor.title,
             trackArtist: anchor.artist,
             lines: track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) },
             startEpochMs: startEpochMs,
-            durationMs: anchor.durationMs
+            durationMs: anchor.durationMs,
+            isPlaying: anchor.isPlaying
         )
+    }
+
+    /// Deduped re-registration: only a real timeline change (seek > 3 s or a
+    /// play/pause flip) POSTs, so the 1 s poll does not spam the relay.
+    private func rearmRelayIfNeeded() {
+        guard let anchor = engine.anchor, let track = lastTrack else { return }
+        let startEpochMs = Int(anchor.capturedAt.timeIntervalSince1970 * 1000)
+            - anchor.positionMs
+        let startMoved = lastRelayStartMs.map { abs($0 - startEpochMs) > relaySeekThresholdMs } ?? false
+        let playingChanged = lastRelayIsPlaying != anchor.isPlaying
+        guard startMoved || playingChanged else { return }
+        armRelay(track: track)
     }
 
     /// Renders the extrapolated position: UI lines + Live Activity snapshot.

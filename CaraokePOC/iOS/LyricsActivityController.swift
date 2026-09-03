@@ -14,8 +14,6 @@ import os
 /// Lock Screen presentation mirrors onto CarPlay.
 @MainActor
 final class CaraokeActivityController {
-    /// Grace period with no playing snapshot before the activity ends.
-    static let endDelay: TimeInterval = 30
     /// Rapid line changes are coalesced (never dropped) to one update per
     /// this interval; the newest line always lands, at worst this late.
     /// Track changes and play/pause flips always send immediately.
@@ -26,7 +24,6 @@ final class CaraokeActivityController {
     private var activity: Activity<LyricsActivityAttributes>?
     private var policy = ActivityUpdatePolicy()
     private var throttle = ActivityUpdateThrottle(minInterval: CaraokeActivityController.minLineUpdateInterval)
-    private var endTask: Task<Void, Never>?
     private var stateWatcher: Task<Void, Never>?
     private var pushTokenTask: Task<Void, Never>?
     private var pendingTask: Task<Void, Never>?
@@ -56,14 +53,11 @@ final class CaraokeActivityController {
 
     /// Single entry point, called on every snapshot change. Starts the
     /// session activity on the first playing snapshot (requesting from the
-    /// foreground), then gates everything through policy + throttle.
+    /// foreground), then gates everything through policy + throttle. Playback
+    /// pauses do NOT end the activity (the passenger may pause at a red
+    /// light; the paused snapshot keeps the tile accurate instead). It ends
+    /// only when Ride Mode stops (endNow) or the system ends it.
     func sync(snapshot: LyricSnapshot) {
-        if snapshot.isPlaying {
-            cancelScheduledEnd()
-        } else {
-            scheduleEnd()
-        }
-
         let key = Self.trackKey(for: snapshot)
         guard policy.shouldUpdate(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying) else { return }
 
@@ -194,8 +188,6 @@ final class CaraokeActivityController {
     }
 
     func endNow() async {
-        endTask?.cancel()
-        endTask = nil
         stateWatcher?.cancel()
         stateWatcher = nil
         cancelPendingUpdate()
@@ -206,20 +198,6 @@ final class CaraokeActivityController {
     }
 
     // MARK: - Internals
-
-    private func scheduleEnd() {
-        guard endTask == nil, activity != nil else { return }
-        endTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.endDelay))
-            guard !Task.isCancelled else { return }
-            await self?.endNow()
-        }
-    }
-
-    private func cancelScheduledEnd() {
-        endTask?.cancel()
-        endTask = nil
-    }
 
     private static func trackKey(for snapshot: LyricSnapshot) -> String {
         "\(snapshot.title)|\(snapshot.artist)"
