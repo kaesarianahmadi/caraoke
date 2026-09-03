@@ -35,6 +35,7 @@ final class RidePlaybackController: ObservableObject {
     private var lastTrack: LyricTrack?
     private var lastRelayStartMs: Int?
     private var lastRelayIsPlaying: Bool?
+    private var lastRelayRegisterAt: Date?
     /// A re-registration is triggered when the track's virtual start moves by
     /// more than this (a real seek). Smaller drift is polling jitter and the
     /// relay schedule tolerates it; the app-side engine snaps at 2 s.
@@ -142,6 +143,7 @@ final class RidePlaybackController: ObservableObject {
         lastTrack = track
         lastRelayStartMs = startEpochMs
         lastRelayIsPlaying = anchor.isPlaying
+        lastRelayRegisterAt = Date()
         relay.register(
             trackTitle: anchor.title,
             trackArtist: anchor.artist,
@@ -161,6 +163,13 @@ final class RidePlaybackController: ObservableObject {
         let startMoved = lastRelayStartMs.map { abs($0 - startEpochMs) > relaySeekThresholdMs } ?? false
         let playingChanged = lastRelayIsPlaying != anchor.isPlaying
         guard startMoved || playingChanged else { return }
+        // Rate guard: Spotify's 5 s poll can wobble startEpochMs by seconds
+        // (HTTP latency), which without this would re-register every poll and
+        // burn the activity's push budget. The deviation persists in the
+        // anchor until a register lands, so the retry fires a poll or two
+        // later — seek/pause fixes still apply within seconds.
+        let now = Date()
+        if let last = lastRelayRegisterAt, now.timeIntervalSince(last) < 5 { return }
         armRelay(track: track)
     }
 
