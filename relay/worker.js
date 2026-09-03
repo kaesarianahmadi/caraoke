@@ -161,6 +161,10 @@ function nextBoundaryAt(lines, startEpochMs, nowMs) {
 }
 
 function contentState(session, nowMs) {
+  // Paused: the client froze positionMs on pause and POSTed a fresh
+  // startEpochMs = capturedAt - positionMs, so this same wall-clock now
+  // maps to the frozen line. No alarms run while paused (scheduleFrom
+  // below), so the tile keeps this state until the client resumes.
   const index = lineAt(session.lines, nowMs, session.startEpochMs);
   const currentLine = index === null ? (session.lines[0]?.text ?? "") : session.lines[index].text;
   const nextLine = index === null
@@ -173,7 +177,7 @@ function contentState(session, nowMs) {
     artist: session.trackArtist,
     currentLine,
     nextLine,
-    isPlaying: true,
+    isPlaying: session.isPlaying !== false,
     progress,
   };
 }
@@ -197,11 +201,30 @@ export class LyricsSession {
       return new Response("not found", { status: 404 });
     }
     const session = await request.json();
+    if (session.action === "end") {
+      // Explicit ride stop: push an end so a stale tile is dismissed even if
+      // the app-side activity never ended, then drop the session.
+      const stored = await this.state.storage.get("session");
+      if (stored) {
+        await push(this.env, stored.activityPushToken, {
+          timestamp: Math.floor(Date.now() / 1000),
+          event: "end",
+          "content-state": contentState(stored, Date.now()),
+        }).catch(() => {});
+        console.log(`END action — session dropped (track="${stored.trackTitle}")`);
+      } else {
+        console.log("END action — no session stored");
+      }
+      await this.state.storage.delete("session");
+      await this.state.storage.deleteAlarm();
+      return new Response("ok", { status: 200 });
+    }
     if (!session.activityPushToken || !Array.isArray(session.lines) || !session.startEpochMs) {
       console.log(`REJECT bad session: token=${!!session.activityPushToken} lines=${session.lines?.length} start=${session.startEpochMs}`);
       return new Response("invalid session", { status: 400 });
     }
-    console.log(`REGISTER track="${session.trackTitle}" lines=${session.lines.length} startEpochMs=${session.startEpochMs} endAt=${session.endAtEpochMs} tokenPrefix=${String(session.activityPushToken).slice(0, 8)}`);
+    session.isPlaying = session.isPlaying !== false; // default true
+    console.log(`REGISTER track="${session.trackTitle}" lines=${session.lines.length} startEpochMs=${session.startEpochMs} endAt=${session.endAtEpochMs} playing=${session.isPlaying} tokenPrefix=${String(session.activityPushToken).slice(0, 8)}`);
     await this.state.storage.put("session", session);
     await this.scheduleFrom(Date.now());
     return new Response("ok", { status: 200 });
@@ -221,6 +244,21 @@ export class LyricsSession {
     const session = await this.state.storage.get("session");
     if (!session) {
       console.log(`schedule: no session stored`);
+      return;
+    }
+
+    if (session.isPlaying === false) {
+      // Paused: push the frozen line once (isPlaying:false), then arm
+      // NOTHING. The tile stays until the client re-registers on resume
+      // (a fresh POST with a new startEpochMs that re-enters this method
+      // with isPlaying:true). No end push at track end while paused.
+      await push(this.env, session.activityPushToken, {
+        timestamp: Math.floor(nowMs / 1000),
+        event: "update",
+        "content-state": contentState(session, nowMs),
+      });
+      await this.state.storage.deleteAlarm();
+      console.log(`schedule: PAUSED (frozen push sent, no alarms)`);
       return;
     }
 
