@@ -51,20 +51,20 @@ final class CaraokeActivityController {
         }
     }
 
-    /// Single entry point, called on every snapshot change. Starts the
-    /// session activity on the first playing snapshot (requesting from the
-    /// foreground), then gates everything through policy + throttle. Playback
-    /// pauses do NOT end the activity (the passenger may pause at a red
-    /// light; the paused snapshot keeps the tile accurate instead). It ends
-    /// only when Ride Mode stops (endNow) or the system ends it.
+    /// Single entry point, called on every snapshot change. Gates everything
+    /// through policy + throttle. Playback pauses do NOT end the activity
+    /// (the passenger may pause at a red light; the paused snapshot keeps the
+    /// tile accurate instead). It ends only when Ride Mode stops (endNow) or
+    /// the system ends it.
     func sync(snapshot: LyricSnapshot) {
         let key = Self.trackKey(for: snapshot)
         guard policy.shouldUpdate(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying) else { return }
 
         guard let activity else {
-            // First start needs a playing snapshot. In this PoC every ride is
-            // foregrounded; the intent path (RideModeIntents) will cover the
-            // background start once real playback lands.
+            // Fallback start: a live activity can be requested only from the
+            // foreground. The ride path requests it eagerly (startIdle), so
+            // this only matters if that failed (e.g. authorization race) and
+            // the first real playing snapshot can retry.
             guard snapshot.isPlaying else { return }
             beginSession(snapshot: snapshot)
             return
@@ -85,6 +85,29 @@ final class CaraokeActivityController {
             pendingContent = content
             armPendingUpdate(after: fireIn, on: activity)
         }
+    }
+
+    /// Eager, always-on start: request the Live Activity the moment Ride Mode
+    /// turns on, with a placeholder. Lyrics fill in as soon as a song plays —
+    /// the user no longer has to play a song BEFORE enabling Ride Mode, and
+    /// the tile persists across backgrounding (requesting here happens in the
+    /// foreground where Activity.request is allowed).
+    func startIdle() {
+        guard activity == nil else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            onDiagnostic?("Live Activities are OFF — Settings → Caraoke → Live Activities")
+            return
+        }
+        let placeholder = LyricSnapshot(
+            title: "Ride Mode",
+            artist: "",
+            currentLine: "Play a song to see lyrics",
+            nextLine: nil,
+            isPlaying: false,
+            progress: 0,
+            lineIndex: nil
+        )
+        beginSession(snapshot: placeholder)
     }
 
     /// Trailing edge of the throttle: deliver the newest coalesced content

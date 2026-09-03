@@ -64,6 +64,10 @@ final class RideModeViewModel: ObservableObject {
         isOn = true
         elapsedMs = 0
         rideModel.start(at: 0)
+        // Always-on: request the Live Activity up front (foreground-only)
+        // with a placeholder, so the tile exists even before any song plays
+        // and persists when the user switches to another app.
+        activity.startIdle()
         if Self.useSimulatedPlayback {
             startDemoClock()
         } else {

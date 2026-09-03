@@ -32,7 +32,7 @@ enum SpotifyAvailability: Equatable {
 
 final class SpotifySource: NowPlayingSource {
     static let endpoint = URL(string: "https://api.spotify.com/v1/me/player/currently-playing")!
-    static let defaultActiveInterval: TimeInterval = 5
+    static let defaultActiveInterval: TimeInterval = 3
     static let idleInterval: TimeInterval = 15
 
     private let subject = CurrentValueSubject<NowPlayingState?, Never>(nil)
@@ -45,7 +45,9 @@ final class SpotifySource: NowPlayingSource {
 
     private let session: URLSession
     private let tokenProvider: any SpotifyTokenProviding
-    /// Settings-backed (3–10 s); read each cycle so changes apply immediately.
+    /// Cadence while a track is present (playing OR paused). Set by the ride
+    /// to tune the pause/resume reaction time; read each cycle so changes
+    /// apply immediately.
     var activeInterval: () -> TimeInterval = { SpotifySource.defaultActiveInterval }
 
     private var pollTask: Task<Void, Never>?
@@ -114,7 +116,12 @@ final class SpotifySource: NowPlayingSource {
                 let state = try Self.parseCurrentlyPlaying(data, capturedAt: Date())
                 subject.send(state)
                 availabilitySubject.send(.connected)
-                return state?.isPlaying == true ? activeInterval() : Self.idleInterval
+                // Stay on the fast cadence whenever a TRACK is present — even
+                // paused. Dropping to 15 s on pause made resume (and the
+                // pause icon) lag up to ~10 s: the is_playing flip is only
+                // discovered at the next poll, so the poll must stay quick
+                // while a ride is live. Only back off when nothing is playing.
+                return state != nil ? activeInterval() : Self.idleInterval
             case 204: // nothing playing
                 subject.send(nil)
                 availabilitySubject.send(.connected)

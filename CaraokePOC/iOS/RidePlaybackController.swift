@@ -40,6 +40,10 @@ final class RidePlaybackController: ObservableObject {
     /// more than this (a real seek). Smaller drift is polling jitter and the
     /// relay schedule tolerates it; the app-side engine snaps at 2 s.
     private let relaySeekThresholdMs = 3000
+    /// Seek-jitter coalescing window: while this many seconds pass since the
+    /// last register, a startMoved-only re-registration waits. Play/pause
+    /// flips bypass the window entirely.
+    private let relaySeekCoalesceSeconds: TimeInterval = 5
 
     init(activity: CaraokeActivityController,
          provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider(),
@@ -154,8 +158,12 @@ final class RidePlaybackController: ObservableObject {
         )
     }
 
-    /// Deduped re-registration: only a real timeline change (seek > 3 s or a
-    /// play/pause flip) POSTs, so the 1 s poll does not spam the relay.
+    /// Deduped re-registration: only a real timeline change (seek > 3 s) or a
+    /// play/pause flip POSTs. Flips (pause ↔ resume) are always critical and
+    /// re-register immediately — never rate-limited. Seek drift (startMoved)
+    /// is coalesced by a small window because Spotify's poll can wobble the
+    /// derived start by seconds; the deviation persists in the anchor until a
+    /// register lands, so a real seek still corrects a poll or two later.
     private func rearmRelayIfNeeded() {
         guard let anchor = engine.anchor, let track = lastTrack else { return }
         let startEpochMs = Int(anchor.capturedAt.timeIntervalSince1970 * 1000)
@@ -163,13 +171,17 @@ final class RidePlaybackController: ObservableObject {
         let startMoved = lastRelayStartMs.map { abs($0 - startEpochMs) > relaySeekThresholdMs } ?? false
         let playingChanged = lastRelayIsPlaying != anchor.isPlaying
         guard startMoved || playingChanged else { return }
-        // Rate guard: Spotify's 5 s poll can wobble startEpochMs by seconds
-        // (HTTP latency), which without this would re-register every poll and
-        // burn the activity's push budget. The deviation persists in the
-        // anchor until a register lands, so the retry fires a poll or two
-        // later — seek/pause fixes still apply within seconds.
-        let now = Date()
-        if let last = lastRelayRegisterAt, now.timeIntervalSince(last) < 5 { return }
+        // Paused timeline is frozen: positionMs doesn't move, so the derived
+        // startEpochMs drifts with capturedAt on every idle poll. A paused →
+        // paused poll has nothing new to tell the relay (the pause flip
+        // already registered the frozen schedule).
+        if !anchor.isPlaying && lastRelayIsPlaying == false { return }
+        // The seek-jitter coalescing window applies only to startMoved;
+        // play/pause flips pass through immediately.
+        if startMoved, let last = lastRelayRegisterAt,
+           Date().timeIntervalSince(last) < relaySeekCoalesceSeconds {
+            return
+        }
         armRelay(track: track)
     }
 
