@@ -29,7 +29,7 @@ final class RideAudioKeeper {
             }
             let p = try AVAudioPlayer(contentsOf: url)
             p.numberOfLoops = -1  // loop forever — one 1 s inaudible sample
-            p.Volume = 1.0      // the asset itself is already ~-68 dBFS
+            p.volume = 1.0      // the asset itself is already ~-68 dBFS
             p.play()
             player = p
             isActive = true
