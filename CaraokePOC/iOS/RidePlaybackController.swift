@@ -20,6 +20,7 @@ final class RidePlaybackController: ObservableObject {
     @Published private(set) var nextLine: String?
 
     private let activity: CaraokeActivityController
+    private let audioKeeper = RideAudioKeeper()
     private let provider: LRCLIBLyricsProvider
     private let apple: AppleMusicSource
     let spotifyAuth: SpotifyAuth
@@ -64,6 +65,7 @@ final class RidePlaybackController: ObservableObject {
     }
 
     func start() {
+        audioKeeper.start()
         apple.start()
         if FeatureFlags.spotifyEnabled {
             spotify.start()
@@ -75,6 +77,7 @@ final class RidePlaybackController: ObservableObject {
         apple.stop()
         spotify.stop()
         engine.stopTicking()
+        audioKeeper.stop()
     }
 
     private func wire() {

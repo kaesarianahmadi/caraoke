@@ -37,7 +37,14 @@ function base64url(bytes) {
 // needs. It is NOT DER-encoded. (A prior version assumed DER and threw
 // "not a DER sequence" on every push — the live-activity freeze root cause.)
 
-async function apnsProviderToken(env) {
+// APNs provider-token budget: Apple requires updating the auth token NO MORE
+// THAN ONCE EVERY 20 MINUTES (TooManyProviderTokenUpdates otherwise; each
+// dropped push = a skipped lyric line on the lock screen). One token is valid
+// for up to an hour, so reuse a single cached token and rotate conservatively.
+let providerTokenCache = null; // { token, issuedAtMs }
+const PROVIDER_TOKEN_TTL_MS = 30 * 60 * 1000; // rotate well within the hour
+
+async function buildProviderToken(env) {
   const der = pemToDer(env.APNS_KEY_P8);
   const key = await crypto.subtle.importKey(
     "pkcs8", der,
@@ -51,13 +58,24 @@ async function apnsProviderToken(env) {
     { name: "ECDSA", hash: "SHA-256" }, key,
     new TextEncoder().encode(signingInput)
   );
-  const raw = new Uint8Array(sig); // Cloudflare Workers' WebCrypto.sign() returns raw r||s (64 bytes), not DER-encoded
+  const raw = new Uint8Array(sig); // raw r||s (64 bytes)
   return `${signingInput}.${base64url(raw)}`;
 }
 
+async function apnsProviderToken(env, forceNew = false) {
+  const now = Date.now();
+  if (!forceNew && providerTokenCache && now - providerTokenCache.issuedAtMs < PROVIDER_TOKEN_TTL_MS) {
+
+    return providerTokenCache.token;
+}
+  const token = await buildProviderToken(env);
+  providerTokenCache = { token, issuedAtMs: now };
+  return token;
+}
+
 async function push(env, deviceToken, aps) {
-  const token = await apnsProviderToken(env);
-  const res = await fetch(`${APNS_HOST}/3/device/${deviceToken}`, {
+  let token = await apnsProviderToken(env);
+  let res = await fetch(`${APNS_HOST}/3/device/${deviceToken}`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${token}`,
@@ -72,6 +90,48 @@ async function push(env, deviceToken, aps) {
     // Visible in `wrangler tail` — the only way to debug APNs rejections.
     const body = await res.text();
     console.log(`APNs ${res.status} ${body.slice(0, 200)}`);
+    // Stale/rotated provider token: rotate once and retry.
+    if (res.status === 403 && (body.includes("ExpiredProviderToken") || body.includes("InvalidProviderToken"))) {
+      console.log("provider token invalid — rotating and retrying once");
+      providerTokenCache = null;
+      token = await apnsProviderToken(env, true);
+      const retry = await fetch(`${APNS_HOST}/3/device/${deviceToken}`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "apns-topic": `${env.APP_BUNDLE_ID}.push-type.liveactivity`,
+          "apns-push-type": "liveactivity",
+          "apns-priority": "10",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ aps }),
+      });
+      if (retry.status !== 200) {
+        console.log(`APNs-retry ${retry.status} ${(await retry.text()).slice(0, 200)}`);
+      } else {
+        console.log(`APNs 200 ok (after rotation) event=${aps.event} line="${(aps["content-state"]?.currentLine ?? "").slice(0, 40)}"`);
+      }
+      return retry.status;
+    }
+    // Environment A/B probe: a 403 BadEnvironmentKeyInToken on production can
+    // mean the TOKEN is sandbox-environment (TestFlight behavior is disputed)
+    // or the KEY is sandbox-scoped. Retrying the same push on sandbox tells
+    // the two apart: BadDeviceToken => token is production (key is at fault);
+    // 200/other => the token is sandbox and the host choice must follow.
+    if (res.status === 403 && body.includes("BadEnvironmentKeyInToken")) {
+      const sandbox = await fetch(`https://api.sandbox.push.apple.com/3/device/${deviceToken}`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "apns-topic": `${env.APP_BUNDLE_ID}.push-type.liveactivity`,
+          "apns-push-type": "liveactivity",
+          "apns-priority": "10",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ aps }),
+      });
+      console.log(`APNs SANDBOX-PROBE ${sandbox.status} ${(await sandbox.text()).slice(0, 200)}`);
+    }
   } else {
     console.log(`APNs 200 ok event=${aps.event} line="${(aps["content-state"]?.currentLine ?? "").slice(0, 40)}"`);
   }
