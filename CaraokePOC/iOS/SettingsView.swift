@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showAppearanceSheet = false
     @State private var spotifyFlowExpanded = false
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -40,6 +41,20 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Design back arrow (settings.html header) — dismisses the
+                // sheet back to Home.
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(AppTheme.fg(scheme))
+                    }
+                    .accessibilityLabel("Back")
+                }
+            }
         }
         .preferredColorScheme(AppearanceSettings.preferredScheme)
         .sheet(isPresented: $showAppearanceSheet) {
