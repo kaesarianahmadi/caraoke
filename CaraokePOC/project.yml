@@ -50,6 +50,7 @@ targets:
       - iOS/LyricsActivityAttributes.swift
       - iOS/LyricTileView.swift
       - iOS/AppTheme.swift
+      - iOS/TransportIntents.swift
       - Sources/CaraokeCore/LyricStatus.swift
     settings:
       base:
