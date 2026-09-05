@@ -26,6 +26,7 @@ struct SettingsView: View {
                 AppTheme.background(scheme)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        caraokePlusSection
                         connectMusicSection
                         appearanceSection
                         supportSection
@@ -82,32 +83,40 @@ struct SettingsView: View {
         .frame(width: 29, height: 29)
     }
 
-    // MARK: - Connect music (+ Caraoke Plus + Spotify flow)
+    // MARK: - Caraoke Plus (subscription entry; own group above Connect music)
+
+    private var caraokePlusSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionLabel("Caraoke Plus")
+            group {
+                Button { presentingPaywall.wrappedValue = true } label: {
+                    gRow {
+                        iconCircle("star.fill")
+                        Text("Plans & pricing").gLabel()
+                        Text("View").gValue(scheme)
+                        Image(systemName: "chevron.right").gChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Connect music (+ Spotify Client-ID flow)
 
     @ViewBuilder
     private var connectMusicSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionLabel("Connect music")
             group {
-                Button { presentingPaywall.wrappedValue = true } label: {
-                    gRow {
-                        iconCircle("star.fill")
-                        Text("Caraoke Plus").gLabel()
-                        Text("View").gValue(scheme)
-                        Image(systemName: "chevron.right").gChevron()
-                    }
-                }
-                .buttonStyle(.plain)
-                rowDivider()
+                appleMusicRow
                 if FeatureFlags.spotifyEnabled {
+                    rowDivider()
                     spotifyRow
                     if spotifyFlowExpanded {
                         spotifyFlow
-                        rowDivider()
                     }
-                    rowDivider()
                 }
-                appleMusicRow
             }
             Text("Pick the app Caraoke listens to for track and timing data.")
                 .gNote(scheme)

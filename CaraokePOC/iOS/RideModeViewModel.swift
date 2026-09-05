@@ -1,6 +1,5 @@
 import SwiftUI
 import Combine
-import MediaPlayer
 import os
 
 /// The ride controller: owns Ride Mode state and the Live Activity.
@@ -44,11 +43,10 @@ final class RideModeViewModel: ObservableObject {
         return min(1, Double(positionMs) / Double(durationMs))
     }
 
-    /// Apple Music is "connected" when the system player is authorized to
-    /// report playback (the app never needs the user's Apple ID for this).
-    var appleMusicConnected: Bool {
-        MPMusicPlayerController.systemMusicPlayer != nil
-    }
+    /// Apple Music is always available as a source — the app reads the system
+    /// player (MPMusicPlayerController), so the design's "Connected" state is
+    /// unconditional for it.
+    var appleMusicConnected: Bool { true }
 
     /// Spotify connection state — one shared auth object for the whole app
     /// (Settings connect flow and the playback pipeline's SpotifySource both
