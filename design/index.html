@@ -1,0 +1,112 @@
+<!doctype html>
+<!--
+  Caraoke · Screen index — launcher for the UI preview build (HTML/CSS mockups
+  for the SwiftUI target, caraoke-mvp-prd.md §7.3).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Caraoke — Screens</title>
+<style>
+  :root {
+    --bg:      oklch(0.16 0.015 260);
+    --surface: oklch(0.21 0.018 260);
+    --fg:      oklch(0.95 0.005 260);
+    --muted:   oklch(0.62 0.012 260);
+    --border:  oklch(0.30 0.015 260);
+    --accent:  oklch(0.78 0.16 55);
+    --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --radius-card: 18px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: radial-gradient(60% 80% at 50% 0%, color-mix(in oklch, var(--accent) 5%, var(--bg)) 0%, var(--bg) 60%);
+    color: var(--fg); font-family: var(--font-body);
+    display: grid; place-items: center; padding: 32px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: 100%; max-width: 420px; }
+  h1 { font-size: 26px; letter-spacing: -0.02em; }
+  .brandrow { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
+  .brandrow svg { width: 34px; height: 34px; color: var(--accent); }
+  p.sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; line-height: 1.5; }
+  .card {
+    display: block; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-card); padding: 16px; margin-bottom: 12px;
+    text-decoration: none; color: inherit; cursor: pointer;
+    transition: border-color 120ms ease;
+  }
+  .card:hover { border-color: color-mix(in oklch, var(--fg) 30%, var(--border)); }
+  .card strong { display: block; font-size: 15px; margin-bottom: 3px; }
+  .card span { color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 20px; line-height: 1.5; }
+
+  /* ─── appearance: auto (follows the device), or forced in Settings ──── */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-appearance="dark"]) {
+      --bg:      oklch(0.972 0.005 260);
+      --surface: oklch(1 0 0);
+      --fg:      oklch(0.235 0.018 260);
+      --muted:   oklch(0.47 0.015 260);
+      --border:  oklch(0.895 0.008 260);
+      --accent:  oklch(0.585 0.125 55);
+    }
+  }
+  :root[data-appearance="light"] {
+    --bg:      oklch(0.972 0.005 260);
+    --surface: oklch(1 0 0);
+    --fg:      oklch(0.235 0.018 260);
+    --muted:   oklch(0.47 0.015 260);
+    --border:  oklch(0.895 0.008 260);
+    --accent:  oklch(0.585 0.125 55);
+  }
+</style>
+<script>
+  // Inherit the appearance chosen in Settings (light / dark / auto).
+  try {
+    var a = localStorage.getItem('caraoke-appearance');
+    if (a === 'light' || a === 'dark') document.documentElement.setAttribute('data-appearance', a);
+  } catch (e) {}
+</script>
+</head>
+<body>
+  <div class="wrap" data-od-id="index">
+    <div class="brandrow" data-od-id="index-brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M53.3 17.1A26 26 0 1 0 53.3 46.9" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+        <ellipse cx="20.2" cy="41.3" rx="4.5" ry="3.4" transform="rotate(-16 20.2 41.3)" fill="currentColor"/>
+        <ellipse cx="32.5" cy="39.2" rx="4.5" ry="3.4" transform="rotate(-16 32.5 39.2)" fill="currentColor"/>
+        <path d="M22.2 23.2h3.2v18.1h-3.2z" fill="currentColor"/>
+        <path d="M34.5 20.1h3.2v19.1h-3.2z" fill="currentColor"/>
+        <path d="M22.2 19.8 37.7 15.4v4.9L22.2 24.7z" fill="currentColor"/>
+        <path d="M42.5 25v10l8.4-5z" fill="currentColor"/>
+      </svg>
+      <h1>Caraoke</h1>
+    </div>
+    <p class="sub">HTML/CSS mockups of the Live Lyrics MVP. Handoff target is SwiftUI (CarPlay + iPhone, Live Activities) — these static previews lock the layout and copy before native build. Light &amp; dark follows the device, or pick Light / Dark in Settings.</p>
+
+    <a class="card" href="screens/home.html" data-od-id="go-home">
+      <strong>Caraoke — home</strong>
+      <span>Master switch on top of unified music player block (identical to Live Activity) with live lyrics, music sources with service marks. States A–D switchable (chips above the phone).</span>
+    </a>
+    <a class="card" href="screens/settings.html" data-od-id="go-settings">
+      <strong>Settings</strong>
+      <span>The MVP set: Connect music with service marks, Appearance with sheet picker (Auto / Light / Dark), Support us, Contact &amp; about.</span>
+    </a>
+    <a class="card" href="screens/live-activity.html" data-od-id="go-live-activity">
+      <strong>Live Activity</strong>
+      <span>The product surface — Lock Screen banner, CarPlay hero tile, Dynamic Island compact/expanded/minimal. Current + next line, five states, dark glass; simplified lyrics focus.</span>
+    </a>
+
+    <footer data-od-id="colophon">
+      Design system: Night Podium — amber on a dark stage, SF system type; Appearance: Auto follows the system, force Light or Dark in Settings.<br />
+      Data model &amp; states: caraoke-mvp-prd.md §5 · Visual spec: §7.
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,5 +1,7 @@
 import SwiftUI
 import Combine
+import MediaPlayer
+import os
 
 /// The ride controller: owns Ride Mode state and the Live Activity.
 ///
@@ -26,14 +28,49 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var elapsedMs = 0
     @Published private(set) var currentLine = ""
     @Published private(set) var nextLine: String?
-    /// Latest Live Activity diagnostic (why it did/didn't appear).
-    @Published private(set) var activityStatus = ""
+    /// Now-playing identity + clock, bridged from the real playback pipeline
+    /// so the home screen's player card matches the Lock Screen tile.
+    @Published private(set) var trackTitle = ""
+    @Published private(set) var trackArtist = ""
+    @Published private(set) var positionMs = 0
+    @Published private(set) var durationMs: Int?
+    @Published private(set) var lyricStatus: LyricStatus = .idle
+
+    // Home screen bindings (design states A–D).
+
+    /// Player-card progress 0–1 (from the pipeline anchor; demo = derived).
+    var progress: Double {
+        guard let durationMs, durationMs > 0 else { return 0 }
+        return min(1, Double(positionMs) / Double(durationMs))
+    }
+
+    /// Apple Music is "connected" when the system player is authorized to
+    /// report playback (the app never needs the user's Apple ID for this).
+    var appleMusicConnected: Bool {
+        MPMusicPlayerController.systemMusicPlayer != nil
+    }
+
+    /// Spotify connection state — one shared auth object for the whole app
+    /// (Settings connect flow and the playback pipeline's SpotifySource both
+    /// read this instance, so "Connected" in Settings is the same session the
+    /// pipeline uses).
+    @Published private(set) var spotifyConnected = false
+
+    /// Single SpotifyAuth for Settings + pipeline. Exposed read-only.
+    let spotifyAuth = SpotifyAuth()
+
+    /// Non-nil when the Live Activities gate is blocking (design state D):
+    /// authorization denied at the system level.
+    var liveActivityGateMessage: String? {
+        guard activity.authorizationDenied else { return nil }
+        return "Live Activities is off"
+    }
 
     private var rideModel = RideModeModel()
     private let track = DemoLyrics.track
     private let activity = CaraokeActivityController()
     private var clockTask: Task<Void, Never>?
-    private lazy var realPlayback = RidePlaybackController(activity: activity)
+    private lazy var realPlayback = RidePlaybackController(activity: activity, spotifyAuth: spotifyAuth)
     private var playbackCancellables: Set<AnyCancellable> = []
 
     /// 1 tick per second simulates playback; lyrics advance by their own
@@ -46,9 +83,15 @@ final class RideModeViewModel: ObservableObject {
     var totalRideMs: Int { rideModel.totalRideMs }
 
     init() {
-        activity.onDiagnostic = { [weak self] message in
-            self?.activityStatus = message
+        // Diagnostics (why the activity did/didn't appear) go to the console
+        // log — the locked Home design has no diagnostic line.
+        activity.onDiagnostic = { message in
+            Logger(subsystem: "com.caraoke.poc", category: "ride").info("\(message, privacy: .public)")
         }
+        // Mirror the shared auth's connection state for the home screen.
+        spotifyAuth.$isConnected
+            .map { $0 }
+            .assign(to: &$spotifyConnected)
     }
 
     func resetStats() {
@@ -105,7 +148,18 @@ final class RideModeViewModel: ObservableObject {
         // pipeline also drives the Live Activity directly.
         realPlayback.$currentLine.assign(to: &$currentLine)
         realPlayback.$nextLine.assign(to: &$nextLine)
+        realPlayback.$trackTitle.assign(to: &$trackTitle)
+        realPlayback.$trackArtist.assign(to: &$trackArtist)
+        realPlayback.$positionMs.assign(to: &$positionMs)
+        realPlayback.$durationMs.assign(to: &$durationMs)
         playbackCancellables.removeAll()
+        // Status isn't @Published on the controller (write-once per track),
+        // so copy it on every tick alongside the playhead.
+        realPlayback
+            .$positionMs
+            .receive(on: RunLoop.main)
+            .map { [weak realPlayback] _ in realPlayback?.lyricState ?? .idle }
+            .assign(to: &$lyricStatus)
     }
 
     private func pushSnapshot() {

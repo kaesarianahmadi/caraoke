@@ -42,6 +42,13 @@ final class CaraokeActivityController {
 
     var isActive: Bool { activity != nil }
 
+    /// True when the system-level Live Activities toggle for this app is off
+    /// (design state D) — the Home gate banner and "Needs attention" row key
+    /// off this.
+    var authorizationDenied: Bool {
+        !ActivityAuthorizationInfo().areActivitiesEnabled
+    }
+
     init() {
         // Clean up activities orphaned by a previous app termination.
         Task {
@@ -105,6 +112,9 @@ final class CaraokeActivityController {
             nextLine: nil,
             isPlaying: false,
             progress: 0,
+            status: .idle,
+            positionMs: 0,
+            durationMs: nil,
             lineIndex: nil
         )
         beginSession(snapshot: placeholder)
@@ -233,7 +243,10 @@ final class CaraokeActivityController {
             currentLine: snapshot.currentLine,
             nextLine: snapshot.nextLine,
             isPlaying: snapshot.isPlaying,
-            progress: snapshot.progress
+            progress: snapshot.progress,
+            status: snapshot.status.rawValue,
+            positionMs: snapshot.positionMs,
+            durationMs: snapshot.durationMs
         )
     }
 }

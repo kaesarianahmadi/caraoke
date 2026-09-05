@@ -7,7 +7,9 @@ struct LyricSnapshotBuilder {
                          title: String,
                          artist: String,
                          positionMs: Int,
-                         isPlaying: Bool) -> LyricSnapshot {
+                         isPlaying: Bool,
+                         status: LyricStatus = .playing,
+                         durationMs: Int? = nil) -> LyricSnapshot {
         LyricSnapshot(
             title: title,
             artist: artist,
@@ -15,6 +17,9 @@ struct LyricSnapshotBuilder {
             nextLine: track.nextLine(after: positionMs)?.text,
             isPlaying: isPlaying,
             progress: track.progress(at: positionMs),
+            status: status,
+            positionMs: positionMs,
+            durationMs: durationMs ?? track.durationMs,
             lineIndex: track.lineIndex(at: positionMs)
         )
     }

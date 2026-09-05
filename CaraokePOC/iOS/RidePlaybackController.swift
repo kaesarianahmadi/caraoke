@@ -18,6 +18,14 @@ final class RidePlaybackController: ObservableObject {
 
     @Published private(set) var currentLine = ""
     @Published private(set) var nextLine: String?
+    /// Track identity + playback clock the home screen's player card shows.
+    @Published private(set) var trackTitle = ""
+    @Published private(set) var trackArtist = ""
+    @Published private(set) var positionMs = 0
+    @Published private(set) var durationMs: Int?
+
+    /// Lyrics load state — drives the tile's status badge (design states).
+    private(set) var lyricState: LyricStatus = .idle
 
     private let activity: CaraokeActivityController
     private let audioKeeper = RideAudioKeeper()
@@ -121,13 +129,19 @@ final class RidePlaybackController: ObservableObject {
                 title: state.title, artist: state.artist,
                 album: state.album, durationMs: state.durationMs
             )
+            lyricState = .loading
             Task { [weak self] in
-                guard let track = try? await self?.provider.lyrics(for: signature) else { return }
-                self?.lastTrack = track
-                self?.engine.setLyrics(
+                guard let self else { return }
+                guard let track = try? await self.provider.lyrics(for: signature) else {
+                    self.lyricState = .noLyrics
+                    return
+                }
+                self.lastTrack = track
+                self.engine.setLyrics(
                     track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
                 )
-                self?.armRelay(track: track)
+                self.armRelay(track: track)
+                self.lyricState = .playing // render() refines play vs pause
             }
             return
         }
@@ -190,15 +204,32 @@ final class RidePlaybackController: ObservableObject {
         guard let position else { return }
         currentLine = position.currentLine ?? ""
         nextLine = position.nextLine
+        let anchor = engine.anchor
+        // Design status ladder: fetch in progress → "loading"; fetch failed →
+        // "no lyrics"; otherwise playing / paused from the clock.
+        let state: LyricStatus
+        switch lyricState {
+        case .loading, .noLyrics:
+            state = lyricState
+        default:
+            state = position.isPlaying ? .playing : .paused
+        }
         let snapshot = LyricSnapshot(
-            title: engine.anchor?.title ?? "",
-            artist: engine.anchor?.artist ?? "",
+            title: anchor?.title ?? "",
+            artist: anchor?.artist ?? "",
             currentLine: position.currentLine ?? "",
             nextLine: position.nextLine,
             isPlaying: position.isPlaying,
             progress: position.trackProgress,
+            status: state,
+            positionMs: position.positionMs,
+            durationMs: anchor?.durationMs,
             lineIndex: position.lineIndex
         )
+        trackTitle = anchor?.title ?? ""
+        trackArtist = anchor?.artist ?? ""
+        self.positionMs = position.positionMs
+        self.durationMs = anchor?.durationMs
         activity.sync(snapshot: snapshot)
     }
 }

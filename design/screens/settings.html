@@ -1,0 +1,513 @@
+<!doctype html>
+<!--
+  Caraoke · Settings — the MVP set per user direction: Connect music (with
+  service marks), Appearance (light / dark / follow system), Support us,
+  Contact & about. Cut per user direction: the General/Display rows, the
+  whole Live Lyrics group, and translations — the master switch lives on
+  Home, the screen stays awake by design while Live Lyrics runs, and the
+  payload carries no translation data.
+  Design system: "Night Podium"; display face = SF system stack (documented
+  deviation from the seed's serif P0 rule, matching the competitor's settings).
+  Frame, island, status bar, home indicator: from the mobile-app seed.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Caraoke — Settings</title>
+<style>
+  :root {
+    --bg:      oklch(0.16 0.015 260);
+    --surface: oklch(0.21 0.018 260);
+    --fg:      oklch(0.95 0.005 260);
+    --muted:   oklch(0.62 0.012 260);
+    --border:  oklch(0.30 0.015 260);
+    --accent:  oklch(0.78 0.16 55);
+    --accent-text: var(--accent);     /* small accent text; deepened in light mode */
+
+    --ok:   #34c759;
+    --warn: #ff9f0a;
+
+    --accent-soft: color-mix(in oklch, var(--accent) 16%, transparent);
+    --fg-soft:     color-mix(in oklch, var(--fg) 6%, transparent);
+
+    --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    --font-mono:    ui-monospace, 'SF Mono', Menlo, monospace;
+
+    --fs-h1: 26px; --fs-h2: 20px; --fs-h3: 16px; --fs-body: 15px; --fs-meta: 12px;
+    --radius-card: 18px; --radius-pill: 999px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: var(--font-body); font-size: var(--fs-body); line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    display: grid; place-items: center; padding: 32px;
+  }
+
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .caption {
+    font-family: var(--font-mono); font-size: 12px;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  .caption strong { color: var(--fg); font-weight: 500; }
+
+  /* ─── device frame (from seed) ────────────────────────────────────── */
+  .device {
+    position: relative; width: 390px; height: 844px;
+    border-radius: 56px; padding: 12px;
+    background: linear-gradient(160deg, #2a2a2c 0%, #1a1a1c 50%, #0e0e10 100%);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.04) inset,
+      0 0 0 2px #000 inset,
+      0 28px 60px -12px rgba(0,0,0,0.45),
+      0 8px 20px -8px rgba(0,0,0,0.35);
+    isolation: isolate;
+  }
+  .device::before, .device::after {
+    content: ''; position: absolute; width: 3px;
+    background: linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+    top: 100px; bottom: 100px; pointer-events: none;
+  }
+  .device::before { left: -1px; }
+  .device::after  { right: -1px; }
+  .island {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+    width: 124px; height: 36px; background: #000; border-radius: 999px; z-index: 5;
+  }
+  .btn-rail { position: absolute; width: 4px; background: #0a0a0c; border-radius: 2px; }
+  .btn-rail.left-1  { left: -3px; top: 174px; height: 32px; }
+  .btn-rail.left-2  { left: -3px; top: 220px; height: 60px; }
+  .btn-rail.left-3  { left: -3px; top: 290px; height: 60px; }
+  .btn-rail.right-1 { right: -3px; top: 250px; height: 100px; }
+  .screen {
+    position: relative; width: 100%; height: 100%;
+    background: var(--bg); border-radius: 44px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .statusbar {
+    flex: 0 0 47px; padding: 18px 26px 0;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    font-family: var(--font-body); font-size: 15px; font-weight: 600;
+    color: var(--fg); letter-spacing: -0.01em;
+  }
+  .statusbar .right { display: inline-flex; align-items: center; gap: 6px; }
+  .statusbar svg { width: 17px; height: 11px; fill: var(--fg); }
+  .statusbar .battery { width: 25px; }
+  .content {
+    flex: 1 1 auto; overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch; padding: 8px 0 28px;
+  }
+  .content::-webkit-scrollbar { display: none; }
+  .home-indicator { flex: 0 0 28px; position: relative; }
+  .home-indicator::after {
+    content: ''; position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+    width: 134px; height: 5px; background: var(--fg); border-radius: 999px; opacity: 0.85;
+  }
+
+  /* ─── settings primitives ─────────────────────────────────────────── */
+  .navrow { padding: 8px 20px 12px; display: flex; align-items: center; }
+  .navrow .back {
+    display: inline-flex; align-items: center; min-height: 44px;
+    color: var(--accent); text-decoration: none; cursor: pointer; padding-right: 8px;
+  }
+  .navrow .back svg {
+    width: 22px; height: 22px; stroke: currentColor; fill: none;
+    stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .navtitle {
+    font-family: var(--font-display); font-size: 20px; font-weight: 600;
+    letter-spacing: -0.01em; margin: 0; flex: 1; text-align: center;
+  }
+  .navrow .spacer { width: 30px; flex: 0 0 30px; }
+
+  .pad { padding-inline: 20px; }
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+  .sectionlabel {
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    margin: 0; padding: 2px 4px 8px; letter-spacing: 0.01em;
+  }
+  .group {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-card); overflow: hidden;
+  }
+  .g-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 16px; min-height: 52px;
+    border-top: 1px solid var(--border);
+  }
+  .g-row:first-child { border-top: 0; }
+  a.g-row { text-decoration: none; color: inherit; cursor: pointer; }
+  a.g-row:hover { background: color-mix(in oklch, var(--fg) 4%, transparent); }
+  .g-icon {
+    width: 29px; height: 29px; flex: 0 0 29px; border-radius: 50%;
+    display: grid; place-items: center; color: #fff;
+  }
+  .g-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .appicon {
+    width: 42px; height: 42px; flex: 0 0 42px; border-radius: 10px;
+    background: oklch(0.19 0.02 260); border: 1px solid var(--border);
+    display: grid; place-items: center; color: var(--accent);
+  }
+  .appicon svg { width: 26px; height: 26px; }
+  .g-label .abody { display: block; font-weight: 400; font-size: 13px; color: var(--muted); margin-top: 1px; }
+  .g-label { font-size: 15px; line-height: 1.25; min-width: 0; flex: 1; }
+  .g-value { color: var(--muted); font-size: 15px; flex: 0 0 auto; }
+  .g-chev { width: 8px; height: 8px; flex: 0 0 8px; border-top: 2px solid var(--muted); border-right: 2px solid var(--muted); transform: rotate(45deg); }
+  .g-note { color: var(--muted); font-size: 13px; line-height: 1.45; padding: 8px 4px 0; margin: 0; }
+  .sub-ok   { color: var(--ok); font-size: 13px; font-weight: 500; }
+  .sub-warn { color: var(--warn); font-size: 13px; font-weight: 500; }
+
+  .src-logo { width: 29px; height: 29px; flex: 0 0 29px; border-radius: 7px; display: grid; place-items: center; }
+  .src-logo svg { width: 17px; height: 17px; }
+  .src-logo.am { background: linear-gradient(180deg, #FB5C74 0%, #FA233B 100%); }   /* Apple Music mark */
+  .src-logo.sp { border-radius: 999px; background: #1DB954; overflow: hidden; }     /* Spotify mark */
+  .src-logo.sp svg { width: 100%; height: 100%; display: block; }
+  .opt-check { width: 17px; height: 17px; flex: 0 0 17px; fill: var(--ok); opacity: 0; }
+  .opt[aria-checked="true"] .opt-check { opacity: 1; }
+  button.opt { background: none; border: 0; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  button.opt:hover { background: color-mix(in oklch, var(--fg) 4%, transparent); }
+  button.opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  a.g-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+  .footnote { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 0.02em; padding: 4px 0 0; }
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  button.g-row {
+    background: none; border: 0; width: 100%; text-align: left;
+    font: inherit; color: inherit; cursor: pointer;
+  }
+  button.g-row:hover { background: color-mix(in oklch, var(--fg) 4%, transparent); }
+  button.g-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  /* ─── bottom sheet modal ────────────────────────────────────────── */
+  .sheet-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 40;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1), visibility 200ms;
+  }
+  .sheet-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+  }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-radius: 24px 24px 0 0;
+    padding: 10px 16px 28px;
+    z-index: 50;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+    transform: translateY(105%);
+    transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+    display: flex; flex-direction: column;
+  }
+  .sheet.open {
+    transform: translateY(0);
+  }
+  .sheet-handle {
+    width: 36px; height: 5px;
+    background: color-mix(in oklch, var(--fg) 22%, transparent);
+    border-radius: 999px;
+    margin: 4px auto 12px;
+  }
+  .sheet-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; padding: 0 4px;
+  }
+  .sheet-title {
+    font-family: var(--font-display);
+    font-size: 17px; font-weight: 600; color: var(--fg);
+  }
+  .sheet-done {
+    background: none; border: none;
+    color: var(--accent);
+    font-family: var(--font-body);
+    font-size: 16px; font-weight: 600;
+    cursor: pointer; padding: 4px 6px;
+  }
+  .sheet-done:hover { opacity: 0.8; }
+  .sheet-options {
+    background: var(--bg);
+    border: 1px solid var(--border);
+  }
+  /* ─── appearance: auto (follows the device), or forced in Settings ──── */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-appearance="dark"]) {
+      --bg:      oklch(0.972 0.005 260);
+      --surface: oklch(1 0 0);
+      --fg:      oklch(0.235 0.018 260);
+      --muted:   oklch(0.47 0.015 260);
+      --border:  oklch(0.895 0.008 260);
+      --accent:  oklch(0.585 0.125 55);
+      --accent-text: oklch(0.50 0.105 55);
+      --ok:   #34c759;
+      --warn: #ff9500;
+      --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+      --fg-soft:     color-mix(in oklch, var(--fg) 6%, transparent);
+    }
+    .device {
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04) inset,
+        0 0 0 2px #000 inset,
+        0 28px 60px -12px rgba(0,0,0,0.25),
+        0 8px 20px -8px rgba(0,0,0,0.14);
+    }
+  }
+  :root[data-appearance="light"] {
+    --bg:      oklch(0.972 0.005 260);
+    --surface: oklch(1 0 0);
+    --fg:      oklch(0.235 0.018 260);
+    --muted:   oklch(0.47 0.015 260);
+    --border:  oklch(0.895 0.008 260);
+    --accent:  oklch(0.585 0.125 55);
+    --accent-text: oklch(0.50 0.105 55);
+    --ok:   #34c759;
+    --warn: #ff9500;
+    --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+    --fg-soft:     color-mix(in oklch, var(--fg) 6%, transparent);
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="caption"><strong>Caraoke</strong> · Settings</div>
+
+    <div class="device" data-od-id="device">
+      <span class="btn-rail left-1"  aria-hidden></span>
+      <span class="btn-rail left-2"  aria-hidden></span>
+      <span class="btn-rail left-3"  aria-hidden></span>
+      <span class="btn-rail right-1" aria-hidden></span>
+      <span class="island"           aria-hidden></span>
+
+      <div class="screen">
+        <div class="statusbar">
+          <span class="num">9:41</span>
+          <span class="right">
+            <svg viewBox="0 0 17 11" aria-hidden>
+              <rect x="0"  y="7" width="3" height="4" rx="0.6"/>
+              <rect x="4"  y="5" width="3" height="6" rx="0.6"/>
+              <rect x="8"  y="3" width="3" height="8" rx="0.6"/>
+              <rect x="12" y="0" width="3" height="11" rx="0.6"/>
+            </svg>
+            <svg viewBox="0 0 17 11" aria-hidden>
+              <path d="M8.5 1.5C5.5 1.5 2.7 2.6 0.5 4.6L2 6.1C3.8 4.5 6.1 3.6 8.5 3.6c2.4 0 4.7 0.9 6.5 2.5l1.5-1.5c-2.2-2-5-3.1-8-3.1zM3.5 7.6L5 9.1c1-0.9 2.2-1.4 3.5-1.4 1.3 0 2.5 0.5 3.5 1.4l1.5-1.5c-1.4-1.3-3.1-2-5-2-1.9 0-3.6 0.7-5 2zM6.5 10.6l2 2 2-2c-0.5-0.5-1.2-0.8-2-0.8s-1.5 0.3-2 0.8z"/>
+            </svg>
+            <svg class="battery" viewBox="0 0 25 11" aria-hidden>
+              <rect x="0.5" y="0.5" width="21" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-opacity="0.45"/>
+              <rect x="22" y="3.5" width="1.5" height="4" rx="0.4" fill="currentColor" fill-opacity="0.45"/>
+              <rect x="2" y="2" width="18" height="7" rx="1.4"/>
+            </svg>
+          </span>
+        </div>
+
+        <main class="content" data-od-id="content">
+          <div class="navrow" data-od-id="settings-nav">
+            <a class="back" href="home.html" aria-label="Back to Home" data-od-id="settings-back">
+              <svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>
+            </a>
+            <h1 class="navtitle">Settings</h1>
+            <span class="spacer" aria-hidden></span>
+          </div>
+
+          <div class="pad stack">
+
+            <!-- CONNECT MUSIC — with the service marks -->
+            <section data-od-id="settings-sources-section">
+              <p class="sectionlabel">Connect music</p>
+              <div class="group">
+                <a class="g-row" href="#" onclick="return false">
+                  <span class="src-logo am" aria-hidden>
+                    <svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" fill="#fff" stroke="none"/></svg>
+                  </span>
+                  <span class="g-label">Apple Music</span>
+                  <span class="sub-ok">Connected</span>
+                  <span class="g-chev" aria-hidden></span>
+                </a>
+                <a class="g-row" href="#" onclick="return false">
+                  <span class="src-logo sp" aria-hidden>
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path fill="#000000" transform="matrix(1.1 0 0 1.1 -1.2 -1.2)" d="M17.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+                  </span>
+                  <span class="g-label">Spotify</span>
+                  <span class="sub-warn">Not connected</span>
+                  <span class="g-chev" aria-hidden></span>
+                </a>
+              </div>
+              <p class="g-note">Pick the app Caraoke listens to for track and timing data.</p>
+            </section>
+
+            <!-- APPEARANCE — single slot triggering bottom sheet -->
+            <section data-od-id="settings-appearance-section">
+              <p class="sectionlabel">Appearance</p>
+              <div class="group">
+                <button class="g-row" id="appearance-btn" type="button" aria-haspopup="dialog" aria-expanded="false" data-od-id="appearance-row">
+                  <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>
+                  </span>
+                  <span class="g-label">Appearance</span>
+                  <span class="g-value" id="appearance-val">Auto</span>
+                  <span class="g-chev" aria-hidden></span>
+                </button>
+              </div>
+              <p class="g-note">Dark keeps the night-drive look; Auto follows the device setting.</p>
+            </section>
+
+            <!-- SUPPORT US -->
+            <section data-od-id="settings-support-section">
+              <p class="sectionlabel">Support us</p>
+              <div class="group">
+                <a class="g-row" href="#" onclick="return false">
+                  <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                    <svg viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8z"/></svg>
+                  </span>
+                  <span class="g-label">Rate Caraoke</span>
+                  <span class="g-chev" aria-hidden></span>
+                </a>
+                <a class="g-row" href="#" onclick="return false">
+                  <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                    <svg viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg>
+                  </span>
+                  <span class="g-label">Share with friends</span>
+                  <span class="g-chev" aria-hidden></span>
+                </a>
+              </div>
+            </section>
+
+            <!-- CONTACT & ABOUT — the competitor's trio: common problem / feedback / about us -->
+            <section data-od-id="settings-contact-section">
+              <p class="sectionlabel">Contact &amp; about</p>
+              <div class="group">
+                <a class="g-row" href="#" onclick="return false">
+                  <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M5.7 5.7l3.6 3.6M14.7 14.7l3.6 3.6M18.3 5.7l-3.6 3.6M9.3 14.7l-3.6 3.6"/></svg>
+                  </span>
+                  <span class="g-label">Troubleshooting</span>
+                  <span class="g-chev" aria-hidden></span>
+                </a>
+                <a class="g-row" href="#" onclick="return false">
+                  <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                    <svg viewBox="0 0 24 24"><path d="M4 5.5h16V16h-9l-4 3.5V16H4z"/></svg>
+                  </span>
+                  <span class="g-label">Feedback</span>
+                  <span class="g-chev" aria-hidden></span>
+                </a>
+                <div class="g-row">
+                  <span class="appicon" aria-hidden>
+                    <svg viewBox="0 0 64 64">
+                      <path d="M53.3 17.1A26 26 0 1 0 53.3 46.9" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+                      <ellipse cx="20.2" cy="41.3" rx="4.5" ry="3.4" transform="rotate(-16 20.2 41.3)" fill="currentColor"/>
+                      <ellipse cx="32.5" cy="39.2" rx="4.5" ry="3.4" transform="rotate(-16 32.5 39.2)" fill="currentColor"/>
+                      <path d="M22.2 23.2h3.2v18.1h-3.2z" fill="currentColor"/>
+                      <path d="M34.5 20.1h3.2v19.1h-3.2z" fill="currentColor"/>
+                      <path d="M22.2 19.8 37.7 15.4v4.9L22.2 24.7z" fill="currentColor"/>
+                      <path d="M42.5 25v10l8.4-5z" fill="currentColor"/>
+                    </svg>
+                  </span>
+                  <span class="g-label">Caraoke<span class="abody">Version 2.4.1</span></span>
+                </div>
+              </div>
+            </section>
+
+            <p class="footnote">Caraoke 2.4.1 · Made for passengers</p>
+          </div>
+        </main>
+
+        <div class="home-indicator" aria-hidden></div>
+
+        <!-- BOTTOM SHEET MODAL (Appearance picker) -->
+        <div class="sheet-backdrop" id="sheet-backdrop" aria-hidden="true"></div>
+        <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Appearance selection">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-header">
+            <span class="sheet-title">Appearance</span>
+            <button class="sheet-done" id="sheet-done" type="button" aria-label="Done">Done</button>
+          </div>
+          <div class="sheet-options group" role="radiogroup" aria-label="Appearance options">
+            <button class="g-row opt" data-appearance="auto" role="radio" aria-checked="true">
+              <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>
+              </span>
+              <span class="g-label">Auto — follow system</span>
+              <svg class="opt-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+            <button class="g-row opt" data-appearance="light" role="radio" aria-checked="false">
+              <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>
+              </span>
+              <span class="g-label">Light</span>
+              <svg class="opt-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+            <button class="g-row opt" data-appearance="dark" role="radio" aria-checked="false">
+              <span class="g-icon" style="background: oklch(0.50 0.06 260);" aria-hidden>
+                <svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></svg>
+              </span>
+              <span class="g-label">Dark</span>
+              <svg class="opt-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Appearance: auto (follow system) / light / dark. Persisted; the other
+  // preview screens read the same key so the choice carries across.
+  var APPEARANCE_KEY = 'caraoke-appearance';
+  var appearanceRows = document.querySelectorAll('.opt');
+  var appearanceVal  = document.getElementById('appearance-val');
+  var appearanceBtn  = document.getElementById('appearance-btn');
+  var sheet          = document.getElementById('sheet');
+  var backdrop       = document.getElementById('sheet-backdrop');
+  var doneBtn        = document.getElementById('sheet-done');
+
+  var LABELS = {
+    auto: 'Auto',
+    light: 'Light',
+    dark: 'Dark'
+  };
+
+  function applyAppearance(mode) {
+    if (mode !== 'light' && mode !== 'dark') mode = 'auto';
+    document.documentElement.setAttribute('data-appearance', mode);
+    appearanceRows.forEach(function (r) {
+      r.setAttribute('aria-checked', String(r.dataset.appearance === mode));
+    });
+    if (appearanceVal) appearanceVal.textContent = LABELS[mode] || 'Auto';
+    try { localStorage.setItem(APPEARANCE_KEY, mode); } catch (e) {}
+  }
+
+  function openSheet() {
+    sheet.classList.add('open');
+    backdrop.classList.add('open');
+    appearanceBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeSheet() {
+    sheet.classList.remove('open');
+    backdrop.classList.remove('open');
+    appearanceBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  appearanceBtn.addEventListener('click', openSheet);
+  backdrop.addEventListener('click', closeSheet);
+  doneBtn.addEventListener('click', closeSheet);
+
+  appearanceRows.forEach(function (r) {
+    r.addEventListener('click', function () {
+      applyAppearance(r.dataset.appearance);
+      setTimeout(closeSheet, 180);
+    });
+  });
+
+  try { applyAppearance(localStorage.getItem(APPEARANCE_KEY)); } catch (e) { applyAppearance('auto'); }
+</script>
+</body>
+</html>

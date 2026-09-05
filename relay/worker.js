@@ -172,6 +172,12 @@ function contentState(session, nowMs) {
     : (session.lines[index + 1]?.text ?? "");
   const duration = Math.max(session.endAtEpochMs - session.startEpochMs, 1);
   const progress = Math.min(Math.max((nowMs - session.startEpochMs) / duration, 0), 1);
+  const positionMs = Math.min(Math.max(nowMs - session.startEpochMs, 0), duration);
+  const durationMs = duration;
+  // status drives the tile's 5 design states; playing/paused is all the
+  // relay ever needs to say (loading/no-lyrics never get this far, and the
+  // tile derives the rest from isPlaying when a push predates this field).
+  const status = session.isPlaying === false ? "paused" : "playing";
   return {
     title: session.trackTitle,
     artist: session.trackArtist,
@@ -179,6 +185,9 @@ function contentState(session, nowMs) {
     nextLine,
     isPlaying: session.isPlaying !== false,
     progress,
+    status,
+    positionMs,
+    durationMs,
   };
 }
 
