@@ -126,6 +126,17 @@ final class RideModeViewModel: ObservableObject {
             realPlayback.stop()
         }
         Task { await activity.endNow() }
+        // Design state C: Live Lyrics off hides the player card — drop the
+        // frozen now-playing bindings (and the bridge subscriptions) so
+        // nothing lingers on Home.
+        playbackCancellables.removeAll()
+        trackTitle = ""
+        trackArtist = ""
+        currentLine = ""
+        nextLine = nil
+        positionMs = 0
+        durationMs = nil
+        lyricStatus = .idle
     }
 
     private func startDemoClock() {

@@ -87,13 +87,14 @@ struct SettingsView: View {
         Divider().overlay(AppTheme.border(scheme))
     }
 
-    /// 29×29 circular icon slot (`.g-icon`).
+    /// 29×29 circular icon slot (`.g-icon`): the design's mid-slate disc with
+    /// a white glyph, same fill for every row in both palettes.
     private func iconCircle(_ systemName: String) -> some View {
         ZStack {
-            Circle().fill(AppTheme.fg(scheme).opacity(0.10))
+            Circle().fill(Color(hex: 0x56616F))
             Image(systemName: systemName)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(AppTheme.fg(scheme))
+                .foregroundColor(.white)
         }
         .frame(width: 29, height: 29)
     }
@@ -145,6 +146,9 @@ struct SettingsView: View {
             Text("Connected")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(AppTheme.ok)
+            // Design shows a chevron on both source rows.
+            Image(systemName: "chevron.right")
+                .gChevron()
         }
     }
 
@@ -287,13 +291,29 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionLabel("Contact & about")
             group {
+                // Troubleshooting → support mail (the site's FAQ lands at
+                // support@ until a help page ships).
                 Button {
-                    if let url = URL(string: "mailto:support@caraoke.app") {
+                    if let url = URL(string: "mailto:support@caraoke.app?subject=Troubleshooting") {
                         UIApplication.shared.open(url)
                     }
                 } label: {
                     gRow {
                         iconCircle("circle.grid.cross")
+                        Text("Troubleshooting").gLabel()
+                        Image(systemName: "chevron.right").gChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+                rowDivider()
+                // Feedback (design chat-bubble mark).
+                Button {
+                    if let url = URL(string: "mailto:support@caraoke.app?subject=Caraoke%20feedback") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    gRow {
+                        iconCircle("message.fill")
                         Text("Feedback").gLabel()
                         Image(systemName: "chevron.right").gChevron()
                     }

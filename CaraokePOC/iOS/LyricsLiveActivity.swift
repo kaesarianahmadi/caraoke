@@ -108,17 +108,20 @@ private struct IslandCompactText: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
 
     var body: some View {
-        Text(textFor(status(of: context.state)))
+        Text(Self.text(for: status(of: context.state), context: context))
             .font(.system(size: 13, weight: .semibold))
             .foregroundColor(.white)
             .lineLimit(1)
             .accessibilityHidden(true)
     }
 
-    private func textFor(_ status: LyricStatus) -> String {
+    /// Per-state line shown in the compact/minimal slots.
+    static func text(for status: LyricStatus,
+                     context: ActivityViewContext<LyricsActivityAttributes>) -> String {
         switch status {
         case .loading: return "Finding lyrics…"
-        case .noLyrics: return context.state.currentLine.isEmpty ? context.state.title : context.state.currentLine
+        case .noLyrics:
+            return context.state.currentLine.isEmpty ? context.state.title : context.state.currentLine
         case .stale: return "Ride ended"
         default:
             return context.state.currentLine.isEmpty ? "Play a song to see lyrics" : context.state.currentLine
@@ -126,17 +129,21 @@ private struct IslandCompactText: View {
     }
 }
 
-/// Minimal slot — music note + the line, per the design's `.isl.mini`.
+/// Minimal slot — music note + the line, per the design's `.isl.mini`
+/// (11px medium at 0.85, matching the tiny single-capsule width).
 private struct IslandMinimal: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
 
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: "music.note")
-                .font(.system(size: 9))
-            IslandCompactText(context: context)
+                .font(.system(size: 10, weight: .medium))
+            Text(IslandCompactText.text(for: status(of: context.state), context: context))
+                .font(.system(size: 11, weight: .medium))
         }
-        .foregroundColor(.white.opacity(0.9))
+        .foregroundColor(.white.opacity(0.85))
+        .lineLimit(1)
+        .accessibilityHidden(true)
     }
 }
 
