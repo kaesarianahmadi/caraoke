@@ -80,6 +80,10 @@ struct LyricTileView: View {
     let durationMs: Int?
     /// CarPlay small layout is more compact than the Lock Screen banner.
     let isCarPlaySmall: Bool
+    /// Home player card variant (design home.html `.la-card`): same tile
+    /// skeleton but slightly smaller type (hero 19 vs 20, next 14.5 vs 15)
+    /// and no transport row — the Lock Screen banner owns the buttons.
+    let isHome: Bool
     /// Colors. Locked LA glass by default; `.home(scheme)` for the app's
     /// player card.
     @Environment(\.colorScheme) private var scheme
@@ -90,7 +94,7 @@ struct LyricTileView: View {
     init(title: String, artist: String, currentLine: String, nextLine: String?,
          isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
          positionMs: Int = 0, durationMs: Int? = nil, isCarPlaySmall: Bool = false,
-         palette: LyricTilePalette? = nil) {
+         isHome: Bool = false, palette: LyricTilePalette? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -101,6 +105,7 @@ struct LyricTileView: View {
         self.positionMs = positionMs
         self.durationMs = durationMs
         self.isCarPlaySmall = isCarPlaySmall
+        self.isHome = isHome
         self.palette = palette
     }
 
@@ -120,7 +125,11 @@ struct LyricTileView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             lyricBody(.banner)
-            transport
+            // Transport renders on the Lock Screen banner only — never on
+            // the Home card or CarPlay.
+            if !isHome {
+                transport
+            }
             if status != .stale {
                 progressRow
             }
@@ -193,8 +202,10 @@ struct LyricTileView: View {
 
     @ViewBuilder
     private func lyricBody(_ family: Family) -> some View {
-        let heroSize: CGFloat = family == .banner ? 20 : 21
-        let nextSize: CGFloat = family == .banner ? 15 : 14
+        // Type ladder per design: Home card 19/14.5, Lock banner 20/15,
+        // CarPlay small 21/14. Clamps: banner & home 3/2, CarPlay 2/1.
+        let heroSize: CGFloat = isHome ? 19 : (family == .banner ? 20 : 21)
+        let nextSize: CGFloat = isHome ? 14.5 : (family == .banner ? 15 : 14)
         let heroClamp: Int = family == .banner ? 3 : 2
 
         switch status {

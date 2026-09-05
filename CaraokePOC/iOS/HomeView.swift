@@ -20,8 +20,9 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     switchCard
-                    // State B (idle) / C (off) hide the player card.
-                    if model.isOn || !model.trackTitle.isEmpty {
+                    // Design states A/C: card shows only with real track
+                    // content (state B — ride on, no music — hides it).
+                    if !model.trackTitle.isEmpty || !model.currentLine.isEmpty {
                         playerCard
                     }
                     sourcesSection
@@ -151,6 +152,7 @@ struct HomeView: View {
             status: model.lyricStatus,
             positionMs: model.positionMs,
             durationMs: model.durationMs,
+            isHome: true,
             palette: .home(scheme)
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
