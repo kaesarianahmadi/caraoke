@@ -31,13 +31,9 @@ struct LyricsLiveActivity: Widget {
             } compactLeading: {
                 IslandLeadingGlyph(status: status(of: context.state))
             } compactTrailing: {
-                Image(systemName: status(of: context.state) == .paused ? "pause.fill" : "play.fill")
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.9))
+                IslandCompactText(context: context)
             } minimal: {
-                Image(systemName: "music.note")
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.9))
+                IslandMinimal(context: context)
             }
         }
         .supplementalActivityFamilies([.small])
@@ -103,6 +99,44 @@ private struct IslandLeadingGlyph: View {
             }
         }
         .frame(minWidth: 24, minHeight: 24)
+    }
+}
+
+/// Compact trailing slot — the design's compact pill content: the hero line
+/// (or its per-state stand-in) in 13px semibold white, ellipsized.
+private struct IslandCompactText: View {
+    let context: ActivityViewContext<LyricsActivityAttributes>
+
+    var body: some View {
+        Text(textFor(status(of: context.state)))
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.white)
+            .lineLimit(1)
+            .accessibilityHidden(true)
+    }
+
+    private func textFor(_ status: LyricStatus) -> String {
+        switch status {
+        case .loading: return "Finding lyrics…"
+        case .noLyrics: return context.state.currentLine.isEmpty ? context.state.title : context.state.currentLine
+        case .stale: return "Ride ended"
+        default:
+            return context.state.currentLine.isEmpty ? "Play a song to see lyrics" : context.state.currentLine
+        }
+    }
+}
+
+/// Minimal slot — music note + the line, per the design's `.isl.mini`.
+private struct IslandMinimal: View {
+    let context: ActivityViewContext<LyricsActivityAttributes>
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "music.note")
+                .font(.system(size: 9))
+            IslandCompactText(context: context)
+        }
+        .foregroundColor(.white.opacity(0.9))
     }
 }
 
@@ -175,34 +209,59 @@ private struct IslandCenter: View {
     }
 }
 
-/// Expanded bottom: the source badge + inline progress (design `.ix-foot`).
+/// Expanded bottom: the source badge + inline progress (design `.ix-foot`),
+/// and below it the compact transport row (`.la-transport.sm`) — rewind /
+/// play-pause / skip, left-aligned, 28px buttons per the design.
 private struct IslandBottom: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Source badge — Apple Music in the current MVP (Spotify plays via
-            // the system player too once connected).
-            HStack(spacing: 4) {
-                Image(systemName: "music.note")
-                    .font(.system(size: 8))
-                Text("Apple Music")
-                    .font(.system(size: 10, weight: .medium))
-            }
-            .foregroundColor(.white.opacity(0.66))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                // Source badge — Apple Music in the current MVP (Spotify plays via
+                // the system player too once connected).
+                HStack(spacing: 4) {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 8))
+                    Text("Apple Music")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .foregroundColor(.white.opacity(0.66))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.18))
-                    Capsule().fill(Color.white.opacity(0.75))
-                        .frame(width: max(3, geo.size.width * CGFloat(context.state.progress)))
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.18))
+                        Capsule().fill(Color.white.opacity(0.75))
+                            .frame(width: max(3, geo.size.width * CGFloat(context.state.progress)))
+                    }
+                }
+                .frame(height: 3)
+            }
+            if status(of: context.state) != .stale {
+                HStack(spacing: 16) {
+                    Button(intent: RewindIntent()) {
+                        islandTransportIcon("backward.fill")
+                    }
+                    Button(intent: PausePlayIntent()) {
+                        islandTransportIcon(context.state.isPlaying ? "pause.fill" : "play.fill")
+                    }
+                    Button(intent: SkipIntent()) {
+                        islandTransportIcon("forward.fill")
+                    }
                 }
             }
-            .frame(height: 3)
         }
+    }
+
+    private func islandTransportIcon(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12))
+            .foregroundColor(Color.white.opacity(0.92))
+            .frame(width: 28, height: 28)
+            .contentShape(Circle())
     }
 }
 

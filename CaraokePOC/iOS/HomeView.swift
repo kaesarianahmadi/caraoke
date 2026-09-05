@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Home screen (design: design/screens/home.html, "Night Podium", states
 /// A/B/C/D): brand header + settings gear, the Live Lyrics master switch card
@@ -276,31 +277,53 @@ struct HomeView: View {
 // MARK: - Brand mark (design SVG: open-C ring + beamed note + play accent)
 
 struct BrandMark: View {
+    @Environment(\.colorScheme) private var scheme
+    /// Accent tint override (about row uses the amber accent; header the fg).
+    var tinted = false
+
     var body: some View {
+        let color = tinted ? AppTheme.accent(scheme) : AppTheme.fg(scheme)
         GeometryReader { geo in
-            let w = geo.size.width
-            Path { p in
-                // Open-C ring from the design's 64-viewBox path, scaled.
-                p.move(to: CGPoint(x: 53.3 / 64, y: 17.1 / 64))
-                p.addArc(center: CGPoint(x: 27.3 / 64, y: 32 / 64), radius: 26 / 64,
-                         startAngle: .degrees(-34.8), endAngle: .degrees(34.8),
-                         clockwise: false)
-            }
-            .stroke(style: StrokeStyle(lineWidth: 6.5 / 64, lineCap: .round))
-            .foregroundColor(AppTheme.fg(scheme))
-            .frame(width: w, height: w)
-            // Beamed note simplified: two stems + beam + two note heads.
-            VStack(spacing: 0) {
-                HStack(spacing: 0) {
-                    Rectangle().frame(width: w * 0.05, height: w * 0.28)
-                    Spacer(minLength: w * 0.14)
-                    Rectangle().frame(width: w * 0.05, height: w * 0.30)
+            // Draw in the design's 64×64 box, then scale to the slot.
+            ZStack {
+                // Open-C ring: full circle trimmed to the 290° arc, gap
+                // centered at 3 o'clock (start of the trim = 35°), stroke
+                // width 6.5 round — same geometry as the SVG arc path.
+                Circle()
+                    .trim(from: 0, to: 0.806)
+                    .stroke(style: StrokeStyle(lineWidth: 6.5, lineCap: .round))
+                    .rotationEffect(.degrees(35))
+                    .foregroundColor(color)
+
+                // Beamed note: beam + two stems + two heads (SVG layout).
+                ZStack(alignment: .bottomLeading) {
+                    // Stems
+                    Rectangle()
+                        .frame(width: 3.2, height: 18.1)
+                        .offset(x: 22.2, y: -41.3 + 3.2)
+                    Rectangle()
+                        .frame(width: 3.2, height: 19.1)
+                        .offset(x: 34.5, y: -39.2 + 3.2)
+                    // Beam across the stems' top
+                    Rectangle()
+                        .frame(width: 15.5, height: 4.9)
+                        .rotationEffect(.degrees(-4), anchor: .bottomLeading)
+                        .offset(x: 22.2, y: -23.2)
+                    // Heads
+                    Ellipse()
+                        .frame(width: 9.0, height: 6.8)
+                        .rotationEffect(.degrees(-16))
+                        .offset(x: 20.2 - 4.5 + 22.2 - 20.2, y: 41.3 - 3.4)
+                    Ellipse()
+                        .frame(width: 9.0, height: 6.8)
+                        .rotationEffect(.degrees(-16))
+                        .offset(x: 32.5 - 4.5, y: 39.2 - 3.4)
                 }
-                Rectangle().frame(height: w * 0.075)
-                    .rotationEffect(.degrees(-8))
+                .foregroundColor(color)
             }
-            .foregroundColor(AppTheme.fg(scheme))
-            .frame(width: w, height: w)
+            .frame(width: 64, height: 64)
+            .scaleEffect(geo.size.width / 64)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
         .aspectRatio(1, contentMode: .fit)
     }

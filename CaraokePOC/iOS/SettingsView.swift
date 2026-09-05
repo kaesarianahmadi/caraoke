@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Settings screen (design: design/screens/settings.html — locked 2026-09-05).
 /// Sections: Connect music (service marks), Appearance (bottom-sheet picker),
@@ -282,9 +283,8 @@ struct SettingsView: View {
 
     private var aboutRow: some View {
         gRow {
-            BrandMark()
+            BrandMark(tinted: true)
                 .frame(width: 26, height: 26)
-                .foregroundColor(AppTheme.accent(scheme))
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(AppTheme.fg(scheme).opacity(0.06)))
