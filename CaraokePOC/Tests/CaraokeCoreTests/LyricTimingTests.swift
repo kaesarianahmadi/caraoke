@@ -115,6 +115,9 @@ final class LyricTimingTests: XCTestCase {
         XCTAssertEqual(snapshot.nextLine, fixture.nextLine(after: 7000)?.text)
         XCTAssertTrue(snapshot.isPlaying)
         XCTAssertEqual(snapshot.progress, fixture.progress(at: 7000), accuracy: 0.0001)
+        XCTAssertEqual(snapshot.status, .playing)
+        XCTAssertEqual(snapshot.positionMs, 7000)
+        XCTAssertEqual(snapshot.durationMs, fixture.durationMs)
     }
 
     // MARK: Ride Mode

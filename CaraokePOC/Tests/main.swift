@@ -187,6 +187,17 @@ final class TestRunner {
         checkEqual("snapshotNext", snap.nextLine, fixture.nextLine(after: 7000)?.text)
         check("snapshotPlaying", snap.isPlaying)
         check("snapshotProgress", abs(snap.progress - fixture.progress(at: 7000)) < 0.0001)
+        checkEqual("snapshotStatus", snap.status, LyricStatus.playing)
+        checkEqual("snapshotPositionMs", snap.positionMs, 7000)
+        checkEqual("snapshotDurationMs", snap.durationMs, fixture.durationMs)
+
+        // MARK: LyricStatus badge labels
+        checkEqual("lyricStatusPlayingBadge", LyricStatus.playing.badge, "Playing")
+        checkEqual("lyricStatusPausedBadge", LyricStatus.paused.badge, "Paused")
+        checkEqual("lyricStatusNoLyricsBadge", LyricStatus.noLyrics.badge, "No lyrics")
+        checkEqual("lyricStatusLoadingBadge", LyricStatus.loading.badge, "Finding lyrics…")
+        checkEqual("lyricStatusStaleBadge", LyricStatus.stale.badge, "Ride ended")
+        checkEqual("lyricStatusIdleBadge", LyricStatus.idle.badge, nil)
 
         // MARK: Ride Mode
         var model = RideModeModel()
