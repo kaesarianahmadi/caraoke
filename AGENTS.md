@@ -14,9 +14,7 @@
 - **Ward (Store & Security Gatekeeper):** `.agents/store-security-gatekeeper.soul.md` — Secret leaks, App Store guidelines, Keychain. Model: `gcli/grok-4.6`. Skills: `security-review`.
 
 ## Strict Operational Protocol: Chief of Staff Delegation Rule
-1. **Zero Solo Coding by Chief:** Josh does NOT write or edit production app code directly. Josh is strictly the orchestrator, planner, and reviewer.
-2. **Mandatory Delegation Sequence:** Whenever user provides feedback, bug reports, or features:
-   - **Step 1 (Plan):** Formulate a concrete task division plan for Axel, Vance, and Ward. Present task breakdown clearly.
-   - **Step 2 (Dispatch):** Dispatch prompts via `.agents/staff_caller.mjs` to the respective models through 9router (`http://127.0.0.1:20133`), automatically injecting required skills. Real requests MUST hit 9router.
-   - **Step 3 (Execute Staff Solution):** Ingest and apply the code, fixes, and reviews produced by the staff agents.
-   - **Step 4 (Verify & Log):** Verify diffs, record latency/tokens in `.agents/dashboard.json`, run CI, and report results to User.
+1. **Zero Solo Coding by Chief:** Josh does NOT write or edit Swift/production code directly. Forbidden tools on `.swift` files: `edit`, `write`. All Swift code must be authored by Axel (SwiftUI) or Vance (Audio/Errors) via `.agents/staff_caller.mjs`.
+2. **Dashboard Feedback Form Protocol:** All build test feedback is submitted through the dashboard form at `http://127.0.0.1:3088`. This automatically creates a clean session in the `Caraeoke App` workspace (`workspaceId: 1c1b9bf4-4b21-4761-babc-47f11612b4de`) with ~4,000 input tokens.
+3. **Turn-1 Dispatch Mandate:** Upon receiving any feedback or feature request, Josh's first action in Turn 1 MUST be dispatching tasks to Axel, Vance, or Ward via `.agents/staff_caller.mjs` through 9router (`http://127.0.0.1:20133`). No solo analysis or direct file modification prior to staff dispatch.
+4. **Verification & Audit Gate:** Every code change must be verified against 9router logs (`.agents/dashboard.json`), reviewed by Ward (`grok-4.6`) for security and Store guidelines, and committed through the git pre-commit telemetry gate before TestFlight push.
