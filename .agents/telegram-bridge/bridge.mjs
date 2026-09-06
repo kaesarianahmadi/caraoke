@@ -10,6 +10,7 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 const DSH_API_BASE = process.env.DSH_WEB_URL || 'http://127.0.0.1:3080';
 const DSH_WS_URL = DSH_API_BASE.replace(/^http/, 'ws') + '/api/events.mux';
 const WORKSPACE_CWD = '/Users/macos/Documents/DSH Workspace/Caraeoke App';
+const DEFAULT_WORKSPACE_ID = '1c1b9bf4-4b21-4761-babc-47f11612b4de';
 const CURRENT_SESSION_ID = process.env.DSH_SESSION_ID || 'session-211d5028-a977-44ab-a502-413f418f458a';
 
 if (!fs.existsSync(CONFIG_PATH)) {
@@ -35,14 +36,65 @@ const TELEGRAM_API = `https://api.telegram.org/bot${config.bot_token}`;
 let turnCount = 0;
 const MAX_TURNS_PER_SESSION = 8; // Automatically cycle after 8 turns to keep tokens < 30k
 
+let cachedWorkspaceId = null;
+
+async function getWorkspaceId() {
+  if (cachedWorkspaceId) return cachedWorkspaceId;
+  try {
+    const res = await fetch(`${DSH_API_BASE}/api/workspace.list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: crypto.randomUUID(),
+        method: 'workspace.list',
+        payload: {}
+      })
+    });
+    const data = await res.json();
+    const items = data.result?.value?.items || [];
+    const ws = items.find(w => w.path === WORKSPACE_CWD || w.title === 'Caraeoke App');
+    if (ws?.workspaceId) {
+      cachedWorkspaceId = ws.workspaceId;
+      return cachedWorkspaceId;
+    }
+  } catch (err) {
+    console.error('[Bridge] Failed to fetch workspace list:', err.message);
+  }
+  cachedWorkspaceId = DEFAULT_WORKSPACE_ID;
+  return cachedWorkspaceId;
+}
+
+async function attachSessionToWorkspace(sessionId, workspaceId) {
+  if (!sessionId || !workspaceId) return;
+  try {
+    await fetch(`${DSH_API_BASE}/api/session.create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: crypto.randomUUID(),
+        method: 'session.create',
+        payload: {
+          sessionId,
+          workspaceId
+        }
+      })
+    });
+  } catch (err) {
+    // silent fallback
+  }
+}
+
 async function createFreshSession() {
   try {
+    const workspaceId = await getWorkspaceId();
     const payload = {
       type: 'client-request',
       rpcId: crypto.randomUUID(),
       method: 'session.create',
       payload: {
-        cwd: WORKSPACE_CWD
+        workspaceId
       }
     };
 
@@ -58,7 +110,7 @@ async function createFreshSession() {
       config.session_id = newId;
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
       turnCount = 0;
-      console.log(`[Bridge] Auto-cycled to fresh session: ${newId}`);
+      console.log(`[Bridge] Auto-cycled to fresh session in workspace (${workspaceId}): ${newId}`);
       return newId;
     }
   } catch (err) {
@@ -276,5 +328,8 @@ async function pollTelegram() {
 
 // Start bridge
 console.log('[Bridge] Starting Chief of Staff Telegram Bridge...');
+if (config.session_id) {
+  getWorkspaceId().then(wsId => attachSessionToWorkspace(config.session_id, wsId));
+}
 connectDshEvents();
 pollTelegram();
