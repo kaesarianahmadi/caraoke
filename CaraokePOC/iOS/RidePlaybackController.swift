@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import WidgetKit
 
 // The REAL playback pipeline, wired end-to-end:
 //
@@ -102,6 +103,10 @@ final class RidePlaybackController: ObservableObject {
         engine.stopTicking()
         audioKeeper.stop()
         relay.end()
+        let store = UserDefaults(suiteName: "group.app.caraoke") ?? UserDefaults.standard
+        store.removeObject(forKey: "widget_title")
+        store.set("idle", forKey: "widget_status")
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     func setSourcePin(_ pin: SourcePin) {
@@ -236,5 +241,18 @@ final class RidePlaybackController: ObservableObject {
         self.positionMs = position.positionMs
         self.durationMs = anchor?.durationMs
         activity.sync(snapshot: snapshot)
+        syncWidget(snapshot: snapshot)
+    }
+
+    private func syncWidget(snapshot: LyricSnapshot) {
+        let store = UserDefaults(suiteName: "group.app.caraoke") ?? UserDefaults.standard
+        store.set(snapshot.title, forKey: "widget_title")
+        store.set(snapshot.artist, forKey: "widget_artist")
+        store.set(snapshot.currentLine, forKey: "widget_current_line")
+        store.set(snapshot.nextLine, forKey: "widget_next_line")
+        store.set(snapshot.isPlaying, forKey: "widget_is_playing")
+        store.set(snapshot.progress, forKey: "widget_progress")
+        store.set(snapshot.status.rawValue, forKey: "widget_status")
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

@@ -4,12 +4,7 @@ import WidgetKit
 // MARK: - Shared lyric layout (design: design/screens/live-activity.html)
 
 /// One view, every surface. Renders the "Night Podium" dark-glass lyric tile
-/// without transport controls or timestamp numbers (per user direction).
-///
-/// - **Lock Screen banner** (`.la-card`): header (title/artist + status text),
-///   hero line + next line with smooth slide-down animation, 3 px progress bar.
-/// - **CarPlay small** (`.cp-tile`, read-only): hero line (up to 3 lines) + next line,
-///   with 3 px progress bar — no transport, no numbers.
+/// with static fixed-height lyric container (anti-flicker) and seamless widget styling.
 struct LyricTilePalette {
     let cardBackground: Color
     let cardBorder: Color
@@ -68,6 +63,7 @@ struct LyricTileView: View {
     let durationMs: Int?
     let isCarPlaySmall: Bool
     let isHome: Bool
+    let isWidget: Bool
     var palette: LyricTilePalette?
 
     @Environment(\.colorScheme) private var scheme
@@ -77,7 +73,7 @@ struct LyricTileView: View {
     init(title: String, artist: String, currentLine: String, nextLine: String?,
          isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
          positionMs: Int = 0, durationMs: Int? = nil, isCarPlaySmall: Bool = false,
-         isHome: Bool = false, palette: LyricTilePalette? = nil) {
+         isHome: Bool = false, isWidget: Bool = false, palette: LyricTilePalette? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -89,10 +85,11 @@ struct LyricTileView: View {
         self.durationMs = durationMs
         self.isCarPlaySmall = isCarPlaySmall
         self.isHome = isHome
+        self.isWidget = isWidget
         self.palette = palette
     }
 
-    public var body: some View {
+    var body: some View {
         Group {
             if isCarPlaySmall {
                 carPlayTile
@@ -102,7 +99,7 @@ struct LyricTileView: View {
         }
     }
 
-    // MARK: - Lock Screen banner
+    // MARK: - Lock Screen / In-App Banner
 
     private var lockBanner: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -113,12 +110,23 @@ struct LyricTileView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: 28, style: .continuous)
-            .fill(colors.cardBackground))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous)
-            .stroke(colors.cardBorder, lineWidth: 1))
+        .padding(isWidget ? 12 : 16)
+        .background(
+            Group {
+                if !isWidget {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(colors.cardBackground)
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if !isWidget {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(colors.cardBorder, lineWidth: 1)
+                }
+            }
+        )
         .opacity(status == .stale ? 0.8 : 1)
         .accessibilityElement(children: .combine)
     }
@@ -127,7 +135,7 @@ struct LyricTileView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title.isEmpty ? "No Song Playing" : title)
+                Text(title.isEmpty ? "Live Lyrics" : title)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(colors.titleText)
                     .lineLimit(1)
@@ -162,16 +170,27 @@ struct LyricTileView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .fill(colors.cardBackground))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .stroke(colors.cardBorder, lineWidth: 1))
+        .padding(isWidget ? 12 : 16)
+        .background(
+            Group {
+                if !isWidget {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(colors.cardBackground)
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if !isWidget {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(colors.cardBorder, lineWidth: 1)
+                }
+            }
+        )
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: - Shared lyric body
+    // MARK: - Shared lyric body (Anti-flicker, static fixed container height)
 
     private enum Family { case banner, carPlay }
 
@@ -182,54 +201,47 @@ struct LyricTileView: View {
 
         switch status {
         case .loading:
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 8) {
                 skeleton(widthFraction: family == .banner ? 0.88 : 0.90)
                 skeleton(widthFraction: family == .banner ? 0.60 : 0.64)
             }
-            .frame(minHeight: 52, alignment: .top)
-            .padding(.top, 10)
+            .frame(height: 54, alignment: .topLeading)
+            .padding(.top, 8)
         case .noLyrics:
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     musicNoteGlyph(size: family == .banner ? 16 : 15)
                     Text(currentLine.isEmpty ? title : currentLine)
                         .font(.system(size: 17, weight: .bold))
                         .foregroundColor(colors.heroText)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
                 Text("No lyrics found for this song")
                     .font(.system(size: 13))
                     .foregroundColor(colors.metaText)
             }
-            .frame(minHeight: 52, alignment: .top)
-            .padding(.top, 10)
+            .frame(height: 54, alignment: .topLeading)
+            .padding(.top, 8)
         case .stale:
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(currentLine.isEmpty ? "Ride ended" : currentLine)
                     .font(.system(size: heroSize - 1, weight: .bold))
                     .foregroundColor(colors.heroText)
                     .opacity(0.32)
-                    .lineLimit(3)
-                Text(family == .banner
-                     ? "Ride ended — lyrics return when a song plays."
-                     : "Ride ended")
-                    .font(.system(size: 13))
+                    .lineLimit(1)
+                Text("Lyrics return when a song plays")
+                    .font(.system(size: 12.5))
                     .foregroundColor(colors.metaText)
             }
-            .frame(minHeight: 52, alignment: .top)
-            .padding(.top, 10)
+            .frame(height: 54, alignment: .topLeading)
+            .padding(.top, 8)
         default:
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
                     .font(.system(size: heroSize, weight: .bold))
                     .foregroundColor(colors.heroText)
-                    .lineLimit(3)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .id("hero-\(currentLine)")
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .offset(y: -8)),
-                        removal: .opacity.combined(with: .offset(y: 8))
-                    ))
 
                 if let nextLine, !nextLine.isEmpty, status != .idle {
                     Text(nextLine)
@@ -237,22 +249,18 @@ struct LyricTileView: View {
                         .foregroundColor(status == .paused
                                          ? colors.nextText.opacity(0.58)
                                          : colors.nextText)
-                        .lineLimit(2)
+                        .lineLimit(1)
                         .fixedSize(horizontal: false, vertical: true)
-                        .id("next-\(nextLine)")
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .offset(y: -6)),
-                            removal: .opacity.combined(with: .offset(y: 6))
-                        ))
                 }
             }
-            .frame(minHeight: 52, alignment: .top)
-            .padding(.top, 10)
+            .frame(height: 54, alignment: .topLeading)
+            .clipped()
+            .padding(.top, 8)
             .animation(.easeInOut(duration: 0.35), value: currentLine)
         }
     }
 
-    // MARK: - Progress bar (no timestamp numbers per user direction)
+    // MARK: - Progress bar (3px capsule only)
 
     private var progressRow: some View {
         GeometryReader { geo in
@@ -263,7 +271,7 @@ struct LyricTileView: View {
             }
         }
         .frame(height: 3)
-        .padding(.top, 12)
+        .padding(.top, 10)
         .opacity(status == .loading ? 0.4 : 1)
     }
 

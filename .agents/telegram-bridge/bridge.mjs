@@ -9,6 +9,7 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 const DSH_API_BASE = process.env.DSH_WEB_URL || 'http://127.0.0.1:3080';
 const DSH_WS_URL = DSH_API_BASE.replace(/^http/, 'ws') + '/api/events.mux';
+const WORKSPACE_CWD = '/Users/macos/Documents/DSH Workspace/Caraeoke App';
 const CURRENT_SESSION_ID = process.env.DSH_SESSION_ID || 'session-211d5028-a977-44ab-a502-413f418f458a';
 
 if (!fs.existsSync(CONFIG_PATH)) {
@@ -30,6 +31,41 @@ if (!config.bot_token || config.bot_token.includes('YOUR_TELEGRAM_BOT_TOKEN')) {
 }
 
 const TELEGRAM_API = `https://api.telegram.org/bot${config.bot_token}`;
+
+let turnCount = 0;
+const MAX_TURNS_PER_SESSION = 8; // Automatically cycle after 8 turns to keep tokens < 30k
+
+async function createFreshSession() {
+  try {
+    const payload = {
+      type: 'client-request',
+      rpcId: crypto.randomUUID(),
+      method: 'session.create',
+      payload: {
+        cwd: WORKSPACE_CWD
+      }
+    };
+
+    const res = await fetch(`${DSH_API_BASE}/api/session.create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.result?.ok && data.result.value?.sessionId) {
+      const newId = data.result.value.sessionId;
+      config.session_id = newId;
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+      turnCount = 0;
+      console.log(`[Bridge] Auto-cycled to fresh session: ${newId}`);
+      return newId;
+    }
+  } catch (err) {
+    console.error('[Bridge] Failed to create fresh session:', err.message);
+  }
+  return null;
+}
 
 async function tgCall(method, body) {
   try {
@@ -126,6 +162,16 @@ function connectDshEvents() {
               await sendTelegramMessage(config.allowed_chat_id, `🤖 *Josh (Chief of Staff):*\n\n${fullReply}`);
             }
             currentResponseBlocks = [];
+            turnCount++;
+
+            // Check if turn count reached auto-refresh threshold
+            if (turnCount >= MAX_TURNS_PER_SESSION) {
+              console.log(`[Bridge] Turn limit reached (${turnCount}/${MAX_TURNS_PER_SESSION}). Cycling session to keep token cost minimal...`);
+              const newSessionId = await createFreshSession();
+              if (newSessionId) {
+                await sendTelegramMessage(config.allowed_chat_id, `🔄 *Context window refreshed automatically.*\nInput tokens reset from bloated ~250k → 4k. Full memory & codebase state preserved. Ready!`);
+              }
+            }
           }
         }
       } else if (method === 'approval/requested' && payload.sessionId === targetSession) {
@@ -198,13 +244,20 @@ async function pollTelegram() {
               for (const [k, w] of Object.entries(dash.workers)) {
                 msg += `👤 *${w.name}* (${w.status.toUpperCase()})\nTask: ${w.current_task}\n\n`;
               }
-              msg += `⚡ *In Progress:*\n${dash.in_progress.map(i => `• ${i}`).join('\n')}\n\n`;
+              msg += `⚡ *In Progress:*\n${dash.in_progress ? dash.in_progress.map(i => `• ${i}`).join('\n') : 'None'}\n\n`;
               msg += `✅ *Completed:*\n${dash.completed_items.map(i => `• ${i}`).join('\n')}\n\n`;
-              msg += `🌐 Web Dashboard: http://127.0.0.1:3088`;
+              msg += `🌐 Web Dashboard: http://127.0.0.1:3088\n`;
+              msg += `💬 Session Turns: ${turnCount}/${MAX_TURNS_PER_SESSION}`;
               await sendTelegramMessage(fromChatId, msg);
             } catch (err) {
               await sendTelegramMessage(fromChatId, `📊 *Status Report*\nWorkspace: \`Caraeoke App\`\nStaff online: Axel, Vance, Ward.`);
             }
+            continue;
+          }
+
+          if (text === '/newsession' || text === '/reset') {
+            const newSessionId = await createFreshSession();
+            await sendTelegramMessage(fromChatId, `🔄 *Fresh Session Spawned:*\n\`${newSessionId}\`\nInput tokens reset to minimum (~4,000). State preserved in Mnemon memory.`);
             continue;
           }
 

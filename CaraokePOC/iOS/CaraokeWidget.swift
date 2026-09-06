@@ -98,10 +98,11 @@ struct CaraokeWidgetEntryView: View {
             isPlaying: entry.isPlaying,
             progress: entry.progress,
             status: entry.status,
-            isCarPlaySmall: family == .systemSmall
+            isCarPlaySmall: family == .systemSmall,
+            isWidget: true
         )
         .containerBackground(for: .widget) {
-            Color.black.opacity(0.85)
+            Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255)
         }
     }
 }
@@ -118,5 +119,6 @@ struct CaraokeWidget: Widget {
         .configurationDisplayName("Caraoke Lyrics")
         .description("Synced lyrics widget for Home Screen and CarPlay dashboard.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }

@@ -133,22 +133,37 @@ final class AppleMusicSource: NowPlayingSource {
     private var lastSnapshot: AppleMusicSnapshot??
 
     private func emit() {
-        let snapshot = player.nowPlayingItem.map { item in
-            AppleMusicSnapshot(
-                title: item.title,
-                artist: item.artist,
-                album: item.albumTitle,
-                durationSec: item.playbackDuration,
-                positionSec: player.currentPlaybackTime,
-                isPlaying: player.playbackState == .playing
-            )
+        guard let item = player.nowPlayingItem else {
+            if lastSnapshot != nil {
+                lastSnapshot = nil
+                subject.send(nil)
+            }
+            return
         }
-        // While playing the position advances every tick, so this always
-        // sends; while paused or idle it collapses the 1 s tick to real
-        // changes only, keeping the UI and sync pipeline quiet.
+
+        let isPlaying = player.playbackState == .playing
+        let time = safePlaybackTime()
+        let dur = item.playbackDuration
+        let validDuration = (dur.isFinite && dur > 0) ? dur : 0
+
+        let snapshot = AppleMusicSnapshot(
+            title: item.title,
+            artist: item.artist,
+            album: item.albumTitle,
+            durationSec: validDuration,
+            positionSec: time,
+            isPlaying: isPlaying
+        )
+
         guard snapshot != lastSnapshot else { return }
         lastSnapshot = snapshot
         subject.send(AppleMusicStateMapper.state(from: snapshot, capturedAt: Date()))
+    }
+
+    private func safePlaybackTime() -> Double {
+        guard player.playbackState != .stopped else { return 0 }
+        let time = player.currentPlaybackTime
+        return (time.isFinite && time >= 0) ? time : 0
     }
 }
 #endif

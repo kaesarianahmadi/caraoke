@@ -21,11 +21,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     switchCard
-                    // Design states A/C: card shows only with real track
-                    // content (state B — ride on, no music — hides it).
-                    if !model.trackTitle.isEmpty || !model.currentLine.isEmpty {
-                        playerCard
-                    }
+                    playerCard
                     sourcesSection
                     if showsFixes {
                         fixesSection
@@ -37,7 +33,6 @@ struct HomeView: View {
                 .padding(.bottom, 28)
             }
         }
-        .preferredColorScheme(AppearanceSettings.preferredScheme)
         .sheet(isPresented: $showSettings) {
             SettingsView(model: model, presentingPaywall: $showPaywall,
                          spotifyAuth: model.spotifyAuth)
@@ -144,19 +139,20 @@ struct HomeView: View {
         model.liveActivityGateMessage != nil
     }
 
-    // MARK: - Player card (same layout as the LA tile, palette-following)
+    // MARK: - Player card (Always visible per user direction)
 
     private var playerCard: some View {
-        LyricTileView(
-            title: model.trackTitle,
-            artist: model.trackArtist,
-            currentLine: model.currentLine,
-            nextLine: model.nextLine,
+        let isIdle = !model.isOn || (model.trackTitle.isEmpty && model.currentLine.isEmpty)
+        return LyricTileView(
+            title: isIdle ? (model.isOn ? "Caraoke" : "Live Lyrics Paused") : model.trackTitle,
+            artist: isIdle ? (model.isOn ? "Waiting for playback…" : "Switch on to stream to car") : model.trackArtist,
+            currentLine: isIdle ? (model.isOn ? "Play a song on Apple Music or Spotify" : "Turn switch on to stream lyrics") : model.currentLine,
+            nextLine: isIdle ? nil : model.nextLine,
             isPlaying: model.isPlaying,
-            progress: model.progress,
-            status: model.lyricStatus,
-            positionMs: model.positionMs,
-            durationMs: model.durationMs,
+            progress: isIdle ? 0 : model.progress,
+            status: isIdle ? .idle : model.lyricStatus,
+            positionMs: isIdle ? 0 : model.positionMs,
+            durationMs: isIdle ? nil : model.durationMs,
             isHome: true,
             palette: .home(scheme)
         )
