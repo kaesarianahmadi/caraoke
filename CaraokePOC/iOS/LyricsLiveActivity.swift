@@ -82,23 +82,15 @@ private struct FamilyAdaptiveTile: View {
 
 // MARK: - Dynamic Island regions
 
-/// Leading glyph: the amber live dot when playing, the music note otherwise.
+/// Leading glyph: music note (or pause when paused) — zero colored status dots.
 private struct IslandLeadingGlyph: View {
     let status: LyricStatus
 
     var body: some View {
-        Group {
-            if status == .playing {
-                Circle()
-                    .fill(Color(hex: 0xFF9845))
-                    .frame(width: 7, height: 7)
-            } else {
-                Image(systemName: "music.note")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.9))
-            }
-        }
-        .frame(minWidth: 24, minHeight: 24)
+        Image(systemName: status == .paused ? "pause.fill" : "music.note")
+            .font(.caption)
+            .foregroundColor(.white.opacity(0.9))
+            .frame(minWidth: 24, minHeight: 24)
     }
 }
 
@@ -188,13 +180,11 @@ private struct IslandCenter: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.7)
                 if let nextLine = context.state.nextLine, !nextLine.isEmpty {
                     Text(nextLine)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.white.opacity(0.55))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -216,59 +206,33 @@ private struct IslandCenter: View {
     }
 }
 
-/// Expanded bottom: the source badge + inline progress (design `.ix-foot`),
-/// and below it the compact transport row (`.la-transport.sm`) — rewind /
-/// play-pause / skip, left-aligned, 28px buttons per the design.
+/// Expanded bottom: the source badge + inline 3px progress (design `.ix-foot`).
+/// Zero transport buttons per user direction.
 private struct IslandBottom: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                // Source badge — Apple Music in the current MVP (Spotify plays via
-                // the system player too once connected).
-                HStack(spacing: 4) {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 8))
-                    Text("Apple Music")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .foregroundColor(.white.opacity(0.66))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+        HStack(spacing: 10) {
+            HStack(spacing: 4) {
+                Image(systemName: "music.note")
+                    .font(.system(size: 8))
+                Text("Caraoke")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundColor(.white.opacity(0.66))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
 
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.18))
-                        Capsule().fill(Color.white.opacity(0.75))
-                            .frame(width: max(3, geo.size.width * CGFloat(context.state.progress)))
-                    }
-                }
-                .frame(height: 3)
-            }
-            if status(of: context.state) != .stale {
-                HStack(spacing: 16) {
-                    Button(intent: RewindIntent()) {
-                        islandTransportIcon("backward.fill")
-                    }
-                    Button(intent: PausePlayIntent()) {
-                        islandTransportIcon(context.state.isPlaying ? "pause.fill" : "play.fill")
-                    }
-                    Button(intent: SkipIntent()) {
-                        islandTransportIcon("forward.fill")
-                    }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.18))
+                    Capsule().fill(Color.white.opacity(0.75))
+                        .frame(width: max(3, geo.size.width * CGFloat(context.state.progress)))
                 }
             }
+            .frame(height: 3)
         }
-    }
-
-    private func islandTransportIcon(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(.system(size: 12))
-            .foregroundColor(Color.white.opacity(0.92))
-            .frame(width: 28, height: 28)
-            .contentShape(Circle())
     }
 }
 

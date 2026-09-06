@@ -43,16 +43,29 @@ final class RideModeViewModel: ObservableObject {
         return min(1, Double(positionMs) / Double(durationMs))
     }
 
-    /// Apple Music is always available as a source — the app reads the system
-    /// player (MPMusicPlayerController), so the design's "Connected" state is
-    /// unconditional for it.
-    var appleMusicConnected: Bool { true }
+    public enum ActiveMusicSource: String {
+        case appleMusic
+        case spotify
+    }
 
-    /// Spotify connection state — one shared auth object for the whole app
-    /// (Settings connect flow and the playback pipeline's SpotifySource both
-    /// read this instance, so "Connected" in Settings is the same session the
-    /// pipeline uses).
-    @Published private(set) var spotifyConnected = false
+    @Published public var activeSource: ActiveMusicSource = {
+        let saved = UserDefaults.standard.string(forKey: "caraoke_active_music_source")
+        return ActiveMusicSource(rawValue: saved ?? "") ?? .appleMusic
+    }() {
+        didSet {
+            UserDefaults.standard.set(activeSource.rawValue, forKey: "caraoke_active_music_source")
+            realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)
+        }
+    }
+
+    /// Mutual exclusion: Exactly one source active at a time (Spotify XOR Apple Music).
+    var appleMusicConnected: Bool { activeSource == .appleMusic }
+
+    var spotifyConnected: Bool { activeSource == .spotify && spotifyAuth.isConnected }
+
+    func selectMusicSource(_ source: ActiveMusicSource) {
+        activeSource = source
+    }
 
     /// Single SpotifyAuth for Settings + pipeline. Exposed read-only.
     let spotifyAuth = SpotifyAuth()
@@ -86,10 +99,10 @@ final class RideModeViewModel: ObservableObject {
         activity.onDiagnostic = { message in
             Logger(subsystem: "com.caraoke.poc", category: "ride").info("\(message, privacy: .public)")
         }
-        // Mirror the shared auth's connection state for the home screen.
-        spotifyAuth.$isConnected
-            .map { $0 }
-            .assign(to: &$spotifyConnected)
+        // Re-publish object changes when Spotify auth changes.
+        spotifyAuth.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &playbackCancellables)
     }
 
     func resetStats() {

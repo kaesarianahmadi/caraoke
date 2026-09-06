@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Caraoke Multi-Model Operations Dashboard</title>
+  <style>
+    :root {
+      --bg: #0A0E15;
+      --surface: #131921;
+      --surface-elevated: #1B222D;
+      --border: #292E36;
+      --text: #ECEFF2;
+      --muted: #82868E;
+      --accent: #FF9845;
+      --ok: #34C759;
+      --blue: #0A84FF;
+      --purple: #BF5AF2;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 24px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 700; }
+    .header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge.active { background: rgba(52, 199, 89, 0.2); color: var(--ok); border: 1px solid var(--ok); }
+    .badge.idle { background: rgba(130, 134, 142, 0.2); color: var(--muted); border: 1px solid var(--muted); }
+    .badge.auditing { background: rgba(255, 152, 69, 0.2); color: var(--accent); border: 1px solid var(--accent); }
+
+    .chief-banner {
+      background: linear-gradient(135deg, #182230 0%, #131921 100%);
+      border: 1px solid var(--blue);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chief-info h2 { margin: 0; font-size: 18px; color: #fff; }
+    .chief-info .role { color: var(--blue); font-size: 13px; font-weight: 500; margin-top: 2px; }
+    .chief-model { font-family: ui-monospace, monospace; font-size: 12px; color: var(--text); background: rgba(10, 132, 255, 0.15); padding: 6px 12px; border-radius: 8px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .worker-name { font-size: 17px; font-weight: 600; }
+    .role { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+    .models-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+      font-size: 11.5px;
+      font-family: ui-monospace, monospace;
+    }
+    .model-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .model-row:last-child { margin-bottom: 0; }
+    .model-tag { color: var(--accent); }
+    .task-box {
+      background: var(--surface-elevated);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #CAD1D8;
+      flex-grow: 1;
+    }
+
+    .telemetry-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .log-table th {
+      text-align: left;
+      padding: 8px 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+    }
+    .log-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      vertical-align: top;
+    }
+    .log-time { color: var(--muted); font-family: ui-monospace, monospace; width: 90px; }
+    .log-worker { font-weight: 600; color: #fff; width: 80px; }
+    .log-model { font-family: ui-monospace, monospace; color: var(--accent); width: 180px; font-size: 11.5px; }
+    .log-duration { font-family: ui-monospace, monospace; color: var(--blue); width: 70px; }
+    .log-text { color: #CAD1D8; font-family: -apple-system, sans-serif; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Caraoke Staff Operations & Live Telemetry</h1>
+      <div class="sub">9router Multi-Model Pipeline (Port 20133)</div>
+    </div>
+    <div id="updated" class="sub">Updating...</div>
+  </div>
+
+  <div class="chief-banner">
+    <div class="chief-info">
+      <h2>Josh (Chief of Staff)</h2>
+      <div class="role">Sole User Interface & Orchestrator</div>
+    </div>
+    <div style="text-align: right;">
+      <div class="chief-model">Model: router9/3.8-flash-ag</div>
+      <div id="chief-action" style="font-size: 12px; color: var(--muted); margin-top: 5px;">Standby</div>
+    </div>
+  </div>
+
+  <div class="grid" id="workers-grid"></div>
+
+  <div class="telemetry-section">
+    <div class="section-title">
+      <span>📡 Live Model Call Telemetry (Real 9router Requests)</span>
+      <span style="font-size: 12px; color: var(--ok); font-weight: 400;">● Live Auto-Sync (2s)</span>
+    </div>
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Worker</th>
+          <th>Model</th>
+          <th>Latency</th>
+          <th>Prompt Preview</th>
+          <th>Model Response</th>
+        </tr>
+      </thead>
+      <tbody id="telemetry-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    async function loadStatus() {
+      try {
+        const res = await fetch('dashboard.json?t=' + Date.now());
+        const data = await res.json();
+        document.getElementById('updated').innerText = 'Last ping: ' + new Date(data.updated_at).toLocaleTimeString();
+
+        if (data.chief) {
+          document.getElementById('chief-action').innerText = 'Current: ' + data.chief.current_action;
+        }
+
+        const grid = document.getElementById('workers-grid');
+        grid.innerHTML = '';
+        for (const [key, w] of Object.entries(data.workers)) {
+          let modelsHtml = '';
+          if (w.models) {
+            modelsHtml = Object.entries(w.models).map(([tier, m]) => `
+              <div class="model-row">
+                <span style="color: var(--muted);">${tier.toUpperCase()}:</span>
+                <span class="model-tag">${m.replace('router9/', '')}</span>
+              </div>
+            `).join('');
+          }
+          grid.innerHTML += `
+            <div class="card">
+              <div class="card-header">
+                <span class="worker-name">${w.name}</span>
+                <span class="badge ${w.status}">${w.status}</span>
+              </div>
+              <div class="role">${w.role}</div>
+              <div class="models-box">${modelsHtml}</div>
+              <div class="task-box">
+                <div style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">LAST ACTIVITY:</div>
+                ${w.last_activity}
+              </div>
+            </div>
+          `;
+        }
+
+        const tbody = document.getElementById('telemetry-body');
+        if (data.telemetry_log && data.telemetry_log.length > 0) {
+          tbody.innerHTML = data.telemetry_log.map(log => `
+            <tr>
+              <td class="log-time">${log.timestamp}</td>
+              <td class="log-worker">${log.worker.toUpperCase()}</td>
+              <td class="log-model">${log.model.replace('router9/', '')}</td>
+              <td class="log-duration">${log.duration_ms}ms</td>
+              <td class="log-text" style="color: var(--muted); max-width: 220px;">${log.prompt_preview}</td>
+              <td class="log-text" style="color: #fff; max-width: 350px;"><strong>${log.response_preview}</strong></td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 20px;">No requests recorded yet.</td></tr>';
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadStatus();
+    setInterval(loadStatus, 2000);
+  </script>
+</body>
+</html>

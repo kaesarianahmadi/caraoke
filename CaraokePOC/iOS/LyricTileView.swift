@@ -4,39 +4,27 @@ import WidgetKit
 // MARK: - Shared lyric layout (design: design/screens/live-activity.html)
 
 /// One view, every surface. Renders the "Night Podium" dark-glass lyric tile
-/// from the final OpenDesign spec:
+/// without transport controls or timestamp numbers (per user direction).
 ///
-/// - **Lock Screen banner** (`.la-card`): header (title/artist + status
-///   badge), hero line + next line, transport row (rewind/play-pause/skip via
-///   App Intents), 3 px progress + tabular times `1:24 / -1:28`.
-/// - **CarPlay small** (`.cp-tile`, read-only): hero line + next line only,
-///   with progress + times — no header, no transport. Non-interactive by
-///   design; Apple renders CarPlay Live Activities that way.
-///
-/// One `status` drives the 5 design states (playing / paused / no lyrics /
-/// loading / stale) plus the Ride-Mode placeholder (idle). The tile is ALWAYS
-/// dark glass (`activityBackgroundTint .black 0.7`) — never light mode, never
-/// flat black. No album art, no translations, no third lyric line.
-// MARK: - Palette (one layout, two surfaces)
-
-/// Color set for the tile. The Live Activity is always dark glass (locked);
-/// the Home player card uses the same layout but follows the app palette so
-/// light mode looks like design/screens/home.html `.la-card`.
-struct LyricTilePalette {
-    let cardBackground: Color
-    let cardBorder: Color
-    let titleText: Color
-    let artistText: Color
-    let badgeText: Color
-    let heroText: Color
-    let nextText: Color
-    let metaText: Color
-    let trackBackground: Color
-    let trackFill: Color
-    let glow: Color
+/// - **Lock Screen banner** (`.la-card`): header (title/artist + status text),
+///   hero line + next line with smooth slide-down animation, 3 px progress bar.
+/// - **CarPlay small** (`.cp-tile`, read-only): hero line (up to 3 lines) + next line,
+///   with 3 px progress bar — no transport, no numbers.
+public struct LyricTilePalette {
+    public let cardBackground: Color
+    public let cardBorder: Color
+    public let titleText: Color
+    public let artistText: Color
+    public let badgeText: Color
+    public let heroText: Color
+    public let nextText: Color
+    public let metaText: Color
+    public let trackBackground: Color
+    public let trackFill: Color
+    public let glow: Color
 
     /// Locked Live Activity glass (Night Podium, dark only).
-    static let activity = LyricTilePalette(
+    public static let activity = LyricTilePalette(
         cardBackground: Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255).opacity(0.68),
         cardBorder: Color.white.opacity(0.07),
         titleText: Color.white.opacity(0.96),
@@ -51,7 +39,7 @@ struct LyricTilePalette {
     )
 
     /// Home player card — follows the app theme (AppTheme tokens).
-    static func home(_ scheme: ColorScheme) -> LyricTilePalette {
+    public static func home(_ scheme: ColorScheme) -> LyricTilePalette {
         LyricTilePalette(
             cardBackground: AppTheme.surface(scheme),
             cardBorder: AppTheme.border(scheme),
@@ -68,33 +56,28 @@ struct LyricTilePalette {
     }
 }
 
-struct LyricTileView: View {
-    let title: String
-    let artist: String
-    let currentLine: String
-    let nextLine: String?
-    let isPlaying: Bool
-    let progress: Double
-    let status: LyricStatus
-    let positionMs: Int
-    let durationMs: Int?
-    /// CarPlay small layout is more compact than the Lock Screen banner.
-    let isCarPlaySmall: Bool
-    /// Home player card variant (design home.html `.la-card`): same tile
-    /// skeleton but slightly smaller type (hero 19 vs 20, next 14.5 vs 15)
-    /// and no transport row — the Lock Screen banner owns the buttons.
-    let isHome: Bool
-    /// Colors. Locked LA glass by default; `.home(scheme)` for the app's
-    /// player card.
+public struct LyricTileView: View {
+    public let title: String
+    public let artist: String
+    public let currentLine: String
+    public let nextLine: String?
+    public let isPlaying: Bool
+    public let progress: Double
+    public let status: LyricStatus
+    public let positionMs: Int
+    public let durationMs: Int?
+    public let isCarPlaySmall: Bool
+    public let isHome: Bool
+    public var palette: LyricTilePalette?
+
     @Environment(\.colorScheme) private var scheme
-    var palette: LyricTilePalette?
 
     private var colors: LyricTilePalette { palette ?? .activity }
 
-    init(title: String, artist: String, currentLine: String, nextLine: String?,
-         isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
-         positionMs: Int = 0, durationMs: Int? = nil, isCarPlaySmall: Bool = false,
-         isHome: Bool = false, palette: LyricTilePalette? = nil) {
+    public init(title: String, artist: String, currentLine: String, nextLine: String?,
+                isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
+                positionMs: Int = 0, durationMs: Int? = nil, isCarPlaySmall: Bool = false,
+                isHome: Bool = false, palette: LyricTilePalette? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -109,7 +92,7 @@ struct LyricTileView: View {
         self.palette = palette
     }
 
-    var body: some View {
+    public var body: some View {
         Group {
             if isCarPlaySmall {
                 carPlayTile
@@ -125,18 +108,13 @@ struct LyricTileView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             lyricBody(.banner)
-            // Transport renders on the Lock Screen banner only — never on
-            // the Home card or CarPlay.
-            if !isHome {
-                transport
-            }
             if status != .stale {
                 progressRow
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.vertical, 14)
         .background(RoundedRectangle(cornerRadius: 28, style: .continuous)
             .fill(colors.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -149,25 +127,22 @@ struct LyricTileView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13.5, weight: .semibold))
+                Text(title.isEmpty ? "No Song Playing" : title)
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(colors.titleText)
                     .lineLimit(1)
                 if !artist.isEmpty {
                     Text(artist)
-                        .font(.system(size: 12))
+                        .font(.system(size: 11.5))
                         .foregroundColor(colors.artistText)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
             if let badge = status.badge {
-                HStack(spacing: 6) {
-                    if status == .playing {
-                        Circle().fill(colors.glow).frame(width: 7, height: 7)
-                    }
+                HStack(spacing: 4) {
                     if status == .paused {
-                        pauseGlyph(size: 10)
+                        pauseGlyph(size: 9)
                     }
                     Text(badge)
                 }
@@ -196,17 +171,14 @@ struct LyricTileView: View {
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: - Shared lyric body (family-adaptive fonts/clamps)
+    // MARK: - Shared lyric body
 
     private enum Family { case banner, carPlay }
 
     @ViewBuilder
     private func lyricBody(_ family: Family) -> some View {
-        // Type ladder per design: Home card 19/14.5, Lock banner 20/15,
-        // CarPlay small 21/14. Clamps: banner & home 3/2, CarPlay 2/1.
         let heroSize: CGFloat = isHome ? 19 : (family == .banner ? 20 : 21)
         let nextSize: CGFloat = isHome ? 14.5 : (family == .banner ? 15 : 14)
-        let heroClamp: Int = family == .banner ? 3 : 2
 
         switch status {
         case .loading:
@@ -221,9 +193,9 @@ struct LyricTileView: View {
                 HStack(spacing: 8) {
                     musicNoteGlyph(size: family == .banner ? 16 : 15)
                     Text(currentLine.isEmpty ? title : currentLine)
-                        .font(.system(size: family == .banner ? 17 : 17, weight: .bold))
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundColor(colors.heroText)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
                 Text("No lyrics found for this song")
                     .font(.system(size: 13))
@@ -237,7 +209,7 @@ struct LyricTileView: View {
                     .font(.system(size: heroSize - 1, weight: .bold))
                     .foregroundColor(colors.heroText)
                     .opacity(0.32)
-                    .lineLimit(heroClamp)
+                    .lineLimit(3)
                 Text(family == .banner
                      ? "Ride ended — lyrics return when a song plays."
                      : "Ride ended")
@@ -246,84 +218,53 @@ struct LyricTileView: View {
             }
             .frame(minHeight: 52, alignment: .top)
             .padding(.top, 10)
-        default: // playing, paused, idle
+        default:
             VStack(alignment: .leading, spacing: 6) {
                 Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
                     .font(.system(size: heroSize, weight: .bold))
                     .foregroundColor(colors.heroText)
-                    .lineLimit(heroClamp)
-                    .minimumScaleFactor(0.7)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .id("hero-\(currentLine)")
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .offset(y: -8)),
+                        removal: .opacity.combined(with: .offset(y: 8))
+                    ))
+
                 if let nextLine, !nextLine.isEmpty, status != .idle {
                     Text(nextLine)
                         .font(.system(size: nextSize, weight: .medium))
                         .foregroundColor(status == .paused
                                          ? colors.nextText.opacity(0.58)
                                          : colors.nextText)
-                        .lineLimit(family == .banner ? 2 : 1)
-                        .minimumScaleFactor(0.7)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .id("next-\(nextLine)")
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: -6)),
+                            removal: .opacity.combined(with: .offset(y: 6))
+                        ))
                 }
             }
             .frame(minHeight: 52, alignment: .top)
             .padding(.top, 10)
+            .animation(.easeInOut(duration: 0.35), value: currentLine)
         }
     }
 
-    // MARK: - Progress + times row (design `.la-foot`)
+    // MARK: - Progress bar (no timestamp numbers per user direction)
 
     private var progressRow: some View {
-        VStack(spacing: 6) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(colors.trackBackground)
-                    Capsule().fill(colors.trackFill)
-                        .frame(width: max(3, geo.size.width * CGFloat(progress)))
-                }
-            }
-            .frame(height: 3)
-            .opacity(status == .loading ? 0.4 : 1)
-
-            if durationMs != nil || status != .idle {
-                HStack {
-                    Text(timeText(positionMs))
-                    Spacer()
-                    if let durationMs {
-                        Text("-" + timeText(max(0, durationMs - positionMs)))
-                    }
-                }
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundColor(colors.metaText)
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(colors.trackBackground)
+                Capsule().fill(colors.trackFill)
+                    .frame(width: max(3, geo.size.width * CGFloat(min(max(progress, 0), 1))))
             }
         }
+        .frame(height: 3)
         .padding(.top, 12)
-    }
-
-    // MARK: - Transport (Lock Screen banner only; App Intents)
-
-    @ViewBuilder
-    private var transport: some View {
-        if !isCarPlaySmall && status != .stale && status != .idle {
-            HStack(spacing: 22) {
-                Button(intent: RewindIntent()) {
-                    transportIcon("backward.fill")
-                }
-                Button(intent: PausePlayIntent()) {
-                    transportIcon(isPlaying ? "pause.fill" : "play.fill")
-                }
-                Button(intent: SkipIntent()) {
-                    transportIcon("forward.fill")
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 12)
-        }
-    }
-
-    private func transportIcon(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(.system(size: 16))
-            .foregroundColor(colors.heroText)
-            .frame(width: 36, height: 36)
-            .contentShape(Circle())
+        .opacity(status == .loading ? 0.4 : 1)
     }
 
     // MARK: - Tiny shared bits
@@ -350,15 +291,10 @@ struct LyricTileView: View {
     }
 
     private func pauseGlyph(size: CGFloat) -> some View {
-        HStack(spacing: 3) {
-            Rectangle().frame(width: size * 0.45, height: size)
-            Rectangle().frame(width: size * 0.45, height: size)
+        HStack(spacing: 2) {
+            Rectangle().frame(width: size * 0.4, height: size)
+            Rectangle().frame(width: size * 0.4, height: size)
         }
         .foregroundColor(colors.badgeText)
-    }
-
-    private func timeText(_ ms: Int) -> String {
-        let s = max(0, ms / 1000)
-        return "\(s / 60):\(String(format: "%02d", s % 60))"
     }
 }

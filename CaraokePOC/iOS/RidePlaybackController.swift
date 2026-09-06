@@ -68,7 +68,8 @@ final class RidePlaybackController: ObservableObject {
         self.spotify = SpotifySource(tokenProvider: self.spotifyAuth)
         self.coordinator = NowPlayingCoordinator(
             applePublisher: apple.statePublisher,
-            spotifyPublisher: spotify.statePublisher
+            spotifyPublisher: spotify.statePublisher,
+            pin: .appleMusic
         )
         self.engine = SyncEngine()
         // CombineLatest3 emits only after ALL inputs fire at least once — a
@@ -101,6 +102,10 @@ final class RidePlaybackController: ObservableObject {
         engine.stopTicking()
         audioKeeper.stop()
         relay.end()
+    }
+
+    func setSourcePin(_ pin: SourcePin) {
+        coordinator.pin = pin
     }
 
     private func wire() {

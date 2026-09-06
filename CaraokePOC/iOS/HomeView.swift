@@ -10,6 +10,7 @@ struct HomeView: View {
     @ObservedObject var model: RideModeViewModel
     @State private var showSettings = false
     @State private var showPaywall = false
+    @State private var showSpotifySetup = false
     @StateObject private var purchases = PurchaseManager()
     @Environment(\.colorScheme) private var scheme
 
@@ -45,6 +46,11 @@ struct HomeView: View {
             PaywallView(purchases: purchases, onDismiss: { showPaywall = false })
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showSpotifySetup) {
+            SpotifySetupView(spotifyAuth: model.spotifyAuth, onConnected: {
+                model.selectMusicSource(.spotify)
+            })
+        }
     }
 
     // MARK: - Header (brand mark + gear)
@@ -52,8 +58,7 @@ struct HomeView: View {
     private var header: some View {
         HStack {
             HStack(spacing: 10) {
-                BrandMark()
-                    .frame(width: 27, height: 27)
+                CaraokeLogo(size: 27)
                 Text("Caraoke")
                     .font(.system(size: 28, weight: .bold))
                     .tracking(-0.02 * 28)
@@ -84,7 +89,7 @@ struct HomeView: View {
                     Text("Live Lyrics")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.fg(scheme))
-                    Text("Puts synced lyrics on CarPlay and Lock Screen while your music plays. Pauses safely when you park.")
+                    Text("Puts synced lyrics on CarPlay and Lock Screen while your music plays.")
                         .font(.system(size: 13))
                         .foregroundColor(AppTheme.muted(scheme))
                         .lineSpacing(1.45 * 13 - 13)
@@ -160,7 +165,7 @@ struct HomeView: View {
         .accessibilityLabel("Now playing")
     }
 
-    // MARK: - Music sources
+    // MARK: - Music sources (Mutual exclusion: Spotify XOR Apple Music)
 
     private var sourcesSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -170,22 +175,40 @@ struct HomeView: View {
                 .padding(.horizontal, 4)
                 .padding(.bottom, 8)
             VStack(spacing: 0) {
-                sourceRow(
-                    logo: AnyView(AppleMusicLogo()),
-                    title: "Apple Music",
-                    subtitle: model.appleMusicConnected ? "Connected" : "Not connected",
-                    connected: model.appleMusicConnected,
-                    showsCheck: true
-                )
-                Divider().overlay(AppTheme.border(scheme))
-                if FeatureFlags.spotifyEnabled {
+                Button {
+                    model.selectMusicSource(.appleMusic)
+                } label: {
                     sourceRow(
-                        logo: AnyView(SpotifyLogo()),
-                        title: "Spotify",
-                        subtitle: model.spotifyConnected ? "Connected" : "Not connected",
-                        connected: model.spotifyConnected,
-                        showsCheck: false
+                        logo: AnyView(AppleMusicLogo()),
+                        title: "Apple Music",
+                        subtitle: model.appleMusicConnected ? "Active source" : "Tap to switch",
+                        connected: model.appleMusicConnected,
+                        showsCheck: model.appleMusicConnected
                     )
+                }
+                .buttonStyle(.plain)
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                if FeatureFlags.spotifyEnabled {
+                    Button {
+                        if model.spotifyAuth.isConnected {
+                            model.selectMusicSource(.spotify)
+                        } else {
+                            showSpotifySetup = true
+                        }
+                    } label: {
+                        sourceRow(
+                            logo: AnyView(SpotifyLogo(size: 34)),
+                            title: "Spotify",
+                            subtitle: model.spotifyConnected
+                                ? "Active source"
+                                : (model.spotifyAuth.isConnected ? "Connected (tap to switch)" : "Not connected"),
+                            connected: model.spotifyConnected,
+                            showsCheck: model.spotifyConnected
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -213,7 +236,7 @@ struct HomeView: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppTheme.ok)
-            } else if !showsCheck {
+            } else if !connected {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(AppTheme.muted(scheme))
@@ -276,62 +299,7 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Brand mark (design SVG: open-C ring + beamed note + play accent)
-
-struct BrandMark: View {
-    @Environment(\.colorScheme) private var scheme
-    /// Accent tint override (about row uses the amber accent; header the fg).
-    var tinted = false
-
-    var body: some View {
-        let color = tinted ? AppTheme.accent(scheme) : AppTheme.fg(scheme)
-        GeometryReader { geo in
-            // Draw in the design's 64×64 box, then scale to the slot.
-            ZStack {
-                // Open-C ring: full circle trimmed to the 290° arc, gap
-                // centered at 3 o'clock (start of the trim = 35°), stroke
-                // width 6.5 round — same geometry as the SVG arc path.
-                Circle()
-                    .trim(from: 0, to: 0.806)
-                    .stroke(style: StrokeStyle(lineWidth: 6.5, lineCap: .round))
-                    .rotationEffect(.degrees(35))
-                    .foregroundColor(color)
-
-                // Beamed note: beam + two stems + two heads (SVG layout).
-                ZStack(alignment: .bottomLeading) {
-                    // Stems
-                    Rectangle()
-                        .frame(width: 3.2, height: 18.1)
-                        .offset(x: 22.2, y: -41.3 + 3.2)
-                    Rectangle()
-                        .frame(width: 3.2, height: 19.1)
-                        .offset(x: 34.5, y: -39.2 + 3.2)
-                    // Beam across the stems' top
-                    Rectangle()
-                        .frame(width: 15.5, height: 4.9)
-                        .rotationEffect(.degrees(-4), anchor: .bottomLeading)
-                        .offset(x: 22.2, y: -23.2)
-                    // Heads
-                    Ellipse()
-                        .frame(width: 9.0, height: 6.8)
-                        .rotationEffect(.degrees(-16))
-                        .offset(x: 20.2 - 4.5 + 22.2 - 20.2, y: 41.3 - 3.4)
-                    Ellipse()
-                        .frame(width: 9.0, height: 6.8)
-                        .rotationEffect(.degrees(-16))
-                        .offset(x: 32.5 - 4.5, y: 39.2 - 3.4)
-                }
-                .foregroundColor(color)
-            }
-            .frame(width: 64, height: 64)
-            .scaleEffect(geo.size.width / 64)
-            .frame(width: geo.size.width, height: geo.size.height)
-        }
-        .aspectRatio(1, contentMode: .fit)
-    }
-}
-
-// MARK: - Source logos (design's SVG marks)
+// MARK: - Source logo (Apple Music)
 
 struct AppleMusicLogo: View {
     var body: some View {
@@ -343,16 +311,5 @@ struct AppleMusicLogo: View {
                 .foregroundColor(.white)
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
-struct SpotifyLogo: View {
-    var body: some View {
-        ZStack {
-            Circle().fill(Color(hex: 0x1DB954))
-            Image(systemName: "waveform")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.black)
-        }
     }
 }

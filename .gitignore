@@ -8,6 +8,10 @@ modulecache/
 CaraokePOC/iOS/Resources/Secrets.plist
 Apple Developer Info/
 AuthKey_*.p8
+*.env
+.env
+.env.*
+.agents/telegram-bridge/config.json
 
 # macOS
 .DS_Store

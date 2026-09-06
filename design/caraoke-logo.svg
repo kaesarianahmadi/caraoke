@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- CarPlay open C ring -->
+  <path d="M53.3 17.1A26 26 0 1 0 53.3 46.9" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+  <!-- Beamed music note -->
+  <ellipse cx="20.2" cy="41.3" rx="4.5" ry="3.4" transform="rotate(-16 20.2 41.3)" fill="currentColor"/>
+  <ellipse cx="32.5" cy="39.2" rx="4.5" ry="3.4" transform="rotate(-16 32.5 39.2)" fill="currentColor"/>
+  <path d="M22.2 23.2h3.2v18.1h-3.2z" fill="currentColor"/>
+  <path d="M34.5 20.1h3.2v19.1h-3.2z" fill="currentColor"/>
+  <path d="M22.2 19.8 37.7 15.4v4.9L22.2 24.7z" fill="currentColor"/>
+  <!-- Play button -->
+  <path d="M42.5 25v10l8.4-5z" fill="currentColor"/>
+</svg>

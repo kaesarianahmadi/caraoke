@@ -16,8 +16,13 @@ struct SettingsView: View {
     @State private var clientIDText = SpotifyClientIDStore.stored ?? ""
     @State private var showAppearanceSheet = false
     @State private var spotifyFlowExpanded = false
+    @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
+
+    private var currentAppearanceMode: AppearanceMode {
+        AppearanceMode(rawValue: appearanceRaw) ?? .auto
+    }
 
     var body: some View {
         NavigationStack {
@@ -138,16 +143,20 @@ struct SettingsView: View {
     }
 
     private var appleMusicRow: some View {
-        gRow {
-            AppleMusicLogo().frame(width: 29, height: 29)
-            Text("Apple Music").gLabel()
-            Text("Connected")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(AppTheme.ok)
-            // Design shows a chevron on both source rows.
-            Image(systemName: "chevron.right")
-                .gChevron()
+        Button {
+            model.selectMusicSource(.appleMusic)
+        } label: {
+            gRow {
+                AppleMusicLogo().frame(width: 29, height: 29)
+                Text("Apple Music").gLabel()
+                Text(model.appleMusicConnected ? "Connected" : "Not active")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(model.appleMusicConnected ? AppTheme.ok : AppTheme.muted(scheme))
+                Image(systemName: "chevron.right")
+                    .gChevron()
+            }
         }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -231,11 +240,11 @@ struct SettingsView: View {
                     showAppearanceSheet = true
                 } label: {
                     gRow {
-                        iconCircle(AppearanceSettings.mode == .dark
+                        iconCircle(currentAppearanceMode == .dark
                                    ? "moon.fill"
-                                   : AppearanceSettings.mode == .light ? "sun.max.fill" : "circle.lefthalf.filled")
+                                   : currentAppearanceMode == .light ? "sun.max.fill" : "circle.lefthalf.filled")
                         Text("Appearance").gLabel()
-                        Text(AppearanceSettings.mode.shortLabel).gValue(scheme)
+                        Text(currentAppearanceMode.shortLabel).gValue(scheme)
                         Image(systemName: "chevron.right").gChevron()
                     }
                 }
@@ -259,24 +268,31 @@ struct SettingsView: View {
         }
     }
 
-    /// Rate on the App Store (product 10-5-105 per the locked-decisions doc;
-    /// app id filled in at submission).
+    /// Rate on the App Store
     private var rateRow: some View {
-        gRow {
-            iconCircle("star.fill")
-            Text("Rate Caraoke").gLabel()
-            Image(systemName: "chevron.right").gChevron()
+        Button {
+            if let url = URL(string: "https://apps.apple.com/app/id6742353139?action=write-review") {
+                UIApplication.shared.open(url)
+            }
+        } label: {
+            gRow {
+                iconCircle("star.fill")
+                Text("Rate Caraoke").gLabel()
+                Image(systemName: "chevron.right").gChevron()
+            }
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
     }
 
     private var shareRow: some View {
-        gRow {
-            iconCircle("square.and.arrow.up")
-            Text("Share with friends").gLabel()
-            Image(systemName: "chevron.right").gChevron()
+        ShareLink(item: URL(string: "https://caraoke.app")!) {
+            gRow {
+                iconCircle("square.and.arrow.up")
+                Text("Share with friends").gLabel()
+                Image(systemName: "chevron.right").gChevron()
+            }
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
     }
 
     // MARK: - Contact & about
@@ -409,9 +425,13 @@ private extension View {
 // MARK: - Appearance bottom sheet (design `.sheet`)
 
 struct AppearanceSheet: View {
-    @State private var mode = AppearanceSettings.mode
+    @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
+
+    private var currentMode: AppearanceMode {
+        AppearanceMode(rawValue: appearanceRaw) ?? .auto
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -427,8 +447,10 @@ struct AppearanceSheet: View {
             VStack(spacing: 0) {
                 ForEach(AppearanceMode.allCases) { m in
                     Button {
-                        mode = m
-                        AppearanceSettings.mode = m
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            appearanceRaw = m.rawValue
+                            AppearanceSettings.mode = m
+                        }
                     } label: {
                         HStack(spacing: 12) {
                             ZStack {
@@ -442,7 +464,7 @@ struct AppearanceSheet: View {
                                 .font(.system(size: 15))
                                 .foregroundColor(AppTheme.fg(scheme))
                             Spacer()
-                            if mode == m {
+                            if currentMode == m {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundColor(AppTheme.ok)
@@ -464,7 +486,6 @@ struct AppearanceSheet: View {
         }
         .padding(20)
         .background(AppTheme.bg(scheme).ignoresSafeArea())
-        .preferredColorScheme(AppearanceSettings.preferredScheme)
     }
 
     private func icon(for mode: AppearanceMode) -> String {
