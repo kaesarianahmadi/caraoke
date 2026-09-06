@@ -1,17 +1,17 @@
 {
-  "updated_at": "2026-09-06T20:26:48.633Z",
+  "updated_at": "2026-09-06T20:31:19.908Z",
   "project": "Caraoke",
   "build": 28,
-  "ci_run_id": "34049707260",
-  "ci_run_url": "https://github.com/kaesarianahmadi/caraoke/actions/runs/34049707260",
+  "ci_run_id": "34058026589",
+  "ci_run_url": "https://github.com/kaesarianahmadi/caraoke/actions/runs/34058026589",
   "ci_status": "success",
-  "testflight_status": "uploaded_build_24",
+  "testflight_status": "uploaded_build_28",
   "chief": {
     "name": "Josh",
     "role": "Chief of Staff & Orchestrator",
     "model": "router9/3.8-flash-ag",
-    "status": "ready_to_push",
-    "current_action": "Build 28 changes authored by staff, audited by Ward, ready for commit & push"
+    "status": "idle",
+    "current_action": "Build 28 deployed to TestFlight. All 4 CI jobs green."
   },
   "workers": {
     "axel": {
