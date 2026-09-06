@@ -13,8 +13,6 @@ struct SettingsView: View {
     /// Shared auth — the same object the playback pipeline uses (injected by
     /// the VM), so connecting here connects the pipeline and vice versa.
     @ObservedObject var spotifyAuth: SpotifyAuth
-    var cache = LyricsDiskCache(directory: LyricsDiskCache.defaultDirectory())
-    @State private var cacheCleared = false
     @State private var clientIDText = SpotifyClientIDStore.stored ?? ""
     @State private var showAppearanceSheet = false
     @State private var spotifyFlowExpanded = false
@@ -221,10 +219,6 @@ struct SettingsView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-    }
-
-    private var spotifyFlowExpandedInitial: Bool {
-        !SpotifyClientIDStore.hasClientID || !spotifyAuth.isConnected
     }
 
     // MARK: - Appearance (design bottom sheet)
