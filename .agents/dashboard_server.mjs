@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { buildFeedbackPrompt } from './staff_contract.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 3088;
@@ -82,7 +83,7 @@ const server = http.createServer(async (req, res) => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: tgConfig.allowed_chat_id,
-                text: `📋 *Feedback Received for Build ${build} via Dashboard*\n\n"${feedback.slice(0, 200)}..."\n\n🔄 *Fresh session created in Caraoke App workspace:* \`${newSessionId}\`\nTokens reset to ~4,000. Josh is formulating the delegation plan for Axel, Vance, and Ward.`
+                text: `📋 *Feedback Received for Build ${build} via Dashboard*\n\n"${feedback.slice(0, 200)}..."\n\n🔄 *Fresh session created in Caraoke App workspace:* \`${newSessionId}\`\nTokens reset to ~4,000. Identity lock injected: Josh answers alone, dispatches Axel/Vance/Ward via 9router as his first action, applies their code, verifies CI, reports once.`
               })
             }).catch(() => {});
           }
@@ -118,7 +119,7 @@ const server = http.createServer(async (req, res) => {
             content: [
               {
                 type: 'text',
-                text: `[BUILD ${build} FEEDBACK SUBMITTED VIA DASHBOARD FORM]\n\n"${feedback}"\n\n[MANDATORY CHIEF OF STAFF OPERATIONAL DIRECTIVE]\n1. You are Josh, Chief of Staff. You do NOT write or edit production Swift/App code directly.\n2. Break this feedback down into specific assignments for Axel (SwiftUI/Widgets), Vance (Silent Failures/Audio/Errors), and Ward (Security/Store/Assets).\n3. Present the plan clearly.\n4. Dispatch tasks via .agents/staff_caller.mjs through 9router with required skills.\n5. Ingest and apply staff code, verify on CI, and report completion.`
+                text: buildFeedbackPrompt(build, feedback)
               }
             ]
           }

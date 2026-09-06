@@ -1,0 +1,5 @@
+{
+  "axel": { "fast": "ag/gemini-3.8-flash-high", "heavy": "holver-ai/qwen-3.8-max" },
+  "vance": { "fast": "cmc/deepseek/deepseek-v4-pro" },
+  "ward": { "primary": "gcli/grok-4.6" }
+}
