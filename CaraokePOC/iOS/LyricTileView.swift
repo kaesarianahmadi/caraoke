@@ -10,21 +10,21 @@ import WidgetKit
 ///   hero line + next line with smooth slide-down animation, 3 px progress bar.
 /// - **CarPlay small** (`.cp-tile`, read-only): hero line (up to 3 lines) + next line,
 ///   with 3 px progress bar — no transport, no numbers.
-public struct LyricTilePalette {
-    public let cardBackground: Color
-    public let cardBorder: Color
-    public let titleText: Color
-    public let artistText: Color
-    public let badgeText: Color
-    public let heroText: Color
-    public let nextText: Color
-    public let metaText: Color
-    public let trackBackground: Color
-    public let trackFill: Color
-    public let glow: Color
+struct LyricTilePalette {
+    let cardBackground: Color
+    let cardBorder: Color
+    let titleText: Color
+    let artistText: Color
+    let badgeText: Color
+    let heroText: Color
+    let nextText: Color
+    let metaText: Color
+    let trackBackground: Color
+    let trackFill: Color
+    let glow: Color
 
     /// Locked Live Activity glass (Night Podium, dark only).
-    public static let activity = LyricTilePalette(
+    static let activity = LyricTilePalette(
         cardBackground: Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255).opacity(0.68),
         cardBorder: Color.white.opacity(0.07),
         titleText: Color.white.opacity(0.96),
@@ -39,7 +39,7 @@ public struct LyricTilePalette {
     )
 
     /// Home player card — follows the app theme (AppTheme tokens).
-    public static func home(_ scheme: ColorScheme) -> LyricTilePalette {
+    static func home(_ scheme: ColorScheme) -> LyricTilePalette {
         LyricTilePalette(
             cardBackground: AppTheme.surface(scheme),
             cardBorder: AppTheme.border(scheme),
@@ -56,28 +56,28 @@ public struct LyricTilePalette {
     }
 }
 
-public struct LyricTileView: View {
-    public let title: String
-    public let artist: String
-    public let currentLine: String
-    public let nextLine: String?
-    public let isPlaying: Bool
-    public let progress: Double
-    public let status: LyricStatus
-    public let positionMs: Int
-    public let durationMs: Int?
-    public let isCarPlaySmall: Bool
-    public let isHome: Bool
-    public var palette: LyricTilePalette?
+struct LyricTileView: View {
+    let title: String
+    let artist: String
+    let currentLine: String
+    let nextLine: String?
+    let isPlaying: Bool
+    let progress: Double
+    let status: LyricStatus
+    let positionMs: Int
+    let durationMs: Int?
+    let isCarPlaySmall: Bool
+    let isHome: Bool
+    var palette: LyricTilePalette?
 
     @Environment(\.colorScheme) private var scheme
 
     private var colors: LyricTilePalette { palette ?? .activity }
 
-    public init(title: String, artist: String, currentLine: String, nextLine: String?,
-                isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
-                positionMs: Int = 0, durationMs: Int? = nil, isCarPlaySmall: Bool = false,
-                isHome: Bool = false, palette: LyricTilePalette? = nil) {
+    init(title: String, artist: String, currentLine: String, nextLine: String?,
+         isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
+         positionMs: Int = 0, durationMs: Int? = nil, isCarPlaySmall: Bool = false,
+         isHome: Bool = false, palette: LyricTilePalette? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine

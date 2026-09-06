@@ -1,10 +1,10 @@
 import SwiftUI
 
 /// Spotify vector logo matching `design/spotify-logo.svg`
-public struct SpotifyLogo: View {
-    public var size: CGFloat = 34
+struct SpotifyLogo: View {
+    var size: CGFloat = 34
 
-    public init(size: CGFloat = 34) {
+    init(size: CGFloat = 34) {
         self.size = size
     }
 

@@ -1,19 +1,19 @@
 import SwiftUI
 
 /// Caraoke vector mark matching `design/caraoke-logo.svg`
-public struct CaraokeLogo: View {
-    public var size: CGFloat = 28
-    public var color: Color?
-    public var tinted: Bool = false
+struct CaraokeLogo: View {
+    var size: CGFloat = 28
+    var color: Color?
+    var tinted: Bool = false
     @Environment(\.colorScheme) private var scheme
 
-    public init(size: CGFloat = 28, color: Color? = nil, tinted: Bool = false) {
+    init(size: CGFloat = 28, color: Color? = nil, tinted: Bool = false) {
         self.size = size
         self.color = color
         self.tinted = tinted
     }
 
-    public var body: some View {
+    var body: some View {
         let drawColor = color ?? (tinted ? AppTheme.accent(scheme) : AppTheme.fg(scheme))
         GeometryReader { geo in
             let s = min(geo.size.width, geo.size.height) / 64.0
@@ -35,7 +35,7 @@ public struct CaraokeLogo: View {
     }
 }
 
-public typealias BrandMark = CaraokeLogo
+typealias BrandMark = CaraokeLogo
 
 private struct CaraokeCRingShape: Shape {
     func path(in rect: CGRect) -> Path {

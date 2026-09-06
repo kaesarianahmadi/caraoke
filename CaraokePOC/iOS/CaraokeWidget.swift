@@ -3,19 +3,19 @@ import WidgetKit
 
 // MARK: - Timeline Entry
 
-public struct CaraokeWidgetEntry: TimelineEntry {
-    public let date: Date
-    public let title: String
-    public let artist: String
-    public let currentLine: String
-    public let nextLine: String?
-    public let isPlaying: Bool
-    public let progress: Double
-    public let status: LyricStatus
+struct CaraokeWidgetEntry: TimelineEntry {
+    let date: Date
+    let title: String
+    let artist: String
+    let currentLine: String
+    let nextLine: String?
+    let isPlaying: Bool
+    let progress: Double
+    let status: LyricStatus
 
-    public init(date: Date = Date(), title: String, artist: String, currentLine: String,
-                nextLine: String? = nil, isPlaying: Bool = true, progress: Double = 0,
-                status: LyricStatus = .playing) {
+    init(date: Date = Date(), title: String, artist: String, currentLine: String,
+         nextLine: String? = nil, isPlaying: Bool = true, progress: Double = 0,
+         status: LyricStatus = .playing) {
         self.date = date
         self.title = title
         self.artist = artist
@@ -29,10 +29,8 @@ public struct CaraokeWidgetEntry: TimelineEntry {
 
 // MARK: - Timeline Provider
 
-public struct CaraokeWidgetProvider: TimelineProvider {
-    public init() {}
-
-    public func placeholder(in context: Context) -> CaraokeWidgetEntry {
+struct CaraokeWidgetProvider: TimelineProvider {
+    func placeholder(in context: Context) -> CaraokeWidgetEntry {
         CaraokeWidgetEntry(
             date: Date(),
             title: "Caraoke",
@@ -45,11 +43,11 @@ public struct CaraokeWidgetProvider: TimelineProvider {
         )
     }
 
-    public func getSnapshot(in context: Context, completion: @escaping (CaraokeWidgetEntry) -> Void) {
+    func getSnapshot(in context: Context, completion: @escaping (CaraokeWidgetEntry) -> Void) {
         completion(readSharedEntry() ?? placeholder(in: context))
     }
 
-    public func getTimeline(in context: Context, completion: @escaping (Timeline<CaraokeWidgetEntry>) -> Void) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CaraokeWidgetEntry>) -> Void) {
         let entry = readSharedEntry() ?? placeholder(in: context)
         let timeline = Timeline(entries: [entry], policy: .atEnd)
         completion(timeline)
@@ -83,15 +81,15 @@ public struct CaraokeWidgetProvider: TimelineProvider {
 
 // MARK: - Widget View
 
-public struct CaraokeWidgetEntryView: View {
+struct CaraokeWidgetEntryView: View {
     var entry: CaraokeWidgetEntry
     @Environment(\.widgetFamily) private var family
 
-    public init(entry: CaraokeWidgetEntry) {
+    init(entry: CaraokeWidgetEntry) {
         self.entry = entry
     }
 
-    public var body: some View {
+    var body: some View {
         LyricTileView(
             title: entry.title,
             artist: entry.artist,
@@ -110,12 +108,10 @@ public struct CaraokeWidgetEntryView: View {
 
 // MARK: - Widget Definition
 
-public struct CaraokeWidget: Widget {
-    public let kind: String = "CaraokeWidget"
+struct CaraokeWidget: Widget {
+    let kind: String = "CaraokeWidget"
 
-    public init() {}
-
-    public var body: some WidgetConfiguration {
+    var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CaraokeWidgetProvider()) { entry in
             CaraokeWidgetEntryView(entry: entry)
         }

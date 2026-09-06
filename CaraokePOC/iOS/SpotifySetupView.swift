@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Dedicated Spotify connection sheet with full step-by-step developer dashboard instructions
-public struct SpotifySetupView: View {
+struct SpotifySetupView: View {
     @ObservedObject var spotifyAuth: SpotifyAuth
     var onConnected: (() -> Void)?
 
@@ -11,12 +11,12 @@ public struct SpotifySetupView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
 
-    public init(spotifyAuth: SpotifyAuth, onConnected: (() -> Void)? = nil) {
+    init(spotifyAuth: SpotifyAuth, onConnected: (() -> Void)? = nil) {
         self.spotifyAuth = spotifyAuth
         self.onConnected = onConnected
     }
 
-    public var body: some View {
+    var body: some View {
         NavigationStack {
             ZStack {
                 AppTheme.background(scheme)
