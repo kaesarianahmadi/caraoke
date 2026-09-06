@@ -61,6 +61,7 @@ export async function dispatchToWorker(workerKey, modelId, systemSoul, prompt, s
           { role: 'system', content: fullSystemPrompt },
           { role: 'user', content: prompt }
         ],
+        stream: false,
         max_tokens: 3500
       })
     });
@@ -69,7 +70,7 @@ export async function dispatchToWorker(workerKey, modelId, systemSoul, prompt, s
     try {
       const data = JSON.parse(raw);
       if (data.choices && data.choices[0]) {
-        let text = data.choices[0].message.content || '';
+        let text = data.choices[0].message?.content || '';
         if (text.includes('<｜｜DSML')) {
           text = text.split('<｜｜DSML')[0].trim();
         }
@@ -79,11 +80,31 @@ export async function dispatchToWorker(workerKey, modelId, systemSoul, prompt, s
         errorMsg = data.error?.message || raw;
       }
     } catch {
-      const match = raw.match(/"content":"(.*?)"/);
-      if (match) {
-        responseText = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
-      } else {
-        errorMsg = raw.slice(0, 250);
+      // Fallback: parse SSE stream chunks if streamed
+      if (raw.includes('data:')) {
+        const lines = raw.split('\n');
+        let combined = '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:') && !trimmed.includes('[DONE]')) {
+            try {
+              const chunk = JSON.parse(trimmed.slice(5).trim());
+              const delta = chunk.choices?.[0]?.delta?.content || '';
+              combined += delta;
+            } catch {}
+          }
+        }
+        if (combined) {
+          responseText = combined.trim();
+        }
+      }
+      if (!responseText) {
+        const match = raw.match(/"content":"(.*?)"/);
+        if (match) {
+          responseText = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        } else {
+          errorMsg = raw.slice(0, 250);
+        }
       }
     }
   } catch (err) {

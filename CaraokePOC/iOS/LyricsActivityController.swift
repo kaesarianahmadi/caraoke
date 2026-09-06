@@ -52,6 +52,7 @@ final class CaraokeActivityController {
     init() {
         // Clean up activities orphaned by a previous app termination.
         Task {
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
             for stale in Activity<LyricsActivityAttributes>.activities {
                 await stale.end(nil, dismissalPolicy: .immediate)
             }

@@ -205,7 +205,7 @@ struct LyricTileView: View {
                 skeleton(widthFraction: family == .banner ? 0.88 : 0.90)
                 skeleton(widthFraction: family == .banner ? 0.60 : 0.64)
             }
-            .frame(height: 54, alignment: .topLeading)
+            .frame(height: 64, alignment: .topLeading)
             .padding(.top, 8)
         case .noLyrics:
             VStack(alignment: .leading, spacing: 4) {
@@ -220,7 +220,7 @@ struct LyricTileView: View {
                     .font(.system(size: 13))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 54, alignment: .topLeading)
+            .frame(height: 64, alignment: .topLeading)
             .padding(.top, 8)
         case .stale:
             VStack(alignment: .leading, spacing: 4) {
@@ -233,14 +233,14 @@ struct LyricTileView: View {
                     .font(.system(size: 12.5))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 54, alignment: .topLeading)
+            .frame(height: 64, alignment: .topLeading)
             .padding(.top, 8)
         default:
             VStack(alignment: .leading, spacing: 4) {
                 Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
                     .font(.system(size: heroSize, weight: .bold))
                     .foregroundColor(colors.heroText)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let nextLine, !nextLine.isEmpty, status != .idle {
@@ -253,7 +253,7 @@ struct LyricTileView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(height: 54, alignment: .topLeading)
+            .frame(height: 64, alignment: .topLeading)
             .clipped()
             .padding(.top, 8)
             .animation(.easeInOut(duration: 0.35), value: currentLine)

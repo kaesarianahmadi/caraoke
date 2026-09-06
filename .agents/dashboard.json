@@ -1,17 +1,17 @@
 {
-  "updated_at": "2026-09-06T17:47:03.857Z",
+  "updated_at": "2026-09-06T19:26:21.764Z",
   "project": "Caraoke",
-  "build": 23,
-  "ci_run_id": "34047665046",
-  "ci_run_url": "https://github.com/kaesarianahmadi/caraoke/actions/runs/34047665046",
+  "build": 25,
+  "ci_run_id": "34049707260",
+  "ci_run_url": "https://github.com/kaesarianahmadi/caraoke/actions/runs/34049707260",
   "ci_status": "success",
-  "testflight_status": "uploaded_build_23",
+  "testflight_status": "uploaded_build_24",
   "chief": {
     "name": "Josh",
     "role": "Chief of Staff & Orchestrator",
     "model": "router9/3.8-flash-ag",
     "status": "idle",
-    "current_action": "Sprint Complete: Build 23 uploaded to TestFlight (All 4 CI jobs green)"
+    "current_action": "Build 25 Prepared: Height expanded (64pt, 3-line wrap), Spotify auto-pin sync, ActivityKit cold-start guard, and StoreKit entitlements alignment"
   },
   "workers": {
     "axel": {
@@ -23,7 +23,7 @@
       },
       "active_model": "ag/gemini-3.8-flash-high",
       "status": "completed",
-      "last_activity": "`LyricTileView` enforces static"
+      "last_activity": "```swift\n    private enum Family { case banner, carPlay }\n\n    @ViewBuilder\n    private func lyricBody(_ family: Family)"
     },
     "vance": {
       "name": "Vance",
@@ -34,7 +34,7 @@
       },
       "active_model": "cmc/deepseek/deepseek-v4-pro",
       "status": "completed",
-      "last_activity": "Confirmed: `AppleMusicSource.safePlaybackTime()` guards `currentPlaybackTime` access so stopped-player exceptions are ca"
+      "last_activity": "```swift\n    init() {\n        // Clean up activities orphaned by a previous app termination.\n        Task {\n            "
     },
     "ward": {
       "name": "Ward",
@@ -44,10 +44,14 @@
       },
       "active_model": "gcli/grok-4.6",
       "status": "completed",
-      "last_activity": "No secrets in diff. App Store ready: 1024px icon compliant, version 24 updated."
+      "last_activity": "WidgetKit UserDefaults share mandates com.apple.security.application-groups. Caraoke_TF_Store_Push.mobileprovision and C"
     }
   },
   "completed_items": [
+    "Build 25: LyricTileView height expanded from 54pt to 64pt with 3-line hero wrap (Axel/Gemini)",
+    "Build 25: NowPlayingCoordinator default pin changed to .auto and synced on playback start (Vance/DeepSeek)",
+    "Build 25: ActivityAuthorizationInfo guard added to CaraokeActivityController.init() to prevent cold-start crash (Vance/DeepSeek)",
+    "Build 25: Entitlements alignment verified with committed distribution profiles (Ward/Grok)",
     "CaraokeLogo.swift & SpotifyLogo.swift vector marks implemented",
     "LyricTileView: stripped transport & numbers, added slide-down transition & 3-line wrap",
     "LyricsLiveActivity: stripped transport & colored dot",
@@ -61,6 +65,139 @@
     "TestFlight Build 23 uploaded to App Store Connect"
   ],
   "telemetry_log": [
+    {
+      "timestamp": "2:24:43 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "ward",
+      "model": "gcli/grok-4.6",
+      "skills_used": [
+        "security-review"
+      ],
+      "duration_ms": 26654,
+      "prompt_preview": "AUDIT REPORT REQUIRED:\n1) We noticed WidgetKit is attempting to share UserDefaults with \"g",
+      "response_preview": "WidgetKit UserDefaults share mandates com.apple.security.application-groups. Caraoke_TF_Store_Push.mobileprovision and Caraoke_Widgets_TF_Store.mobileprovision lack it. Add to Caraoke.entitlements and CaraokeWidgets.entitlements fails manual code-signing CI xcodebuild archive. Safest Build 25: bump CURRENT_PROJECT_VERSION to 25 in project.yml. Maintain alignment committed profiles.",
+      "status": "success"
+    },
+    {
+      "timestamp": "2:23:42 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "vance",
+      "model": "cmc/deepseek/deepseek-v4-pro",
+      "skills_used": [
+        "error-handling"
+      ],
+      "duration_ms": 5257,
+      "prompt_preview": "You are editing CaraokePOC/iOS/LyricsActivityController.swift.\nTASK: In init(), guard Acti",
+      "response_preview": "```swift\n    init() {\n        // Clean up activities orphaned by a previous app termination.\n        Task {\n            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }\n            for stale in Activity<LyricsActivityAttributes>.activities {\n                await stale.end(nil, dismissalPolicy: .immediate)\n            }\n        }\n    }\n```",
+      "status": "success"
+    },
+    {
+      "timestamp": "2:23:31 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "vance",
+      "model": "cmc/deepseek/deepseek-v4-pro",
+      "skills_used": [
+        "error-handling"
+      ],
+      "duration_ms": 9449,
+      "prompt_preview": "You are editing CaraokePOC/iOS/RideModeViewModel.swift.\nTASK: Inside startRealPlayback(), ",
+      "response_preview": "```swift\n    private func startRealPlayback() {\n        realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)\n        realPlayback.start()\n        // Bridge the pipeline's published lines into this model; the\n        // pipeline also drives the Live Activity directly.\n        realPlayback.$currentLine.assign(to: &$currentLine)\n        realPlayback.$nextLine.assign(to: &$nextLine)\n        realPlayback.$trackTitle.assign(to: &$trackTitle)\n        realPlayback.$trackArtist.assign(to: &$trackArtist)\n        realPlayback.$positionMs.assign(to: &$positionMs)\n        realPlayback.$durationMs.assign(to: &$durationMs)\n        playbackCancellables.removeAll()\n        // Status isn't @Published on the controller (write-once per track),\n        // so copy it on every tick alongside the playhead.\n        realPlayback\n            .$positionMs\n            .receive(on: RunLoop.main)\n            .map { [weak realPlayback] _ in realPlayback?.lyricState ?? .idle }\n            .assign(to: &$lyricStatus)\n    }\n```",
+      "status": "success"
+    },
+    {
+      "timestamp": "2:23:12 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "vance",
+      "model": "cmc/deepseek/deepseek-v4-pro",
+      "skills_used": [
+        "error-handling"
+      ],
+      "duration_ms": 3206,
+      "prompt_preview": "You are editing CaraokePOC/iOS/RideModeViewModel.swift.\nTASK: Before realPlayback.start(),",
+      "response_preview": "```swift\n    private func startRealPlayback() {\n        realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)\n        realPlayback.start()\n    }\n```",
+      "status": "success"
+    },
+    {
+      "timestamp": "2:23:04 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "vance",
+      "model": "cmc/deepseek/deepseek-v4-pro",
+      "skills_used": [
+        "error-handling"
+      ],
+      "duration_ms": 5327,
+      "prompt_preview": "You are editing CaraokePOC/iOS/RidePlaybackController.swift.\nTASK: Change initial coordina",
+      "response_preview": "```swift\n        self.apple = AppleMusicSource()\n        self.spotifyAuth = spotifyAuth ?? SpotifyAuth()\n        self.spotify = SpotifySource(tokenProvider: self.spotifyAuth)\n        self.coordinator = NowPlayingCoordinator(\n            applePublisher: apple.statePublisher,\n            spotifyPublisher: spotify.statePublisher,\n            pin: .auto\n        )\n```",
+      "status": "success"
+    },
+    {
+      "timestamp": "2:22:40 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "axel",
+      "model": "ag/gemini-3.8-flash-high",
+      "skills_used": [
+        "swiftui-patterns",
+        "make-interfaces-feel-better"
+      ],
+      "duration_ms": 6736,
+      "prompt_preview": "You are editing CaraokePOC/iOS/LyricTileView.swift.\nTASK: Expand lyricBody container heigh",
+      "response_preview": "```swift\n    private enum Family { case banner, carPlay }\n\n    @ViewBuilder\n    private func lyricBody(_ family: Family) -> some View {\n        let heroSize: CGFloat = isHome ? 19 : (family == .banner ? 20 : 21)\n        let nextSize: CGFloat = isHome ? 14.5 : (family == .banner ? 15 : 14)\n\n        switch status {\n        case .loading:\n            VStack(alignment: .leading, spacing: 8) {\n                skeleton(widthFraction: family == .banner ? 0.88 : 0.90)\n                skeleton(widthFraction: family == .banner ? 0.60 : 0.64)\n            }\n            .frame(height: 64, alignment: .topLeading)\n            .padding(.top, 8)\n        case .noLyrics:\n            VStack(alignment: .leading, spacing: 4) {\n                HStack(spacing: 8) {\n                    musicNoteGlyph(size: family == .banner ? 16 : 15)\n                    Text(currentLine.isEmpty ? title : currentLine)\n                        .font(.system(size: 17, weight: .bold))\n                        .foregroundColor(colors.heroText)\n                        .lineLimit(1)\n                }\n                Text(\"No lyrics found for this song\")\n                    .font(.system(size: 13))\n                    .foregroundColor(colors.metaText)\n            }\n            .frame(height: 64, alignment: .topLeading)\n            .padding(.top, 8)\n        case .stale:\n            VStack(alignment: .leading, spacing: 4) {\n                Text(currentLine.isEmpty ? \"Ride ended\" : currentLine)\n                    .font(.system(size: heroSize - 1, weight: .bold))\n                    .foregroundColor(colors.heroText)\n                    .opacity(0.32)\n                    .lineLimit(1)\n                Text(\"Lyrics return when a song plays\")\n                    .font(.system(size: 12.5))\n                    .foregroundColor(colors.metaText)\n            }\n            .frame(height: 64, alignment: .topLeading)\n            .padding(.top, 8)\n        default:\n            VStack(alignment: .leading, spacing: 4) {\n                Text(currentLine.isEmpty ? (title.isEmpty ? \"Play a song to see lyrics\" : title) : currentLine)\n                    .font(.system(size: heroSize, weight: .bold))\n                    .foregroundColor(colors.heroText)\n                    .lineLimit(3)\n                    .fixedSize(horizontal: false, vertical: true)\n\n                if let nextLine, !nextLine.isEmpty, status != .idle {\n                    Text(nextLine)\n                        .font(.system(size: nextSize, weight: .medium))\n                        .foregroundColor(status == .paused\n                                         ? colors.nextText.opacity(0.58)\n                                         : colors.nextText)\n                        .lineLimit(1)\n                        .fixedSize(horizontal: false, vertical: true)\n                }\n            }\n            .frame(height: 64, alignment: .topLeading)\n            .clipped()\n            .padding(.top, 8)\n            .animation(.easeInOut(duration: 0.35), value: currentLine)\n        }\n    }\n```",
+      "status": "success"
+    },
+    {
+      "timestamp": "2:22:02 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "axel",
+      "model": "ag/gemini-3.8-flash-high",
+      "skills_used": [
+        "swiftui-patterns",
+        "make-interfaces-feel-better"
+      ],
+      "duration_ms": 3206,
+      "prompt_preview": "You are editing CaraokePOC/iOS/LyricTileView.swift.\nTASK: Expand lyricBody container heigh",
+      "response_preview": "```swift\n    private enum Family {",
+      "status": "success"
+    },
+    {
+      "timestamp": "1:04:36 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "vance",
+      "model": "cmc/deepseek/deepseek-v4-flash",
+      "skills_used": [
+        "error-handling"
+      ],
+      "duration_ms": 6851,
+      "prompt_preview": "Audit Build 24: 1) App crashed multiple times on first open; 2) When Live Lyrics is toggle",
+      "response_preview": "Confirmed. First-open crash matches an unguarded cold-start path — likely force unwrap or unchecked decode around activity/snapshot state — with no catch/log to surface it.\n\nThe sync issue is the pin default: `NowPlayingCoordinator.pin = .appleMusic` prevents observing the active Spotify source, so Live Lyrics won’t track until the user manually re-enters/activates Spotify. Fix by defaulting to `.auto` or observing `activePlayingSource` and updating `pin` when it changes.",
+      "status": "success"
+    },
+    {
+      "timestamp": "1:04:24 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "ward",
+      "model": "gcli/grok-4.6",
+      "skills_used": [
+        "security-review"
+      ],
+      "duration_ms": 12774,
+      "prompt_preview": "Audit Build 24: 1) Why was the app icon on TestFlight unchanged? (Old icon in AppIcon1024.",
+      "response_preview": "App icon unchanged in TestFlight. AppIcon1024.png identical to legacy asset. New design/caraoke-logo.svg unmerged into build.\n\nWidgetKit misses shared UserDefaults. com.apple.security.application-groups entitlement absent from main target. Add to entitlements then rebuild.",
+      "status": "success"
+    },
+    {
+      "timestamp": "1:04:04 AM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "axel",
+      "model": "ag/gemini-3.8-flash-high",
+      "skills_used": [
+        "swiftui-patterns",
+        "make-interfaces-feel-better"
+      ],
+      "duration_ms": 11345,
+      "prompt_preview": "User feedback on Build 24: 1) Expand lyrics tab height by 15-20% so 3 to 4 lines of lyrics",
+      "response_preview": "```swift\nimport SwiftUI\n\nstruct LyricTileView: View {\n    let",
+      "status": "success"
+    },
     {
       "timestamp": "12:47:03 AM",
       "caller": "Josh (Chief of Staff)",
@@ -188,32 +325,6 @@
       "duration_ms": 28853,
       "prompt_preview": "Task: User updated design/app-icon-1024.png and we replaced Assets.xcassets/AppIcon.appico",
       "response_preview": "Files missing. Upload design/app-icon-1024.png. Verify 1024x1024 px. Info.plist: no privacy keys. Entitlements: no widget. Build 24: pending.",
-      "status": "success"
-    },
-    {
-      "timestamp": "12:29:24 AM",
-      "caller": "Josh (Chief of Staff)",
-      "worker": "vance",
-      "model": "cmc/deepseek/deepseek-v4-flash",
-      "skills_used": [
-        "error-handling"
-      ],
-      "duration_ms": 9695,
-      "prompt_preview": "Task: App crashed on first launch when starting Ride Mode. Audit AppleMusicSource.swift: p",
-      "response_preview": "Error: null",
-      "status": "success"
-    },
-    {
-      "timestamp": "12:29:15 AM",
-      "caller": "Josh (Chief of Staff)",
-      "worker": "axel",
-      "model": "ag/gemini-3.8-flash-high",
-      "skills_used": [
-        "swiftui-patterns"
-      ],
-      "duration_ms": 2759,
-      "prompt_preview": "Task: User reported Widget says \"Play a song to see lyrics\" because no code writes to User",
-      "response_preview": "```swift\nimport WidgetKit\n\nextension RidePlaybackController {\n    func updateWidget(with snapshot: LyricSnapshot",
       "status": "success"
     }
   ]

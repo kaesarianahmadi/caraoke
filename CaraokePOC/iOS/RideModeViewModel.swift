@@ -165,6 +165,7 @@ final class RideModeViewModel: ObservableObject {
     }
 
     private func startRealPlayback() {
+        realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)
         realPlayback.start()
         // Bridge the pipeline's published lines into this model; the
         // pipeline also drives the Live Activity directly.
