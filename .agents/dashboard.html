@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Caraoke Multi-Model Operations Dashboard</title>
+  <title>Caraoke Staff Operations & Live Telemetry</title>
   <style>
     :root {
       --bg: #0A0E15;
@@ -15,6 +15,7 @@
       --ok: #34C759;
       --blue: #0A84FF;
       --purple: #BF5AF2;
+      --danger: #FF453A;
     }
     body {
       background: var(--bg);
@@ -41,23 +42,123 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .badge.active { background: rgba(52, 199, 89, 0.2); color: var(--ok); border: 1px solid var(--ok); }
-    .badge.idle { background: rgba(130, 134, 142, 0.2); color: var(--muted); border: 1px solid var(--muted); }
-    .badge.auditing { background: rgba(255, 152, 69, 0.2); color: var(--accent); border: 1px solid var(--accent); }
+    .badge.active, .badge.completed, .badge.verified, .badge.success {
+      background: rgba(52, 199, 89, 0.2); color: var(--ok); border: 1px solid var(--ok);
+    }
+    .badge.idle, .badge.queued {
+      background: rgba(130, 134, 142, 0.2); color: var(--muted); border: 1px solid var(--muted);
+    }
+    .badge.auditing, .badge.planning, .badge.building {
+      background: rgba(255, 152, 69, 0.2); color: var(--accent); border: 1px solid var(--accent);
+    }
 
     .chief-banner {
       background: linear-gradient(135deg, #182230 0%, #131921 100%);
       border: 1px solid var(--blue);
       border-radius: 14px;
       padding: 16px 20px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     .chief-info h2 { margin: 0; font-size: 18px; color: #fff; }
     .chief-info .role { color: var(--blue); font-size: 13px; font-weight: 500; margin-top: 2px; }
-    .chief-model { font-family: ui-monospace, monospace; font-size: 12px; color: var(--text); background: rgba(10, 132, 255, 0.15); padding: 6px 12px; border-radius: 8px; }
+    .chief-model {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      color: var(--text);
+      background: rgba(10, 132, 255, 0.15);
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+
+    /* Feedback Form Section */
+    .feedback-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .feedback-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .feedback-header h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .feedback-note {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+    .feedback-note strong { color: var(--accent); }
+    .form-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .build-input {
+      width: 110px;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: ui-monospace, monospace;
+    }
+    .feedback-textarea {
+      width: 100%;
+      height: 90px;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 12px;
+      font-size: 13.5px;
+      font-family: -apple-system, sans-serif;
+      line-height: 1.4;
+      resize: vertical;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+    }
+    .feedback-textarea:focus, .build-input:focus {
+      outline: none;
+      border-color: var(--blue);
+    }
+    .submit-btn {
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s;
+    }
+    .submit-btn:hover { background: #0071E3; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status-msg {
+      font-size: 13px;
+      margin-left: 14px;
+      vertical-align: middle;
+    }
+    .status-msg.ok { color: var(--ok); }
+    .status-msg.err { color: var(--danger); }
 
     .grid {
       display: grid;
@@ -153,12 +254,35 @@
   <div class="chief-banner">
     <div class="chief-info">
       <h2>Josh (Chief of Staff)</h2>
-      <div class="role">Sole User Interface & Orchestrator</div>
+      <div class="role">Sole User Interface & Orchestrator (Zero Solo Coding)</div>
     </div>
     <div style="text-align: right;">
       <div class="chief-model">Model: router9/3.8-flash-ag</div>
       <div id="chief-action" style="font-size: 12px; color: var(--muted); margin-top: 5px;">Standby</div>
     </div>
+  </div>
+
+  <!-- Feedback Submission Form -->
+  <div class="feedback-card">
+    <div class="feedback-header">
+      <h3>📝 Submit Build Feedback & Dispatch Sprint</h3>
+      <span class="badge" style="background: rgba(10, 132, 255, 0.15); color: var(--blue); border: 1px solid var(--blue);">Clean Session (~4k Tokens)</span>
+    </div>
+    <div class="feedback-note">
+      Submitting spawns a fresh session inside the <strong>Caraeoke App</strong> workspace folder. It forces Josh to plan and dispatch all code updates to <strong>Axel</strong> (SwiftUI), <strong>Vance</strong> (Audio & Silent Errors), and <strong>Ward</strong> (Security & Store).
+    </div>
+    <form id="feedback-form" onsubmit="submitFeedback(event)">
+      <div class="form-row">
+        <input type="number" id="build-num" class="build-input" value="24" placeholder="Build #" required />
+      </div>
+      <textarea id="feedback-text" class="feedback-textarea" placeholder="Describe feedback, UI mismatches, crashes, or CarPlay observations for this build..." required></textarea>
+      <div>
+        <button type="submit" id="submit-btn" class="submit-btn">
+          <span>🚀 Launch Staff Sprint in Fresh Session</span>
+        </button>
+        <span id="form-status" class="status-msg"></span>
+      </div>
+    </form>
   </div>
 
   <div class="grid" id="workers-grid"></div>
@@ -184,11 +308,55 @@
   </div>
 
   <script>
+    async function submitFeedback(e) {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      const statusSpan = document.getElementById('form-status');
+      const text = document.getElementById('feedback-text').value.trim();
+      const build = parseInt(document.getElementById('build-num').value) || 24;
+
+      if (!text) return;
+
+      btn.disabled = true;
+      statusSpan.className = 'status-msg';
+      statusSpan.innerText = 'Creating session inside Caraeoke App workspace...';
+
+      try {
+        const res = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ feedback: text, build })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          statusSpan.className = 'status-msg ok';
+          statusSpan.innerHTML = `✓ Fresh session spawned in Caraoke workspace: <code>${data.sessionId}</code>. Telegram synced! Check sidebar.`;
+          document.getElementById('feedback-text').value = '';
+          loadStatus();
+        } else {
+          statusSpan.className = 'status-msg err';
+          statusSpan.innerText = 'Error: ' + (data.error || 'Failed to submit');
+        }
+      } catch (err) {
+        statusSpan.className = 'status-msg err';
+        statusSpan.innerText = 'Network error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
     async function loadStatus() {
       try {
         const res = await fetch('dashboard.json?t=' + Date.now());
         const data = await res.json();
         document.getElementById('updated').innerText = 'Last ping: ' + new Date(data.updated_at).toLocaleTimeString();
+
+        if (data.build) {
+          const buildInput = document.getElementById('build-num');
+          if (buildInput && !document.activeElement.isSameNode(buildInput)) {
+            buildInput.value = data.build;
+          }
+        }
 
         if (data.chief) {
           document.getElementById('chief-action').innerText = 'Current: ' + data.chief.current_action;
@@ -196,7 +364,7 @@
 
         const grid = document.getElementById('workers-grid');
         grid.innerHTML = '';
-        for (const [key, w] of Object.entries(data.workers)) {
+        for (const [key, w] of Object.entries(data.workers || {})) {
           let modelsHtml = '';
           if (w.models) {
             modelsHtml = Object.entries(w.models).map(([tier, m]) => `
@@ -227,11 +395,11 @@
           tbody.innerHTML = data.telemetry_log.map(log => `
             <tr>
               <td class="log-time">${log.timestamp}</td>
-              <td class="log-worker">${log.worker.toUpperCase()}</td>
-              <td class="log-model">${log.model.replace('router9/', '')}</td>
+              <td class="log-worker">${(log.worker || '').toUpperCase()}</td>
+              <td class="log-model">${(log.model || '').replace('router9/', '')}</td>
               <td class="log-duration">${log.duration_ms}ms</td>
-              <td class="log-text" style="color: var(--muted); max-width: 220px;">${log.prompt_preview}</td>
-              <td class="log-text" style="color: #fff; max-width: 350px;"><strong>${log.response_preview}</strong></td>
+              <td class="log-text" style="color: var(--muted); max-width: 220px;">${log.prompt_preview || ''}</td>
+              <td class="log-text" style="color: #fff; max-width: 350px;"><strong>${log.response_preview || ''}</strong></td>
             </tr>
           `).join('');
         } else {
