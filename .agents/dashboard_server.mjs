@@ -70,6 +70,31 @@ const server = http.createServer(async (req, res) => {
 
         console.log(`[Dashboard] Spawned fresh session in Caraeoke App workspace: ${newSessionId}`);
 
+        // 1b. Pin Josh's model: 9router / 3.8-flash-ag (MANDATORY: every new
+        // dashboard session must run Josh on 3.8 flash, never harness default combo/ultra).
+        const selectPayload = {
+          type: 'client-request',
+          rpcId: crypto.randomUUID(),
+          method: 'session.selectModel',
+          payload: {
+            sessionId: newSessionId,
+            provider: 'router9',
+            model: '3.8-flash-ag'
+          }
+        };
+
+        const selectRes = await fetch(`${DSH_API_BASE}/api/session.selectModel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(selectPayload)
+        });
+
+        const selectData = await selectRes.json();
+        if (!selectData?.result?.ok) {
+          throw new Error('Failed to pin model router9/3.8-flash-ag on session: ' + JSON.stringify(selectData));
+        }
+        console.log(`[Dashboard] Pinned session ${newSessionId} to router9/3.8-flash-ag (3.8 flash)`);
+
         // 2. Update Telegram bridge to follow new session
         if (fs.existsSync(TELEGRAM_CONFIG_PATH)) {
           const tgConfig = JSON.parse(fs.readFileSync(TELEGRAM_CONFIG_PATH, 'utf8'));

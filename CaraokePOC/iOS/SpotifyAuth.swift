@@ -148,12 +148,15 @@ final class SpotifyAuth: NSObject, ObservableObject {
 
     /// Returns a token valid for at least SpotifyTokenPolicy.expiryMargin,
     /// refreshing first when needed.
-    func validAccessToken() async throws -> String {
-        let token = store.load()
+func validAccessToken() async throws -> String {
+        guard let token = store.load() else {
+            if isConnected { needsReconnect = true }
+            throw SpotifyAuthError.notConnected
+        }
         switch SpotifyTokenPolicy.action(for: token, now: now()) {
         case .useCurrent:
             if needsReconnect { needsReconnect = false }
-            return token!.accessToken
+            return token.accessToken
         case .refresh:
             return try await refreshNow().accessToken
         case .reauthorize:

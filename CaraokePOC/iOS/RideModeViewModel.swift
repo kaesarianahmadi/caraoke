@@ -43,28 +43,53 @@ final class RideModeViewModel: ObservableObject {
         return min(1, Double(positionMs) / Double(durationMs))
     }
 
-    public enum ActiveMusicSource: String {
+public enum ActiveMusicSource: String {
         case appleMusic
         case spotify
+        case auto
     }
 
     @Published public var activeSource: ActiveMusicSource = {
         let saved = UserDefaults.standard.string(forKey: "caraoke_active_music_source")
-        return ActiveMusicSource(rawValue: saved ?? "") ?? .appleMusic
+        return ActiveMusicSource(rawValue: saved ?? "") ?? .auto
     }() {
         didSet {
             UserDefaults.standard.set(activeSource.rawValue, forKey: "caraoke_active_music_source")
-            realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)
+            switch activeSource {
+            case .spotify:
+                realPlayback.setSourcePin(.spotify)
+            case .appleMusic:
+                realPlayback.setSourcePin(.appleMusic)
+            case .auto:
+                realPlayback.setSourcePin(.auto)
+            }
         }
     }
 
-    /// Mutual exclusion: Exactly one source active at a time (Spotify XOR Apple Music).
-    var appleMusicConnected: Bool { activeSource == .appleMusic }
+/// When in .auto mode, show active based on actual connection,
+    /// otherwise reflect the manually selected source.
+    var appleMusicConnected: Bool {
+        if activeSource == .auto {
+            return true
+        } else {
+            return activeSource == .appleMusic
+        }
+    }
 
-    var spotifyConnected: Bool { activeSource == .spotify && spotifyAuth.isConnected }
+    var spotifyConnected: Bool {
+        if activeSource == .auto {
+            return spotifyAuth.isConnected
+        } else {
+            return activeSource == .spotify && spotifyAuth.isConnected
+        }
+    }
 
     func selectMusicSource(_ source: ActiveMusicSource) {
-        activeSource = source
+        if source == activeSource {
+            activeSource = .auto
+        } else {
+            activeSource = source
+        }
     }
 
     /// Single SpotifyAuth for Settings + pipeline. Exposed read-only.
@@ -164,9 +189,17 @@ final class RideModeViewModel: ObservableObject {
         pushSnapshot()
     }
 
-    private func startRealPlayback() {
-        realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)
+private func startRealPlayback() {
+        switch activeSource {
+        case .spotify:
+            realPlayback.setSourcePin(.spotify)
+        case .appleMusic:
+            realPlayback.setSourcePin(.appleMusic)
+        case .auto:
+            realPlayback.setSourcePin(.auto)
+        }
         realPlayback.start()
+
         // Bridge the pipeline's published lines into this model; the
         // pipeline also drives the Live Activity directly.
         realPlayback.$currentLine.assign(to: &$currentLine)

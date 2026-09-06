@@ -195,7 +195,7 @@ struct LyricTileView: View {
     private enum Family { case banner, carPlay }
 
     @ViewBuilder
-    private func lyricBody(_ family: Family) -> some View {
+private func lyricBody(_ family: Family) -> some View {
         let heroSize: CGFloat = isHome ? 19 : (family == .banner ? 20 : 21)
         let nextSize: CGFloat = isHome ? 14.5 : (family == .banner ? 15 : 14)
 
@@ -205,7 +205,7 @@ struct LyricTileView: View {
                 skeleton(widthFraction: family == .banner ? 0.88 : 0.90)
                 skeleton(widthFraction: family == .banner ? 0.60 : 0.64)
             }
-            .frame(height: 64, alignment: .topLeading)
+            .frame(height: 92, alignment: .topLeading)
             .padding(.top, 8)
         case .noLyrics:
             VStack(alignment: .leading, spacing: 4) {
@@ -220,7 +220,7 @@ struct LyricTileView: View {
                     .font(.system(size: 13))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 64, alignment: .topLeading)
+            .frame(height: 92, alignment: .topLeading)
             .padding(.top, 8)
         case .stale:
             VStack(alignment: .leading, spacing: 4) {
@@ -233,30 +233,37 @@ struct LyricTileView: View {
                     .font(.system(size: 12.5))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 64, alignment: .topLeading)
+            .frame(height: 92, alignment: .topLeading)
             .padding(.top, 8)
         default:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
-                    .font(.system(size: heroSize, weight: .bold))
-                    .foregroundColor(colors.heroText)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let nextLine, !nextLine.isEmpty, status != .idle {
-                    Text(nextLine)
-                        .font(.system(size: nextSize, weight: .medium))
-                        .foregroundColor(status == .paused
-                                         ? colors.nextText.opacity(0.58)
-                                         : colors.nextText)
-                        .lineLimit(1)
+            ZStack(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
+                        .font(.system(size: heroSize, weight: .bold))
+                        .foregroundColor(colors.heroText)
+                        .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if let nextLine, !nextLine.isEmpty, status != .idle {
+                        Text(nextLine)
+                            .font(.system(size: nextSize, weight: .medium))
+                            .foregroundColor(status == .paused
+                                             ? colors.nextText.opacity(0.58)
+                                             : colors.nextText)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .id(currentLine)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity),
+                    removal: .move(edge: .bottom).combined(with: .opacity)
+                ))
             }
-            .frame(height: 64, alignment: .topLeading)
+            .frame(height: 92, alignment: .topLeading)
             .clipped()
             .padding(.top, 8)
-            .animation(.easeInOut(duration: 0.35), value: currentLine)
+            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: currentLine)
         }
     }
 
