@@ -2,16 +2,16 @@
   "updated_at": "2026-09-07T08:47:40.941Z",
   "project": "Caraoke",
   "build": 29,
-  "ci_run_id": "34058026589",
-  "ci_run_url": "https://github.com/kaesarianahmadi/caraoke/actions/runs/34058026589",
-  "ci_status": "pending_push",
-  "testflight_status": "queued_build_29",
+  "ci_run_id": "34102591518",
+  "ci_run_url": "https://github.com/kaesarianahmadi/caraoke/actions/runs/34102591518",
+  "ci_status": "success",
+  "testflight_status": "uploaded_build_29_valid",
   "chief": {
     "name": "Josh",
     "role": "Chief of Staff & Orchestrator",
     "model": "router9/3.8-flash-ag",
-    "status": "ready_to_push",
-    "current_action": "Build 29 complete AppIcon slice matrix generated and audited by Ward, ready for commit & push"
+    "status": "completed",
+    "current_action": "Build 29 uploaded and VALID on TestFlight. Ready for device verification."
   },
   "workers": {
     "axel": {
