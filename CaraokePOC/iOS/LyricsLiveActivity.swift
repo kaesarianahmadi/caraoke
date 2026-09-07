@@ -70,6 +70,7 @@ private struct FamilyAdaptiveTile: View {
             artist: context.state.artist,
             currentLine: context.state.currentLine,
             nextLine: context.state.nextLine,
+            upcomingLines: context.state.upcomingLines ?? (context.state.nextLine.map { [$0] } ?? []),
             isPlaying: context.state.isPlaying,
             progress: context.state.progress,
             status: status(of: context.state),

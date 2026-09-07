@@ -7,6 +7,11 @@ struct CaraokeApp: App {
     @ObservedObject private var model = AppModel.shared.ride
     @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
 
+    init() {
+        CrashReporter.shared.start()
+        AppearanceSettings.apply(mode: AppearanceSettings.mode)
+    }
+
     private var preferredScheme: ColorScheme? {
         let mode = AppearanceMode(rawValue: appearanceRaw) ?? .auto
         return AppearanceSettings.scheme(for: mode)

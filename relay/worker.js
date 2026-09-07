@@ -205,10 +205,49 @@ export class LyricsSession {
   }
 
   async fetch(request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/crashes") {
+      if (request.method === "POST") {
+        let payload;
+        try {
+          payload = await request.json();
+        } catch {
+          payload = { raw: await request.text() };
+        }
+        const crashes = (await this.state.storage.get("crashes")) || [];
+        crashes.unshift({
+          receivedAt: new Date().toISOString(),
+          payload,
+        });
+        if (crashes.length > 20) crashes.length = 20;
+        await this.state.storage.put("crashes", crashes);
+        console.log(`[CRASH-RECORDED] ${JSON.stringify(payload).slice(0, 200)}`);
+        return new Response(JSON.stringify({ ok: true, stored: crashes.length }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "GET") {
+        const crashes = (await this.state.storage.get("crashes")) || [];
+        return new Response(JSON.stringify({ count: crashes.length, crashes }, null, 2), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (request.method === "DELETE") {
+        await this.state.storage.delete("crashes");
+        return new Response(JSON.stringify({ ok: true, message: "crashes cleared" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("method not allowed", { status: 405 });
+    }
+
     if (request.method !== "POST") {
       return new Response("method not allowed", { status: 405 });
     }
-    const url = new URL(request.url);
     if (url.pathname !== "/sessions") {
       return new Response("not found", { status: 404 });
     }
@@ -323,7 +362,7 @@ export class LyricsSession {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith("/sessions")) {
+    if (url.pathname.startsWith("/sessions") || url.pathname.startsWith("/crashes")) {
       const id = env.LyricsSession.idFromName("caraoke-ride");
       return env.LyricsSession.get(id).fetch(request);
     }

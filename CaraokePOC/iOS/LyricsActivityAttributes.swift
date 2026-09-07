@@ -12,6 +12,7 @@ struct LyricsActivityAttributes: ActivityAttributes {
         var artist: String
         var currentLine: String
         var nextLine: String?
+        var upcomingLines: [String]?
         var isPlaying: Bool
         var progress: Double
         /// Which of the 5 live states (playing/paused/nolyr/loading/stale)

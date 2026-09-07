@@ -50,6 +50,15 @@ struct LyricTrack: Equatable, Sendable {
         return lines[i + 1]
     }
 
+    /// Lines following the current one, used for karaoke previews (3-5 lines).
+    func upcomingLines(after positionMs: Int, limit: Int = 4) -> [String] {
+        guard let i = lineIndex(at: positionMs) else { return [] }
+        let nextIndex = i + 1
+        guard nextIndex < lines.count else { return [] }
+        let endIndex = min(nextIndex + limit, lines.count)
+        return lines[nextIndex..<endIndex].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
     /// Progress through the track in 0...1, clamped, for the Live Activity
     /// progress bar. Treats a single-line track as complete once started.
     func progress(at positionMs: Int) -> Double {

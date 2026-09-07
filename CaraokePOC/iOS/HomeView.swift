@@ -84,7 +84,7 @@ struct HomeView: View {
                     Text("Live Lyrics")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.fg(scheme))
-                    Text("Puts synced lyrics on CarPlay and Lock Screen while your music plays.")
+                    Text("Puts synced lyrics on CarPlay, Lock Screen, and Home Screen widgets while your music plays.")
                         .font(.system(size: 13))
                         .foregroundColor(AppTheme.muted(scheme))
                         .lineSpacing(1.45 * 13 - 13)
@@ -99,6 +99,35 @@ struct HomeView: View {
                 .tint(AppTheme.ok)
                 .fixedSize()
             }
+
+            // Sync features indicators
+            HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(model.liveActivityGateMessage == nil ? AppTheme.ok : AppTheme.warn)
+                        .frame(width: 7, height: 7)
+                    Text("Live Activities")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(AppTheme.fg(scheme))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(AppTheme.fg(scheme).opacity(0.06)))
+
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(AppTheme.ok)
+                        .frame(width: 7, height: 7)
+                    Text("Home Widget")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(AppTheme.fg(scheme))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(AppTheme.fg(scheme).opacity(0.06)))
+            }
+            .padding(.top, 12)
+
             if model.liveActivityGateMessage != nil {
                 gateBanner
             }
@@ -148,6 +177,7 @@ struct HomeView: View {
             artist: isIdle ? (model.isOn ? "Waiting for playback…" : "Switch on to stream to car") : model.trackArtist,
             currentLine: isIdle ? (model.isOn ? "Play a song on Apple Music or Spotify" : "Turn switch on to stream lyrics") : model.currentLine,
             nextLine: isIdle ? nil : model.nextLine,
+            upcomingLines: isIdle ? [] : model.upcomingLines,
             isPlaying: model.isPlaying,
             progress: isIdle ? 0 : model.progress,
             status: isIdle ? .idle : model.lyricStatus,

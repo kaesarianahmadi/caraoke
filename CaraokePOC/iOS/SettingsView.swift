@@ -16,6 +16,9 @@ struct SettingsView: View {
     @State private var clientIDText = SpotifyClientIDStore.stored ?? ""
     @State private var showAppearanceSheet = false
     @State private var spotifyFlowExpanded = false
+    @State private var copiedRedirect = false
+    @State private var isConnectingSpotify = false
+    @State private var spotifyErrorMessage: String?
     @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
@@ -59,9 +62,10 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(AppearanceSettings.preferredScheme)
+        .preferredColorScheme(currentAppearanceMode.colorScheme)
         .sheet(isPresented: $showAppearanceSheet) {
             AppearanceSheet()
+                .preferredColorScheme(currentAppearanceMode.colorScheme)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
@@ -149,11 +153,17 @@ struct SettingsView: View {
             gRow {
                 AppleMusicLogo().frame(width: 29, height: 29)
                 Text("Apple Music").gLabel()
-                Text(model.appleMusicConnected ? "Connected" : "Not active")
+                Text(model.appleMusicConnected ? "Active source" : "Standby")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(model.appleMusicConnected ? AppTheme.ok : AppTheme.muted(scheme))
-                Image(systemName: "chevron.right")
-                    .gChevron()
+                if model.appleMusicConnected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(AppTheme.ok)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .gChevron()
+                }
             }
         }
         .buttonStyle(.plain)
@@ -162,72 +172,224 @@ struct SettingsView: View {
     @ViewBuilder
     private var spotifyRow: some View {
         Button {
-            withAnimation { spotifyFlowExpanded.toggle() }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { spotifyFlowExpanded.toggle() }
         } label: {
             gRow {
                 SpotifyLogo().frame(width: 29, height: 29)
                 Text("Spotify").gLabel()
-                if spotifyAuth.needsReconnect {
+                if model.spotifyConnected {
+                    Text("Active source")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppTheme.ok)
+                } else if spotifyAuth.needsReconnect {
                     Text("Reconnect needed")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppTheme.warn)
+                } else if spotifyAuth.isConnected {
+                    Text("Connected (Standby)")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(AppTheme.muted(scheme))
                 } else {
-                    Text(spotifyAuth.isConnected ? "Connected" : "Not connected")
-                        .font(.system(size: 13, weight: spotifyAuth.isConnected ? .medium : .regular))
-                        .foregroundColor(spotifyAuth.isConnected ? AppTheme.ok : AppTheme.warn)
+                    Text("Not connected")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(AppTheme.warn)
                 }
-                Image(systemName: "chevron.right")
-                    .gChevron()
-                    .rotationEffect(.degrees(spotifyFlowExpanded ? 90 : 0))
+                if model.spotifyConnected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(AppTheme.ok)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .gChevron()
+                        .rotationEffect(.degrees(spotifyFlowExpanded ? 90 : 0))
+                }
             }
         }
         .buttonStyle(.plain)
     }
 
-    /// Bring-your-own Client ID (user decision 2026-08-31): the user creates
-    /// a private development-mode Spotify app and pastes its Client ID; as
-    /// the app's owner they are exempt from the developer's own allowlist.
-    /// Token stays in the Keychain; the shared auth instance serves the
-    /// playback pipeline.
+    /// Bring-your-own Client ID setup with direct links and instructions
     @ViewBuilder
     private var spotifyFlow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if !SpotifyClientIDStore.hasClientID {
-                Text("Create a private Spotify app at developer.spotify.com/dashboard, enable the Web API, add caraoke:// as a redirect URI, then paste its Client ID here.")
-                    .font(.system(size: 13))
-                    .foregroundColor(AppTheme.muted(scheme))
-                    .lineSpacing(1.45 * 13 - 13)
-            }
-            TextField("Paste your Client ID", text: $clientIDText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.system(size: 13).monospaced())
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(AppTheme.fg(scheme).opacity(0.06)))
-            HStack {
-                Button("Save") {
-                    SpotifyClientIDStore.stored = clientIDText.trimmingCharacters(in: .whitespaces)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("How to get your Spotify Client ID:")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(AppTheme.fg(scheme))
+
+                // Step 1: Dashboard Link
+                HStack(spacing: 8) {
+                    Text("1.")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(AppTheme.accent(scheme))
+                    Link(destination: URL(string: "https://developer.spotify.com/dashboard")!) {
+                        HStack(spacing: 4) {
+                            Text("Open Spotify Developer Dashboard")
+                                .font(.system(size: 12, weight: .medium))
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundColor(AppTheme.accent(scheme))
+                    }
                 }
-                .font(.system(size: 14, weight: .medium))
-                .disabled(clientIDText.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                // Step 2: Create App
+                HStack(alignment: .top, spacing: 8) {
+                    Text("2.")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(AppTheme.accent(scheme))
+                    Text("Log in, tap 'Create app', name it 'Caraoke' and select 'Web API'.")
+                        .font(.system(size: 12))
+                        .foregroundColor(AppTheme.muted(scheme))
+                }
+
+                // Step 3: Redirect URI with Copy
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("3.")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(AppTheme.accent(scheme))
+                        Text("Under App Settings → Redirect URIs, add:")
+                            .font(.system(size: 12))
+                            .foregroundColor(AppTheme.muted(scheme))
+                    }
+                    HStack {
+                        Text("caraoke://spotify-callback")
+                            .font(.system(size: 12, weight: .semibold).monospaced())
+                            .foregroundColor(AppTheme.fg(scheme))
+                        Spacer()
+                        Button {
+                            UIPasteboard.general.string = "caraoke://spotify-callback"
+                            copiedRedirect = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                copiedRedirect = false
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: copiedRedirect ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 11))
+                                Text(copiedRedirect ? "Copied" : "Copy")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(copiedRedirect ? AppTheme.ok : AppTheme.accent(scheme))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(AppTheme.fg(scheme).opacity(0.08)))
+                        }
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(AppTheme.fg(scheme).opacity(0.04)))
+                }
+
+                // Step 4: Copy Client ID
+                HStack(alignment: .top, spacing: 8) {
+                    Text("4.")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(AppTheme.accent(scheme))
+                    Text("Copy your Client ID from Basic Information and paste below:")
+                        .font(.system(size: 12))
+                        .foregroundColor(AppTheme.muted(scheme))
+                }
+            }
+
+            // Input field
+            HStack(spacing: 8) {
+                TextField("Paste Client ID here", text: $clientIDText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 13).monospaced())
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(AppTheme.fg(scheme).opacity(0.06)))
+
+                Button {
+                    if let clip = UIPasteboard.general.string {
+                        clientIDText = clip.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                } label: {
+                    Text("Paste")
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(AppTheme.fg(scheme).opacity(0.08)))
+                }
+                .foregroundColor(AppTheme.fg(scheme))
+            }
+
+            if let spotifyErrorMessage {
+                Text(spotifyErrorMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppTheme.warn)
+            }
+
+            // Action buttons
+            HStack(spacing: 10) {
+                Button {
+                    let trimmed = clientIDText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    SpotifyClientIDStore.stored = trimmed
+                    isConnectingSpotify = true
+                    spotifyErrorMessage = nil
+                    Task {
+                        do {
+                            try await spotifyAuth.connect()
+                            isConnectingSpotify = false
+                            model.selectMusicSource(.spotify)
+                        } catch {
+                            isConnectingSpotify = false
+                            spotifyErrorMessage = error.localizedDescription
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isConnectingSpotify {
+                            ProgressView().tint(.white)
+                                .scaleEffect(0.8)
+                        }
+                        Text(spotifyAuth.isConnected ? "Reconnect" : "Save & Connect")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(clientIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                              ? Color.gray : Color(hex: 0x1DB954)))
+                }
+                .disabled(clientIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isConnectingSpotify)
+
+                if spotifyAuth.isConnected && !model.spotifyConnected {
+                    Button {
+                        model.selectMusicSource(.spotify)
+                    } label: {
+                        Text("Make Active")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppTheme.fg(scheme))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(AppTheme.fg(scheme).opacity(0.08)))
+                    }
+                }
+
                 Spacer()
+
                 if spotifyAuth.isConnected {
                     Button("Disconnect", role: .destructive) {
                         spotifyAuth.disconnect()
+                        if model.activeSource == .spotify {
+                            model.selectMusicSource(.appleMusic)
+                        }
                     }
-                    .font(.system(size: 14, weight: .medium))
-                } else {
-                    Button("Connect") {
-                        Task { try? await spotifyAuth.connect() }
-                    }
-                    .font(.system(size: 14, weight: .medium))
-                    .disabled(!SpotifyClientIDStore.hasClientID)
+                    .font(.system(size: 13, weight: .medium))
                 }
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(AppTheme.fg(scheme).opacity(0.02)))
     }
 
     // MARK: - Appearance (design bottom sheet)
@@ -486,6 +648,7 @@ struct AppearanceSheet: View {
         }
         .padding(20)
         .background(AppTheme.bg(scheme).ignoresSafeArea())
+        .preferredColorScheme(currentMode.colorScheme)
     }
 
     private func icon(for mode: AppearanceMode) -> String {

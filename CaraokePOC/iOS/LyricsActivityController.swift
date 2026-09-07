@@ -268,6 +268,7 @@ final class CaraokeActivityController {
             artist: snapshot.artist,
             currentLine: snapshot.currentLine,
             nextLine: snapshot.nextLine,
+            upcomingLines: snapshot.upcomingLines,
             isPlaying: snapshot.isPlaying,
             progress: snapshot.progress,
             status: snapshot.status.rawValue,

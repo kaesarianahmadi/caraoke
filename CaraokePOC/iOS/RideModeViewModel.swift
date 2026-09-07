@@ -27,6 +27,7 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var elapsedMs = 0
     @Published private(set) var currentLine = ""
     @Published private(set) var nextLine: String?
+    @Published private(set) var upcomingLines: [String] = []
     /// Now-playing identity + clock, bridged from the real playback pipeline
     /// so the home screen's player card matches the Lock Screen tile.
     @Published private(set) var trackTitle = ""
@@ -43,7 +44,7 @@ final class RideModeViewModel: ObservableObject {
         return min(1, Double(positionMs) / Double(durationMs))
     }
 
-public enum ActiveMusicSource: String {
+    public enum ActiveMusicSource: String {
         case appleMusic
         case spotify
         case auto
@@ -51,7 +52,7 @@ public enum ActiveMusicSource: String {
 
     @Published public var activeSource: ActiveMusicSource = {
         let saved = UserDefaults.standard.string(forKey: "caraoke_active_music_source")
-        return ActiveMusicSource(rawValue: saved ?? "") ?? .auto
+        return ActiveMusicSource(rawValue: saved ?? "") ?? .appleMusic
     }() {
         didSet {
             UserDefaults.standard.set(activeSource.rawValue, forKey: "caraoke_active_music_source")
@@ -66,30 +67,32 @@ public enum ActiveMusicSource: String {
         }
     }
 
-/// When in .auto mode, show active based on actual connection,
-    /// otherwise reflect the manually selected source.
+    /// Mutually exclusive active source indicators (prevents both showing active)
     var appleMusicConnected: Bool {
-        if activeSource == .auto {
+        switch activeSource {
+        case .appleMusic:
             return true
-        } else {
-            return activeSource == .appleMusic
+        case .spotify:
+            return false
+        case .auto:
+            return !spotifyConnected
         }
     }
 
     var spotifyConnected: Bool {
-        if activeSource == .auto {
-            return spotifyAuth.isConnected
-        } else {
-            return activeSource == .spotify && spotifyAuth.isConnected
+        guard spotifyAuth.isConnected else { return false }
+        switch activeSource {
+        case .spotify:
+            return true
+        case .appleMusic:
+            return false
+        case .auto:
+            return realPlayback.currentSource == .spotify
         }
     }
 
     func selectMusicSource(_ source: ActiveMusicSource) {
-        if source == activeSource {
-            activeSource = .auto
-        } else {
-            activeSource = source
-        }
+        activeSource = source
     }
 
     /// Single SpotifyAuth for Settings + pipeline. Exposed read-only.
@@ -147,6 +150,14 @@ public enum ActiveMusicSource: String {
             .sink { [weak self] val in
                 guard let self, self.isOn else { return }
                 self.nextLine = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$upcomingLines
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.upcomingLines = val
             }
             .store(in: &playbackCancellables)
 
@@ -222,6 +233,7 @@ public enum ActiveMusicSource: String {
         trackArtist = ""
         currentLine = ""
         nextLine = nil
+        upcomingLines = []
         positionMs = 0
         durationMs = nil
         lyricStatus = .idle

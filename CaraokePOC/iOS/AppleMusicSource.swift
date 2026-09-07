@@ -110,6 +110,10 @@ final class AppleMusicSource: NowPlayingSource {
         ] {
             observers.append(center.addObserver(forName: name, object: player, queue: .main) { [weak self] _ in
                 self?.emit()
+                // Rapid re-emits catch MediaPlayer updating currentPlaybackTime after track start
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self?.emit() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self?.emit() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.70) { self?.emit() }
             })
         }
         // 1 s poll of the full player state — MediaPlayer notifications are

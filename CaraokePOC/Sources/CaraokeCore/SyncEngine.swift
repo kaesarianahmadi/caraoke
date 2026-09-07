@@ -13,16 +13,35 @@ struct LyricsPosition: Equatable {
     let lineIndex: Int?
     let currentLine: String?
     let nextLine: String?
+    let upcomingLines: [String]
     /// 0–1 through the current line's time window.
     let lineProgress: Double
     /// 0–1 through the whole track.
     let trackProgress: Double
     let isPlaying: Bool
+
+    init(positionMs: Int,
+         lineIndex: Int?,
+         currentLine: String?,
+         nextLine: String?,
+         upcomingLines: [String] = [],
+         lineProgress: Double,
+         trackProgress: Double,
+         isPlaying: Bool) {
+        self.positionMs = positionMs
+        self.lineIndex = lineIndex
+        self.currentLine = currentLine
+        self.nextLine = nextLine
+        self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
+        self.lineProgress = lineProgress
+        self.trackProgress = trackProgress
+        self.isPlaying = isPlaying
+    }
 }
 
 final class SyncEngine {
-    static let seekThresholdMs = 2000
-    static let tickInterval: TimeInterval = 0.5
+    static let seekThresholdMs = 1000
+    static let tickInterval: TimeInterval = 0.25
 
     var now: () -> Date
     private(set) var anchor: NowPlayingState?
@@ -121,6 +140,19 @@ final class SyncEngine {
             nextLine = lines.first?.text
         }
 
+        let upcoming: [String]
+        if let index {
+            let nextStart = index + 1
+            if nextStart < lines.count {
+                let end = min(nextStart + 4, lines.count)
+                upcoming = lines[nextStart..<end].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            } else {
+                upcoming = []
+            }
+        } else {
+            upcoming = lines.prefix(4).map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        }
+
         var lineProgress = 0.0
         if let index {
             let start = lines[index].timeMs
@@ -136,6 +168,7 @@ final class SyncEngine {
         return LyricsPosition(
             positionMs: pos, lineIndex: index,
             currentLine: currentLine, nextLine: nextLine,
+            upcomingLines: upcoming,
             lineProgress: lineProgress, trackProgress: trackProgress,
             isPlaying: isPlaying
         )

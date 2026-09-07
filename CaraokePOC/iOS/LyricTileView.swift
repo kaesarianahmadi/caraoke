@@ -56,6 +56,7 @@ struct LyricTileView: View {
     let artist: String
     let currentLine: String
     let nextLine: String?
+    let upcomingLines: [String]
     let isPlaying: Bool
     let progress: Double
     let status: LyricStatus
@@ -70,7 +71,8 @@ struct LyricTileView: View {
 
     private var colors: LyricTilePalette { palette ?? .activity }
 
-    init(title: String, artist: String, currentLine: String, nextLine: String?,
+    init(title: String, artist: String, currentLine: String, nextLine: String? = nil,
+         upcomingLines: [String] = [],
          isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
          positionMs: Int = 0, durationMs: Int? = nil, isCarPlaySmall: Bool = false,
          isHome: Bool = false, isWidget: Bool = false, palette: LyricTilePalette? = nil) {
@@ -78,6 +80,7 @@ struct LyricTileView: View {
         self.artist = artist
         self.currentLine = currentLine
         self.nextLine = nextLine
+        self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
         self.isPlaying = isPlaying
         self.progress = progress
         self.status = status
@@ -158,64 +161,68 @@ struct LyricTileView: View {
 
     @ViewBuilder
     private var lyricBody: some View {
-        let heroSize: CGFloat = 16.5
-        let nextSize: CGFloat = 13.5
+        let fontSize16: CGFloat = 16.0
+        let containerHeight: CGFloat = 118.0
 
         switch status {
         case .loading:
-            VStack(alignment: .leading, spacing: 6) {
-                skeleton(widthFraction: 0.88)
-                skeleton(widthFraction: 0.60)
+            VStack(alignment: .leading, spacing: 8) {
+                skeleton(widthFraction: 0.90)
+                skeleton(widthFraction: 0.70)
+                skeleton(widthFraction: 0.50)
             }
-            .frame(height: 74, alignment: .topLeading)
+            .frame(height: containerHeight, alignment: .topLeading)
             .padding(.top, 6)
         case .noLyrics:
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    musicNoteGlyph(size: 15)
+                    musicNoteGlyph(size: 16)
                     Text(currentLine.isEmpty ? title : currentLine)
-                        .font(.system(size: 15.5, weight: .bold))
+                        .font(.system(size: fontSize16, weight: .bold))
                         .foregroundColor(colors.heroText)
                         .lineLimit(1)
                 }
                 Text("No lyrics found for this song")
-                    .font(.system(size: 12.5))
+                    .font(.system(size: 13))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 74, alignment: .topLeading)
+            .frame(height: containerHeight, alignment: .topLeading)
             .padding(.top, 6)
         case .stale:
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(currentLine.isEmpty ? "Ride ended" : currentLine)
-                    .font(.system(size: heroSize, weight: .bold))
+                    .font(.system(size: fontSize16, weight: .bold))
                     .foregroundColor(colors.heroText)
                     .opacity(0.32)
                     .lineLimit(1)
                 Text("Lyrics return when a song plays")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 74, alignment: .topLeading)
+            .frame(height: containerHeight, alignment: .topLeading)
             .padding(.top, 6)
         default:
             ZStack(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 5) {
+                    // Line 1: Current line (Bold 16pt, 100% opacity)
                     Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
-                        .font(.system(size: heroSize, weight: .bold))
+                        .font(.system(size: fontSize16, weight: .bold))
                         .foregroundColor(colors.heroText)
                         .lineLimit(2)
                         .minimumScaleFactor(0.85)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let nextLine, !nextLine.isEmpty, status != .idle {
-                        Text(nextLine)
-                            .font(.system(size: nextSize, weight: .medium))
-                            .foregroundColor(status == .paused
-                                             ? colors.nextText.opacity(0.58)
-                                             : colors.nextText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                            .fixedSize(horizontal: false, vertical: true)
+                    // Lines 2-4: Upcoming lyrics (Medium 16pt, descending opacity for karaoke sing-along)
+                    if status != .idle {
+                        let linesToShow = displayUpcomingLines
+                        ForEach(Array(linesToShow.prefix(3).enumerated()), id: \.offset) { idx, line in
+                            Text(line)
+                                .font(.system(size: fontSize16, weight: .medium))
+                                .foregroundColor(colors.nextText.opacity(upcomingOpacity(index: idx)))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
                 .id(currentLine)
@@ -224,10 +231,29 @@ struct LyricTileView: View {
                     removal: .move(edge: .top).combined(with: .opacity)
                 ))
             }
-            .frame(height: 74, alignment: .topLeading)
+            .frame(height: containerHeight, alignment: .topLeading)
             .clipped()
             .padding(.top, 6)
             .animation(.spring(response: 0.38, dampingFraction: 0.86), value: currentLine)
+        }
+    }
+
+    private var displayUpcomingLines: [String] {
+        if !upcomingLines.isEmpty {
+            return upcomingLines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        }
+        if let nextLine, !nextLine.trimmingCharacters(in: .whitespaces).isEmpty {
+            return [nextLine]
+        }
+        return []
+    }
+
+    private func upcomingOpacity(index: Int) -> Double {
+        let isPaused = (status == .paused)
+        switch index {
+        case 0: return isPaused ? 0.45 : 0.65
+        case 1: return isPaused ? 0.28 : 0.42
+        default: return isPaused ? 0.16 : 0.24
         }
     }
 

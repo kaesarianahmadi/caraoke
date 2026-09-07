@@ -8,6 +8,7 @@ struct LyricSnapshot: Equatable, Sendable {
     let artist: String
     let currentLine: String
     let nextLine: String?
+    let upcomingLines: [String]
     let isPlaying: Bool
     let progress: Double
     /// Which of the 5 design states this snapshot renders.
@@ -20,4 +21,28 @@ struct LyricSnapshot: Equatable, Sendable {
     /// Index of the current line in the track — lets the activity update
     /// policy detect real line changes instead of re-sending on every tick.
     let lineIndex: Int?
+
+    init(title: String,
+         artist: String,
+         currentLine: String,
+         nextLine: String? = nil,
+         upcomingLines: [String] = [],
+         isPlaying: Bool,
+         progress: Double,
+         status: LyricStatus,
+         positionMs: Int,
+         durationMs: Int? = nil,
+         lineIndex: Int? = nil) {
+        self.title = title
+        self.artist = artist
+        self.currentLine = currentLine
+        self.nextLine = nextLine
+        self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
+        self.isPlaying = isPlaying
+        self.progress = progress
+        self.status = status
+        self.positionMs = positionMs
+        self.durationMs = durationMs
+        self.lineIndex = lineIndex
+    }
 }

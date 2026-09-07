@@ -9,18 +9,26 @@ struct CaraokeWidgetEntry: TimelineEntry {
     let artist: String
     let currentLine: String
     let nextLine: String?
+    let upcomingLines: [String]
     let isPlaying: Bool
     let progress: Double
     let status: LyricStatus
 
-    init(date: Date = Date(), title: String, artist: String, currentLine: String,
-         nextLine: String? = nil, isPlaying: Bool = true, progress: Double = 0,
+    init(date: Date = Date(),
+         title: String,
+         artist: String,
+         currentLine: String,
+         nextLine: String? = nil,
+         upcomingLines: [String] = [],
+         isPlaying: Bool = true,
+         progress: Double = 0,
          status: LyricStatus = .playing) {
         self.date = date
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
         self.nextLine = nextLine
+        self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
         self.isPlaying = isPlaying
         self.progress = progress
         self.status = status
@@ -37,6 +45,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
             artist: "Live Lyrics",
             currentLine: "Play a song to see lyrics",
             nextLine: "Next line will appear here",
+            upcomingLines: ["Sing along in real time", "Synced for CarPlay & Lock Screen"],
             isPlaying: false,
             progress: 0.35,
             status: .idle
@@ -44,31 +53,102 @@ struct CaraokeWidgetProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CaraokeWidgetEntry) -> Void) {
-        completion(readSharedEntry() ?? placeholder(in: context))
+        if let payload = SharedWidgetStore.read(), !payload.title.isEmpty {
+            let status = LyricStatus(raw: payload.status) ?? .playing
+            let entry = CaraokeWidgetEntry(
+                date: Date(),
+                title: payload.title,
+                artist: payload.artist,
+                currentLine: payload.currentLine,
+                nextLine: payload.nextLine,
+                upcomingLines: payload.upcomingLines,
+                isPlaying: payload.isPlaying,
+                progress: payload.progress,
+                status: status
+            )
+            completion(entry)
+        } else {
+            completion(placeholder(in: context))
+        }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CaraokeWidgetEntry>) -> Void) {
-        let entry = readSharedEntry() ?? placeholder(in: context)
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-        completion(timeline)
-    }
-
-    private func readSharedEntry() -> CaraokeWidgetEntry? {
         guard let payload = SharedWidgetStore.read(), !payload.title.isEmpty else {
-            return nil
+            let entry = placeholder(in: context)
+            completion(Timeline(entries: [entry], policy: .atEnd))
+            return
         }
-        let status = LyricStatus(raw: payload.status) ?? .playing
 
-        return CaraokeWidgetEntry(
-            date: Date(),
-            title: payload.title,
-            artist: payload.artist,
-            currentLine: payload.currentLine,
-            nextLine: payload.nextLine,
-            isPlaying: payload.isPlaying,
-            progress: payload.progress,
-            status: status
-        )
+        let status = LyricStatus(raw: payload.status) ?? .playing
+        let now = Date()
+
+        // If not playing, or no timed lines available, or not in playing state: single static entry
+        if !payload.isPlaying || payload.lines.isEmpty || status != .playing {
+            let entry = CaraokeWidgetEntry(
+                date: now,
+                title: payload.title,
+                artist: payload.artist,
+                currentLine: payload.currentLine,
+                nextLine: payload.nextLine,
+                upcomingLines: payload.upcomingLines,
+                isPlaying: payload.isPlaying,
+                progress: payload.progress,
+                status: status
+            )
+            completion(Timeline(entries: [entry], policy: .atEnd))
+            return
+        }
+
+        // GENERATE MULTI-ENTRY TIMELINE FOR REAL-TIME LYRIC SYNCHRONIZATION
+        var entries: [CaraokeWidgetEntry] = []
+        let trackStartEpoch = Double(payload.trackStartEpochMs) / 1000.0
+        let nowEpoch = now.timeIntervalSince1970
+        let currentPosMs = max(0, Int((nowEpoch - trackStartEpoch) * 1000.0))
+
+        let lines = payload.lines
+        var startIndex = 0
+        for (i, line) in lines.enumerated() {
+            if line.timeMs <= currentPosMs {
+                startIndex = i
+            } else {
+                break
+            }
+        }
+
+        // Schedule up to 60 subsequent lines for automatic timeline transitions
+        let sliceLimit = min(lines.count, startIndex + 60)
+        let slice = lines[startIndex..<sliceLimit]
+
+        for (offset, line) in slice.enumerated() {
+            let globalIndex = startIndex + offset
+            let lineEpoch = trackStartEpoch + (Double(line.timeMs) / 1000.0)
+            let entryDate = (offset == 0) ? now : Date(timeIntervalSince1970: lineEpoch)
+
+            let nextLineText = (globalIndex + 1 < lines.count) ? lines[globalIndex + 1].text : nil
+            let upcoming = lines.dropFirst(globalIndex + 1).prefix(3).map(\.text)
+            let progress = payload.durationMs > 0 ? min(1.0, Double(line.timeMs) / Double(payload.durationMs)) : 0.0
+
+            entries.append(CaraokeWidgetEntry(
+                date: max(entryDate, now),
+                title: payload.title,
+                artist: payload.artist,
+                currentLine: line.text,
+                nextLine: nextLineText,
+                upcomingLines: Array(upcoming),
+                isPlaying: true,
+                progress: progress,
+                status: .playing
+            ))
+        }
+
+        let reloadPolicy: TimelineReloadPolicy
+        if let last = entries.last {
+            reloadPolicy = .after(last.date.addingTimeInterval(4))
+        } else {
+            reloadPolicy = .atEnd
+        }
+
+        completion(Timeline(entries: entries.isEmpty ? [placeholder(in: context)] : entries, policy: reloadPolicy))
     }
 }
 
@@ -87,6 +167,7 @@ struct CaraokeWidgetEntryView: View {
             artist: entry.artist,
             currentLine: entry.currentLine,
             nextLine: entry.nextLine,
+            upcomingLines: entry.upcomingLines,
             isPlaying: entry.isPlaying,
             progress: entry.progress,
             status: entry.status,

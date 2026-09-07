@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// The Settings → Appearance picker (design: settings.html bottom sheet).
 /// Auto follows the device; Light / Dark force the palette. Stored under
@@ -27,6 +30,10 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
         case .dark: return "Dark"
         }
     }
+
+    var colorScheme: ColorScheme? {
+        AppearanceSettings.scheme(for: self)
+    }
 }
 
 /// Persisted appearance preference + reactive updates
@@ -37,6 +44,7 @@ enum AppearanceSettings {
         get { AppearanceMode(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .auto }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: storageKey)
+            apply(mode: newValue)
             NotificationCenter.default.post(name: .appearanceDidChange, object: nil)
         }
     }
@@ -52,6 +60,25 @@ enum AppearanceSettings {
         case .light: return .light
         case .dark: return .dark
         }
+    }
+
+    @MainActor
+    static func apply(mode: AppearanceMode) {
+        #if canImport(UIKit)
+        let style: UIUserInterfaceStyle
+        switch mode {
+        case .auto: style = .unspecified
+        case .light: style = .light
+        case .dark: style = .dark
+        }
+        for scene in UIApplication.shared.connectedScenes {
+            if let windowScene = scene as? UIWindowScene {
+                for window in windowScene.windows {
+                    window.overrideUserInterfaceStyle = style
+                }
+            }
+        }
+        #endif
     }
 }
 

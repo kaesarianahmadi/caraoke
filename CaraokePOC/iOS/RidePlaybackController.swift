@@ -19,11 +19,15 @@ final class RidePlaybackController: ObservableObject {
 
     @Published private(set) var currentLine = ""
     @Published private(set) var nextLine: String?
+    @Published private(set) var upcomingLines: [String] = []
     /// Track identity + playback clock the home screen's player card shows.
     @Published private(set) var trackTitle = ""
     @Published private(set) var trackArtist = ""
     @Published private(set) var positionMs = 0
     @Published private(set) var durationMs: Int?
+
+    /// Active source from engine's anchor
+    var currentSource: MusicSource? { engine.anchor?.source }
 
     /// Lyrics load state — drives the tile's status badge (design states).
     private(set) var lyricState: LyricStatus = .idle
@@ -39,6 +43,7 @@ final class RidePlaybackController: ObservableObject {
     private let relay: LyricsRelayClient
     private var cancellables: Set<AnyCancellable> = []
     private var lastLyricsKey: String?
+    private var lyricsFetchTask: Task<Void, Never>?
     /// Last lyric track handed to the relay — re-registration on seek/pause
     /// reuses its schedule without refetching.
     private var lastTrack: LyricTrack?
@@ -107,6 +112,8 @@ final class RidePlaybackController: ObservableObject {
         engine.stopTicking()
         audioKeeper.stop()
         relay.end()
+        lyricsFetchTask?.cancel()
+        lyricsFetchTask = nil
         lastLyricsKey = nil
         lastTrack = nil
         lastRelayStartMs = nil
@@ -114,6 +121,7 @@ final class RidePlaybackController: ObservableObject {
         lastRelayRegisterAt = nil
         currentLine = ""
         nextLine = nil
+        upcomingLines = []
         trackTitle = ""
         trackArtist = ""
         positionMs = 0
@@ -149,23 +157,34 @@ final class RidePlaybackController: ObservableObject {
         )
         guard key == lastLyricsKey else {
             lastLyricsKey = key
+            lyricsFetchTask?.cancel()
+            engine.setLyrics([])
+            currentLine = ""
+            nextLine = nil
+            upcomingLines = []
+            trackTitle = state.title
+            trackArtist = state.artist
+            lyricState = .loading
             let signature = TrackSignature(
                 title: state.title, artist: state.artist,
                 album: state.album, durationMs: state.durationMs
             )
-            lyricState = .loading
-            Task { [weak self] in
+            lyricsFetchTask = Task { [weak self] in
                 guard let self else { return }
                 guard let track = try? await self.provider.lyrics(for: signature) else {
-                    self.lyricState = .noLyrics
+                    if !Task.isCancelled {
+                        self.lyricState = .noLyrics
+                    }
                     return
                 }
+                guard !Task.isCancelled else { return }
                 self.lastTrack = track
                 self.engine.setLyrics(
                     track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
                 )
                 self.armRelay(track: track)
-                self.lyricState = .playing // render() refines play vs pause
+                self.lyricState = .playing
+                self.render(self.engine.positionSubject.value)
             }
             return
         }
@@ -228,6 +247,7 @@ final class RidePlaybackController: ObservableObject {
         guard let position else { return }
         currentLine = position.currentLine ?? ""
         nextLine = position.nextLine
+        upcomingLines = position.upcomingLines
         let anchor = engine.anchor
         // Design status ladder: fetch in progress → "loading"; fetch failed →
         // "no lyrics"; otherwise playing / paused from the clock.
@@ -243,6 +263,7 @@ final class RidePlaybackController: ObservableObject {
             artist: anchor?.artist ?? "",
             currentLine: position.currentLine ?? "",
             nextLine: position.nextLine,
+            upcomingLines: position.upcomingLines,
             isPlaying: position.isPlaying,
             progress: position.trackProgress,
             status: state,
@@ -259,14 +280,28 @@ final class RidePlaybackController: ObservableObject {
     }
 
     private func syncWidget(snapshot: LyricSnapshot) {
+        let anchor = engine.anchor
+        let startEpochMs: Int
+        if let anchor {
+            startEpochMs = Int(anchor.capturedAt.timeIntervalSince1970 * 1000) - anchor.positionMs
+        } else {
+            startEpochMs = Int(Date().timeIntervalSince1970 * 1000)
+        }
+
+        let widgetLines = lastTrack?.lines.map { SharedLyricLine(timeMs: $0.startMs, text: $0.text) } ?? []
+
         let payload = SharedWidgetPayload(
             title: snapshot.title,
             artist: snapshot.artist,
             currentLine: snapshot.currentLine,
             nextLine: snapshot.nextLine,
+            upcomingLines: snapshot.upcomingLines,
             isPlaying: snapshot.isPlaying,
             progress: snapshot.progress,
-            status: snapshot.status.rawValue
+            status: snapshot.status.rawValue,
+            trackStartEpochMs: startEpochMs,
+            durationMs: snapshot.durationMs ?? 0,
+            lines: widgetLines
         )
         SharedWidgetStore.write(payload)
 
@@ -275,7 +310,7 @@ final class RidePlaybackController: ObservableObject {
         let elapsed = lastWidgetReloadTime.map { Date().timeIntervalSince($0) } ?? 60
 
         // Rate-limit widget reloads to avoid iOS timeline quota exhaustion
-        if isTitleChanged || isPlayStateChanged || elapsed >= 15 {
+        if isTitleChanged || isPlayStateChanged || elapsed >= 30 {
             lastWidgetTitle = snapshot.title
             lastWidgetIsPlaying = snapshot.isPlaying
             lastWidgetReloadTime = Date()
