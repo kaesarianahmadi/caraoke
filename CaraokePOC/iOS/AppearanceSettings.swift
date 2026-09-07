@@ -62,21 +62,28 @@ enum AppearanceSettings {
         }
     }
 
-    @MainActor
     static func apply(mode: AppearanceMode) {
         #if canImport(UIKit)
-        let style: UIUserInterfaceStyle
-        switch mode {
-        case .auto: style = .unspecified
-        case .light: style = .light
-        case .dark: style = .dark
-        }
-        for scene in UIApplication.shared.connectedScenes {
-            if let windowScene = scene as? UIWindowScene {
-                for window in windowScene.windows {
-                    window.overrideUserInterfaceStyle = style
+        let updateBlock = {
+            let style: UIUserInterfaceStyle
+            switch mode {
+            case .auto: style = .unspecified
+            case .light: style = .light
+            case .dark: style = .dark
+            }
+            for scene in UIApplication.shared.connectedScenes {
+                if let windowScene = scene as? UIWindowScene {
+                    for window in windowScene.windows {
+                        window.overrideUserInterfaceStyle = style
+                    }
                 }
             }
+        }
+
+        if Thread.isMainThread {
+            updateBlock()
+        } else {
+            DispatchQueue.main.async(execute: updateBlock)
         }
         #endif
     }
