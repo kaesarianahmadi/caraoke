@@ -211,7 +211,7 @@ function connectDshEvents() {
           if (currentResponseBlocks.length > 0 && config.allowed_chat_id) {
             const fullReply = currentResponseBlocks.join('\n\n').trim();
             if (fullReply) {
-              await sendTelegramMessage(config.allowed_chat_id, `🤖 *Josh (Chief of Staff):*\n\n${fullReply}`);
+              await sendTelegramMessage(config.allowed_chat_id, `🤖 *Caraeoke Agent:*\n\n${fullReply}`);
             }
             currentResponseBlocks = [];
             turnCount++;
@@ -290,20 +290,8 @@ async function pollTelegram() {
           }
 
           if (text === '/status' || text === '/dashboard') {
-            try {
-              const dash = JSON.parse(fs.readFileSync(path.join(__dirname, '../dashboard.json'), 'utf8'));
-              let msg = `📊 *Caraoke Staff Dashboard*\n\n`;
-              for (const [k, w] of Object.entries(dash.workers)) {
-                msg += `👤 *${w.name}* (${w.status.toUpperCase()})\nTask: ${w.current_task}\n\n`;
-              }
-              msg += `⚡ *In Progress:*\n${dash.in_progress ? dash.in_progress.map(i => `• ${i}`).join('\n') : 'None'}\n\n`;
-              msg += `✅ *Completed:*\n${dash.completed_items.map(i => `• ${i}`).join('\n')}\n\n`;
-              msg += `🌐 Web Dashboard: http://127.0.0.1:3088\n`;
-              msg += `💬 Session Turns: ${turnCount}/${MAX_TURNS_PER_SESSION}`;
-              await sendTelegramMessage(fromChatId, msg);
-            } catch (err) {
-              await sendTelegramMessage(fromChatId, `📊 *Status Report*\nWorkspace: \`Caraeoke App\`\nStaff online: Axel, Vance, Ward.`);
-            }
+            const msg = `📊 *Caraoke Agent Status*\nMode: Direct Senior Engineering\nWorkspace: \`Caraeoke App\`\nSession Turns: ${turnCount}/${MAX_TURNS_PER_SESSION}`;
+            await sendTelegramMessage(fromChatId, msg);
             continue;
           }
 
@@ -315,7 +303,7 @@ async function pollTelegram() {
 
           // Forward user command to DSH session
           console.log(`[Telegram -> DSH] Received: ${text.slice(0, 50)}...`);
-          await sendTelegramMessage(fromChatId, `⏳ *Task received by Josh.* Dispatching...`);
+          await sendTelegramMessage(fromChatId, `⏳ *Task received.* Working on it...`);
           await postPromptToDSH(text);
         }
       }

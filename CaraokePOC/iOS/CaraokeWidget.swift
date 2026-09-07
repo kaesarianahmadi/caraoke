@@ -54,26 +54,19 @@ struct CaraokeWidgetProvider: TimelineProvider {
     }
 
     private func readSharedEntry() -> CaraokeWidgetEntry? {
-        let store = UserDefaults(suiteName: "group.app.caraoke") ?? UserDefaults.standard
-        guard let title = store.string(forKey: "widget_title"), !title.isEmpty else {
+        guard let payload = SharedWidgetStore.read(), !payload.title.isEmpty else {
             return nil
         }
-        let artist = store.string(forKey: "widget_artist") ?? ""
-        let currentLine = store.string(forKey: "widget_current_line") ?? ""
-        let nextLine = store.string(forKey: "widget_next_line")
-        let isPlaying = store.bool(forKey: "widget_is_playing")
-        let progress = store.double(forKey: "widget_progress")
-        let statusRaw = store.string(forKey: "widget_status") ?? "playing"
-        let status = LyricStatus(raw: statusRaw) ?? .playing
+        let status = LyricStatus(raw: payload.status) ?? .playing
 
         return CaraokeWidgetEntry(
             date: Date(),
-            title: title,
-            artist: artist,
-            currentLine: currentLine,
-            nextLine: nextLine,
-            isPlaying: isPlaying,
-            progress: progress,
+            title: payload.title,
+            artist: payload.artist,
+            currentLine: payload.currentLine,
+            nextLine: payload.nextLine,
+            isPlaying: payload.isPlaying,
+            progress: payload.progress,
             status: status
         )
     }
@@ -83,7 +76,6 @@ struct CaraokeWidgetProvider: TimelineProvider {
 
 struct CaraokeWidgetEntryView: View {
     var entry: CaraokeWidgetEntry
-    @Environment(\.widgetFamily) private var family
 
     init(entry: CaraokeWidgetEntry) {
         self.entry = entry
@@ -98,7 +90,6 @@ struct CaraokeWidgetEntryView: View {
             isPlaying: entry.isPlaying,
             progress: entry.progress,
             status: entry.status,
-            isCarPlaySmall: family == .systemSmall,
             isWidget: true
         )
         .containerBackground(for: .widget) {

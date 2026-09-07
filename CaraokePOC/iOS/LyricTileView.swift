@@ -90,31 +90,25 @@ struct LyricTileView: View {
     }
 
     var body: some View {
-        Group {
-            if isCarPlaySmall {
-                carPlayTile
-            } else {
-                lockBanner
-            }
-        }
+        lockBanner
     }
 
-    // MARK: - Lock Screen / In-App Banner
+    // MARK: - Unified Banner Layout
 
     private var lockBanner: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            lyricBody(.banner)
+            lyricBody
             if status != .stale {
                 progressRow
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(isWidget ? 12 : 16)
+        .padding(isWidget ? 12 : 14)
         .background(
             Group {
                 if !isWidget {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(colors.cardBackground)
                 }
             }
@@ -122,7 +116,7 @@ struct LyricTileView: View {
         .overlay(
             Group {
                 if !isWidget {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .stroke(colors.cardBorder, lineWidth: 1)
                 }
             }
@@ -160,88 +154,57 @@ struct LyricTileView: View {
         }
     }
 
-    // MARK: - CarPlay small
-
-    private var carPlayTile: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            lyricBody(.carPlay)
-            if status != .stale {
-                progressRow
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(isWidget ? 12 : 16)
-        .background(
-            Group {
-                if !isWidget {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(colors.cardBackground)
-                }
-            }
-        )
-        .overlay(
-            Group {
-                if !isWidget {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(colors.cardBorder, lineWidth: 1)
-                }
-            }
-        )
-        .accessibilityElement(children: .combine)
-    }
-
-    // MARK: - Shared lyric body (Anti-flicker, static fixed container height)
-
-    private enum Family { case banner, carPlay }
+    // MARK: - Shared lyric body (Slide-up, anti-flicker, fixed container height)
 
     @ViewBuilder
-private func lyricBody(_ family: Family) -> some View {
-        let heroSize: CGFloat = isHome ? 19 : (family == .banner ? 20 : 21)
-        let nextSize: CGFloat = isHome ? 14.5 : (family == .banner ? 15 : 14)
+    private var lyricBody: some View {
+        let heroSize: CGFloat = 16.5
+        let nextSize: CGFloat = 13.5
 
         switch status {
         case .loading:
-            VStack(alignment: .leading, spacing: 8) {
-                skeleton(widthFraction: family == .banner ? 0.88 : 0.90)
-                skeleton(widthFraction: family == .banner ? 0.60 : 0.64)
+            VStack(alignment: .leading, spacing: 6) {
+                skeleton(widthFraction: 0.88)
+                skeleton(widthFraction: 0.60)
             }
-            .frame(height: 92, alignment: .topLeading)
-            .padding(.top, 8)
+            .frame(height: 74, alignment: .topLeading)
+            .padding(.top, 6)
         case .noLyrics:
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    musicNoteGlyph(size: family == .banner ? 16 : 15)
+                HStack(spacing: 6) {
+                    musicNoteGlyph(size: 15)
                     Text(currentLine.isEmpty ? title : currentLine)
-                        .font(.system(size: 17, weight: .bold))
+                        .font(.system(size: 15.5, weight: .bold))
                         .foregroundColor(colors.heroText)
                         .lineLimit(1)
                 }
                 Text("No lyrics found for this song")
-                    .font(.system(size: 13))
+                    .font(.system(size: 12.5))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 92, alignment: .topLeading)
-            .padding(.top, 8)
+            .frame(height: 74, alignment: .topLeading)
+            .padding(.top, 6)
         case .stale:
             VStack(alignment: .leading, spacing: 4) {
                 Text(currentLine.isEmpty ? "Ride ended" : currentLine)
-                    .font(.system(size: heroSize - 1, weight: .bold))
+                    .font(.system(size: heroSize, weight: .bold))
                     .foregroundColor(colors.heroText)
                     .opacity(0.32)
                     .lineLimit(1)
                 Text("Lyrics return when a song plays")
-                    .font(.system(size: 12.5))
+                    .font(.system(size: 12))
                     .foregroundColor(colors.metaText)
             }
-            .frame(height: 92, alignment: .topLeading)
-            .padding(.top, 8)
+            .frame(height: 74, alignment: .topLeading)
+            .padding(.top, 6)
         default:
             ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
                         .font(.system(size: heroSize, weight: .bold))
                         .foregroundColor(colors.heroText)
-                        .lineLimit(3)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let nextLine, !nextLine.isEmpty, status != .idle {
@@ -250,20 +213,21 @@ private func lyricBody(_ family: Family) -> some View {
                             .foregroundColor(status == .paused
                                              ? colors.nextText.opacity(0.58)
                                              : colors.nextText)
-                            .lineLimit(2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .id(currentLine)
                 .transition(.asymmetric(
-                    insertion: .move(edge: .top).combined(with: .opacity),
-                    removal: .move(edge: .bottom).combined(with: .opacity)
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
                 ))
             }
-            .frame(height: 92, alignment: .topLeading)
+            .frame(height: 74, alignment: .topLeading)
             .clipped()
-            .padding(.top, 8)
-            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: currentLine)
+            .padding(.top, 6)
+            .animation(.spring(response: 0.38, dampingFraction: 0.86), value: currentLine)
         }
     }
 

@@ -108,6 +108,7 @@ public enum ActiveMusicSource: String {
     private var clockTask: Task<Void, Never>?
     private lazy var realPlayback = RidePlaybackController(activity: activity, spotifyAuth: spotifyAuth)
     private var playbackCancellables: Set<AnyCancellable> = []
+    private var authCancellables: Set<AnyCancellable> = []
 
     /// 1 tick per second simulates playback; lyrics advance by their own
     /// timestamps. (The real path reads the player's position instead.)
@@ -127,6 +128,59 @@ public enum ActiveMusicSource: String {
         // Re-publish object changes when Spotify auth changes.
         spotifyAuth.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &authCancellables)
+
+        bindPlayback()
+    }
+
+    private func bindPlayback() {
+        realPlayback.$currentLine
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.currentLine = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$nextLine
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.nextLine = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$trackTitle
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.trackTitle = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$trackArtist
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.trackArtist = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$positionMs
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.positionMs = val
+                self.lyricStatus = self.realPlayback.lyricState
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$durationMs
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.durationMs = val
+            }
             .store(in: &playbackCancellables)
     }
 
@@ -164,10 +218,6 @@ public enum ActiveMusicSource: String {
             realPlayback.stop()
         }
         Task { await activity.endNow() }
-        // Design state C: Live Lyrics off hides the player card — drop the
-        // frozen now-playing bindings (and the bridge subscriptions) so
-        // nothing lingers on Home.
-        playbackCancellables.removeAll()
         trackTitle = ""
         trackArtist = ""
         currentLine = ""
@@ -189,7 +239,7 @@ public enum ActiveMusicSource: String {
         pushSnapshot()
     }
 
-private func startRealPlayback() {
+    private func startRealPlayback() {
         switch activeSource {
         case .spotify:
             realPlayback.setSourcePin(.spotify)
@@ -199,23 +249,6 @@ private func startRealPlayback() {
             realPlayback.setSourcePin(.auto)
         }
         realPlayback.start()
-
-        // Bridge the pipeline's published lines into this model; the
-        // pipeline also drives the Live Activity directly.
-        realPlayback.$currentLine.assign(to: &$currentLine)
-        realPlayback.$nextLine.assign(to: &$nextLine)
-        realPlayback.$trackTitle.assign(to: &$trackTitle)
-        realPlayback.$trackArtist.assign(to: &$trackArtist)
-        realPlayback.$positionMs.assign(to: &$positionMs)
-        realPlayback.$durationMs.assign(to: &$durationMs)
-        playbackCancellables.removeAll()
-        // Status isn't @Published on the controller (write-once per track),
-        // so copy it on every tick alongside the playhead.
-        realPlayback
-            .$positionMs
-            .receive(on: RunLoop.main)
-            .map { [weak realPlayback] _ in realPlayback?.lyricState ?? .idle }
-            .assign(to: &$lyricStatus)
     }
 
     private func pushSnapshot() {

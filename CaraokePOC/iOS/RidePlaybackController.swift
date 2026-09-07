@@ -97,16 +97,30 @@ final class RidePlaybackController: ObservableObject {
         engine.startTicking()
     }
 
+    private var lastWidgetTitle: String?
+    private var lastWidgetIsPlaying: Bool?
+    private var lastWidgetReloadTime: Date?
+
     func stop() {
         apple.stop()
         spotify.stop()
         engine.stopTicking()
         audioKeeper.stop()
         relay.end()
-        let store = UserDefaults(suiteName: "group.app.caraoke") ?? UserDefaults.standard
-        store.removeObject(forKey: "widget_title")
-        store.set("idle", forKey: "widget_status")
-        WidgetCenter.shared.reloadAllTimelines()
+        lastLyricsKey = nil
+        lastTrack = nil
+        lastRelayStartMs = nil
+        lastRelayIsPlaying = nil
+        lastRelayRegisterAt = nil
+        currentLine = ""
+        nextLine = nil
+        trackTitle = ""
+        trackArtist = ""
+        positionMs = 0
+        durationMs = nil
+        lyricState = .idle
+        SharedWidgetStore.write(nil)
+        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
     }
 
     func setSourcePin(_ pin: SourcePin) {
@@ -245,14 +259,27 @@ final class RidePlaybackController: ObservableObject {
     }
 
     private func syncWidget(snapshot: LyricSnapshot) {
-        let store = UserDefaults(suiteName: "group.app.caraoke") ?? UserDefaults.standard
-        store.set(snapshot.title, forKey: "widget_title")
-        store.set(snapshot.artist, forKey: "widget_artist")
-        store.set(snapshot.currentLine, forKey: "widget_current_line")
-        store.set(snapshot.nextLine, forKey: "widget_next_line")
-        store.set(snapshot.isPlaying, forKey: "widget_is_playing")
-        store.set(snapshot.progress, forKey: "widget_progress")
-        store.set(snapshot.status.rawValue, forKey: "widget_status")
-        WidgetCenter.shared.reloadAllTimelines()
+        let payload = SharedWidgetPayload(
+            title: snapshot.title,
+            artist: snapshot.artist,
+            currentLine: snapshot.currentLine,
+            nextLine: snapshot.nextLine,
+            isPlaying: snapshot.isPlaying,
+            progress: snapshot.progress,
+            status: snapshot.status.rawValue
+        )
+        SharedWidgetStore.write(payload)
+
+        let isTitleChanged = snapshot.title != lastWidgetTitle
+        let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
+        let elapsed = lastWidgetReloadTime.map { Date().timeIntervalSince($0) } ?? 60
+
+        // Rate-limit widget reloads to avoid iOS timeline quota exhaustion
+        if isTitleChanged || isPlayStateChanged || elapsed >= 15 {
+            lastWidgetTitle = snapshot.title
+            lastWidgetIsPlaying = snapshot.isPlaying
+            lastWidgetReloadTime = Date()
+            WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+        }
     }
 }

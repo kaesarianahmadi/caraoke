@@ -131,6 +131,9 @@ async function push(env, deviceToken, aps) {
         body: JSON.stringify({ aps }),
       });
       console.log(`APNs SANDBOX-PROBE ${sandbox.status} ${(await sandbox.text()).slice(0, 200)}`);
+      if (sandbox.status === 200) {
+        return 200;
+      }
     }
   } else {
     console.log(`APNs 200 ok event=${aps.event} line="${(aps["content-state"]?.currentLine ?? "").slice(0, 40)}"`);
@@ -278,13 +281,10 @@ export class LyricsSession {
     }
 
     if (nowMs >= session.endAtEpochMs) {
-      await push(this.env, session.activityPushToken, {
-        timestamp: Math.floor(session.endAtEpochMs / 1000),
-        event: "end",
-        "content-state": contentState(session, session.endAtEpochMs),
-      });
-      await this.state.storage.delete("session");
-      console.log("schedule: session ended + deleted");
+      // Song ended: hold last line, do NOT terminate the Live Activity.
+      // The activity spans the whole ride; the app will register the next track.
+      await this.state.storage.deleteAlarm();
+      console.log("schedule: track playback finished, holding tile for next track");
       return;
     }
 

@@ -147,16 +147,38 @@ final class CaraokeActivityController {
             onDiagnostic?("Live Activities are OFF — Settings → Caraoke → Live Activities")
             return
         }
+
+        // Reattach to existing active activity to prevent duplicate/frozen tiles
+        if let existing = Activity<LyricsActivityAttributes>.activities.first(where: { $0.activityState == .active }) {
+            activity = existing
+            watch(existing)
+            observePushToken(existing)
+            throttle.noteSent(now: Date())
+            lastSentTrackKey = Self.trackKey(for: snapshot)
+            lastSentIsPlaying = snapshot.isPlaying
+            policy.seed(
+                trackKey: lastSentTrackKey ?? "",
+                lineIndex: snapshot.lineIndex,
+                isPlaying: snapshot.isPlaying
+            )
+            let content = Self.content(from: snapshot)
+            Task {
+                await existing.update(ActivityContent(state: content, staleDate: nil))
+            }
+            onDiagnostic?("Live Activity reattached")
+            return
+        }
+
+        // Clean up any stale or ended activities
+        for stale in Activity<LyricsActivityAttributes>.activities {
+            Task { await stale.end(nil, dismissalPolicy: .immediate) }
+        }
+
         do {
             // pushType: .token makes the activity receive an APNs push token
             // that a server can use to UPDATE it (mechanism #2 relay). The
             // widget is unchanged — a pushed ContentState renders exactly like
             // a local update. (`.liveActivity` is only for push-to-START.)
-            //
-            // Fallback: if the push-type request throws (e.g. profile without
-            // push, provisioning race), retry WITHOUT pushType so the lyrics
-            // tile still appears — foreground sync is the product baseline;
-            // the relay is an enhancement on top.
             let requested: Activity<LyricsActivityAttributes>
             do {
                 requested = try Activity.request(
@@ -224,11 +246,14 @@ final class CaraokeActivityController {
     func endNow() async {
         stateWatcher?.cancel()
         stateWatcher = nil
+        pushTokenTask?.cancel()
+        pushTokenTask = nil
         cancelPendingUpdate()
-        guard let activity else { return }
-        self.activity = nil
+        activity = nil
         policy.reset()
-        await activity.end(nil, dismissalPolicy: .immediate)
+        for act in Activity<LyricsActivityAttributes>.activities {
+            await act.end(nil, dismissalPolicy: .immediate)
+        }
     }
 
     // MARK: - Internals
