@@ -1,17 +1,17 @@
 {
-  "updated_at": "2026-09-06T20:31:19.908Z",
+  "updated_at": "2026-09-07T08:47:40.941Z",
   "project": "Caraoke",
-  "build": 28,
+  "build": 29,
   "ci_run_id": "34058026589",
   "ci_run_url": "https://github.com/kaesarianahmadi/caraoke/actions/runs/34058026589",
-  "ci_status": "success",
-  "testflight_status": "uploaded_build_28",
+  "ci_status": "pending_push",
+  "testflight_status": "queued_build_29",
   "chief": {
     "name": "Josh",
     "role": "Chief of Staff & Orchestrator",
     "model": "router9/3.8-flash-ag",
-    "status": "idle",
-    "current_action": "Build 28 deployed to TestFlight. All 4 CI jobs green."
+    "status": "ready_to_push",
+    "current_action": "Build 29 complete AppIcon slice matrix generated and audited by Ward, ready for commit & push"
   },
   "workers": {
     "axel": {
@@ -22,7 +22,7 @@
         "heavy": "router9/holver-ai/qwen-3.8-max"
       },
       "active_model": "ag/gemini-3.8-flash-high",
-      "status": "completed",
+      "status": "queued",
       "last_activity": "```swift\n    private func lyricBody(_ family: Family) -> some View {\n        let heroSize: CGFloat = isHome ? 19 : (fami",
       "current_task": "Awaiting task dispatch from Chief"
     },
@@ -34,7 +34,7 @@
         "deep": "router9/cmc/deepseek/deepseek-v4-pro"
       },
       "active_model": "cmc/deepseek/deepseek-v4-pro",
-      "status": "completed",
+      "status": "queued",
       "last_activity": "```swift\nprivate func startRealPlayback() {\n        switch activeSource {\n        case .spotify:\n            realPlaybac",
       "current_task": "Awaiting task dispatch from Chief"
     },
@@ -46,11 +46,13 @@
       },
       "active_model": "gcli/grok-4.6",
       "status": "completed",
-      "last_activity": "Secrets: zero. SpotifyAuth: guard-let safe. Icon: 1024x1024 RGB PNG no alpha compliant. RideMode: .auto default auto-syn",
+      "last_activity": "Secrets: 0. No leaks in project.yml, assets, or .gitignore.\n\nApp Store: Compliant. 1024 marketing icon opaque RGB 24-bit",
       "current_task": "Awaiting task dispatch from Chief"
     }
   },
   "completed_items": [
+    "Build 29: Complete AppIcon slice matrix (20, 29, 40, 60, 76, 83.5 @1x/@2x/@3x + 1024 universal/marketing) generated from new logo without alpha (Ward/Grok audit PASS)",
+    "Build 29: project.yml bumped CURRENT_PROJECT_VERSION from 28 to 29",
     "Build 28: AppIcon master rendered from design/caraoke-logo.svg at 1024x1024 RGB without alpha (Ward/Grok audit PASS)",
     "Build 28: LyricTileView container height bumped to 92pt (+15-20% longer), fitting 3 to 4.5 lines with lineLimit(3) hero and lineLimit(2) nextLine (Axel/Gemini)",
     "Build 28: LyricTileView transition replaced with smooth vertical slide-down transition via asymmetric move + opacity (Axel/Gemini)",
@@ -74,6 +76,45 @@
     "TestFlight Build 23 uploaded to App Store Connect"
   ],
   "telemetry_log": [
+    {
+      "timestamp": "3:47:40 PM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "ward",
+      "model": "gcli/grok-4.6",
+      "skills_used": [
+        "security-review"
+      ],
+      "duration_ms": 12103,
+      "prompt_preview": "Ward: Final security and App Store compliance audit for Build 29.\nReview changed files:\n1.",
+      "response_preview": "Secrets: 0. No leaks in project.yml, assets, or .gitignore.\n\nApp Store: Compliant. 1024 marketing icon opaque RGB 24-bit, no alpha. ITMS-90717 pass.\n\nVersion: 29 unique, increment correct. Ready TestFlight.\n\n.gitignore: .cache/ added, standard.\n\nSafe commit push.",
+      "status": "success"
+    },
+    {
+      "timestamp": "3:44:50 PM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "ward",
+      "model": "gcli/grok-4.6",
+      "skills_used": [
+        "security-review"
+      ],
+      "duration_ms": 32439,
+      "prompt_preview": "User confirmed design/caraoke-logo.svg is the correct design.\nThe user wants Build 29 to O",
+      "response_preview": "Single 1024x1024 fails. actool rejects incomplete catalog. @3x (60px/180px) and all slices absent → no generation. TestFlight/iOS icon invisible.\n\nStandard bulletproof Contents.json:\n```json\n{\n  \"images\": [\n    {\"size\":\"20x20\",\"idiom\":\"iphone\",\"scale\":\"1x\",\"filename\":\"AppIcon-20@1x.png\"},\n    {\"size\":\"20x20\",\"idiom\":\"iphone\",\"scale\":\"2x\",\"filename\":\"AppIcon-20@2x.png\"},\n    {\"size\":\"20x20\",\"idiom\":\"iphone\",\"scale\":\"3x\",\"filename\":\"AppIcon-20@3x.png\"},\n    {\"size\":\"29x29\",\"idiom\":\"iphone\",\"scale\":\"1x\",\"filename\":\"AppIcon-29@1x.png\"},\n    {\"size\":\"29x29\",\"idiom\":\"iphone\",\"scale\":\"2x\",\"filename\":\"AppIcon-29@2x.png\"},\n    {\"size\":\"29x29\",\"idiom\":\"iphone\",\"scale\":\"3x\",\"filename\":\"AppIcon-29@3x.png\"},\n    {\"size\":\"40x40\",\"idiom\":\"iphone\",\"scale\":\"2x\",\"filename\":\"AppIcon-40@2x.png\"},\n    {\"size\":\"40x40\",\"idiom\":\"iphone\",\"scale\":\"3x\",\"filename\":\"AppIcon-40@3x.png\"},\n    {\"size\":\"60x60\",\"idiom\":\"iphone\",\"scale\":\"2x\",\"filename\":\"AppIcon-60@2x.png\"},\n    {\"size\":\"60x60\",\"idiom\":\"iphone\",\"scale\":\"3x\",\"filename\":\"AppIcon-60@3x.png\"},\n    {\"size\":\"76x76\",\"idiom\":\"iphone\",\"scale\":\"1x\",\"filename\":\"AppIcon-76@1x.png\"},\n    {\"size\":\"76x76\",\"idiom\":\"iphone\",\"scale\":\"2x\",\"filename\":\"AppIcon-76@2x.png\"},\n    {\"size\":\"83.5x83.5\",\"idiom\":\"iphone\",\"scale\":\"2x\",\"filename\":\"AppIcon-83.5@2x.png\"},\n    {\"size\":\"83.5x83.5\",\"idiom\":\"iphone\",\"scale\":\"3x\",\"filename\":\"AppIcon-83.5@3x.png\"},\n    {\"size\":\"1024x1024\",\"idiom\":\"universal\",\"scale\":\"1x\",\"filename\":\"AppIcon-1024@1x.png\"},\n    {\"size\":\"1024x1024\",\"idiom\":\"universal\",\"scale\":\"2x\",\"filename\":\"AppIcon-1024@2x.png\"}\n  ],\n  \"info\":{\"version\":1,\"author\":\"xcode\"}\n}\n```\n\nAssets (export from caraoke-logo.svg):\nAppIcon-20@1x.png (20x20), AppIcon-20@2x.png (40x40), AppIcon-20@3x.png (60x60), \nAppIcon-29@1x.png (29x29), AppIcon-29@2x.png (58x58), AppIcon-29@3x.png (87x87), \nAppIcon-40@2x.png (80x80), AppIcon-40@3x.png (120x120), \nAppIcon-60@2x.png (120x120), AppIcon-60@3x.png (180x180), \nAppIcon-76@1x.png (76x76), AppIcon-76@2x.png (152x152), \nAppIcon-83.5@2x.png (167x167), AppIcon-83.5@3x.png (251x251), \nAppIcon-1024@1x.png (1024x1024), AppIcon-1024@2x.png (2048x2048).\n\nDimensions: PNG with alpha channel (32-bit). RGB 24-bit + A. No alpha fails ingestion. Replace only the 1024@1x slice with new export; keep all others.",
+      "status": "success"
+    },
+    {
+      "timestamp": "3:02:06 PM",
+      "caller": "Josh (Chief of Staff)",
+      "worker": "ward",
+      "model": "gcli/grok-4.6",
+      "skills_used": [
+        "security-review"
+      ],
+      "duration_ms": 20898,
+      "prompt_preview": "User feedback for Build 28:\n\"So for this next build I just really want you to do just one ",
+      "response_preview": "1. No. Icon bakes into binary at build. TestFlight/App Store ingestion pulls from binary only. No API or live upload possible. Update xcassets, rebuild, upload new build.\n\n2. Assets.xcassets/AppIcon.appiconset/\n\n3. 1024x1024 PNG minimum. Opaque (no alpha). Single-size format Xcode 14+: supply only 1024x1024; Xcode generates 1x/2x/3x.\n\n4. Audit steps:\n\n- Confirm new logo PNG present and correct in Assets.xcassets/AppIcon.appiconset/1024x1024.png\n- Verify opaque PNG (no alpha channel)\n- Build app\n- Upload build to TestFlight\n- Review icon preview in App Store Connect build page\n- Confirm matches expected logo\n\nRebuild and upload immediately.",
+      "status": "success"
+    },
     {
       "timestamp": "3:26:38 AM",
       "caller": "Josh (Chief of Staff)",
@@ -293,45 +334,6 @@
       "duration_ms": 5257,
       "prompt_preview": "You are editing CaraokePOC/iOS/LyricsActivityController.swift.\nTASK: In init(), guard Acti",
       "response_preview": "```swift\n    init() {\n        // Clean up activities orphaned by a previous app termination.\n        Task {\n            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }\n            for stale in Activity<LyricsActivityAttributes>.activities {\n                await stale.end(nil, dismissalPolicy: .immediate)\n            }\n        }\n    }\n```",
-      "status": "success"
-    },
-    {
-      "timestamp": "2:23:31 AM",
-      "caller": "Josh (Chief of Staff)",
-      "worker": "vance",
-      "model": "cmc/deepseek/deepseek-v4-pro",
-      "skills_used": [
-        "error-handling"
-      ],
-      "duration_ms": 9449,
-      "prompt_preview": "You are editing CaraokePOC/iOS/RideModeViewModel.swift.\nTASK: Inside startRealPlayback(), ",
-      "response_preview": "```swift\n    private func startRealPlayback() {\n        realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)\n        realPlayback.start()\n        // Bridge the pipeline's published lines into this model; the\n        // pipeline also drives the Live Activity directly.\n        realPlayback.$currentLine.assign(to: &$currentLine)\n        realPlayback.$nextLine.assign(to: &$nextLine)\n        realPlayback.$trackTitle.assign(to: &$trackTitle)\n        realPlayback.$trackArtist.assign(to: &$trackArtist)\n        realPlayback.$positionMs.assign(to: &$positionMs)\n        realPlayback.$durationMs.assign(to: &$durationMs)\n        playbackCancellables.removeAll()\n        // Status isn't @Published on the controller (write-once per track),\n        // so copy it on every tick alongside the playhead.\n        realPlayback\n            .$positionMs\n            .receive(on: RunLoop.main)\n            .map { [weak realPlayback] _ in realPlayback?.lyricState ?? .idle }\n            .assign(to: &$lyricStatus)\n    }\n```",
-      "status": "success"
-    },
-    {
-      "timestamp": "2:23:12 AM",
-      "caller": "Josh (Chief of Staff)",
-      "worker": "vance",
-      "model": "cmc/deepseek/deepseek-v4-pro",
-      "skills_used": [
-        "error-handling"
-      ],
-      "duration_ms": 3206,
-      "prompt_preview": "You are editing CaraokePOC/iOS/RideModeViewModel.swift.\nTASK: Before realPlayback.start(),",
-      "response_preview": "```swift\n    private func startRealPlayback() {\n        realPlayback.setSourcePin(activeSource == .spotify ? .spotify : .appleMusic)\n        realPlayback.start()\n    }\n```",
-      "status": "success"
-    },
-    {
-      "timestamp": "2:23:04 AM",
-      "caller": "Josh (Chief of Staff)",
-      "worker": "vance",
-      "model": "cmc/deepseek/deepseek-v4-pro",
-      "skills_used": [
-        "error-handling"
-      ],
-      "duration_ms": 5327,
-      "prompt_preview": "You are editing CaraokePOC/iOS/RidePlaybackController.swift.\nTASK: Change initial coordina",
-      "response_preview": "```swift\n        self.apple = AppleMusicSource()\n        self.spotifyAuth = spotifyAuth ?? SpotifyAuth()\n        self.spotify = SpotifySource(tokenProvider: self.spotifyAuth)\n        self.coordinator = NowPlayingCoordinator(\n            applePublisher: apple.statePublisher,\n            spotifyPublisher: spotify.statePublisher,\n            pin: .auto\n        )\n```",
       "status": "success"
     }
   ]
