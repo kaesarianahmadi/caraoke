@@ -48,7 +48,14 @@ struct CaraokeWidgetProvider: TimelineProvider {
             artist: "Live Lyrics",
             currentLine: "Play a song to see lyrics",
             nextLine: "Next line will appear here",
-            upcomingLines: ["Sing along in real time", "Synced for CarPlay & Lock Screen"],
+            upcomingLines: [
+                "Sing along in real time",
+                "Synced for CarPlay & Lock Screen",
+                "Ultra-low latency lyric engine",
+                "Works seamlessly with Spotify",
+                "Live Activity on Lock Screen",
+                "Full catalog coverage"
+            ],
             isPlaying: false,
             progress: 0.35,
             status: .idle
@@ -130,7 +137,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
             let entryDate = (offset == 0) ? now : Date(timeIntervalSince1970: lineEpoch)
 
             let nextLineText = (globalIndex + 1 < lines.count) ? lines[globalIndex + 1].text : nil
-            let upcoming = lines.dropFirst(globalIndex + 1).prefix(3).map(\.text)
+            let upcoming = lines.dropFirst(globalIndex + 1).prefix(8).map(\.text)
             let progress = payload.durationMs > 0 ? min(1.0, Double(line.timeMs) / Double(payload.durationMs)) : 0.0
 
             entries.append(CaraokeWidgetEntry(

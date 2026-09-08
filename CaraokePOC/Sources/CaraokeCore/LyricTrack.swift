@@ -50,8 +50,8 @@ struct LyricTrack: Equatable, Sendable {
         return lines[i + 1]
     }
 
-    /// Lines following the current one, used for karaoke previews (3-5 lines).
-    func upcomingLines(after positionMs: Int, limit: Int = 4) -> [String] {
+    /// Lines following the current one, used for previews.
+    func upcomingLines(after positionMs: Int, limit: Int = 8) -> [String] {
         guard let i = lineIndex(at: positionMs) else { return [] }
         let nextIndex = i + 1
         guard nextIndex < lines.count else { return [] }

@@ -119,8 +119,10 @@ struct LyricTileView: View {
                                    boxHeight: 104, headerCompact: true, padding: 16)
         case .widgetLarge:
             // Competitor blueprint: lyrics own the top, identity + transport
-            // live in the bottom row — no header.
-            return LyricTileLayout(upcomingShown: 4, boxHeight: 132, showsHeader: false,
+            // live in the bottom row — no header. 21pt lyric font and 235pt container
+            // to fill vertical space with upcoming lines.
+            return LyricTileLayout(lyricFont: 21, heroLines: 2, upcomingShown: 7,
+                                   upcomingLines: 2, boxHeight: 235, showsHeader: false,
                                    showsBottomBar: true, padding: 18)
         case .home:
             return LyricTileLayout(upcomingShown: 3, upcomingLines: 2, boxHeight: 128)
@@ -342,11 +344,17 @@ struct LyricTileView: View {
 
     private func upcomingOpacity(index: Int) -> Double {
         let isPaused = (status == .paused)
+        let base: Double
         switch index {
-        case 0: return isPaused ? 0.45 : 0.65
-        case 1: return isPaused ? 0.28 : 0.42
-        default: return isPaused ? 0.16 : 0.24
+        case 0: base = 0.65
+        case 1: base = 0.45
+        case 2: base = 0.32
+        case 3: base = 0.24
+        case 4: base = 0.18
+        case 5: base = 0.14
+        default: base = 0.11
         }
+        return isPaused ? base * 0.7 : base
     }
 
     // MARK: - Progress bar (3px capsule)

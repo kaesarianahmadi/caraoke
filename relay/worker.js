@@ -174,10 +174,9 @@ function contentState(session, nowMs) {
   const nextLine = index === null
     ? (session.lines[1]?.text ?? session.lines[0]?.text ?? "")
     : (session.lines[index + 1]?.text ?? "");
-  // The 3 dimmed follow-on lines: without them the Lock Screen tile renders
-  // only 2 lines while the app is suspended (the build-31 complaint).
+  // Dimmed follow-on lines: up to 7 upcoming lines for multi-row lyric tiles
   const upcomingLines = session.lines
-    .slice(index === null ? 1 : index + 1, index === null ? 4 : index + 4)
+    .slice(index === null ? 1 : index + 1, index === null ? 8 : index + 8)
     .map((l) => l.text);
   const duration = Math.max(session.endAtEpochMs - session.startEpochMs, 1);
   const progress = Math.min(Math.max((nowMs - session.startEpochMs) / duration, 0), 1);

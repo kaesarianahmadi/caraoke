@@ -144,13 +144,13 @@ final class SyncEngine {
         if let index {
             let nextStart = index + 1
             if nextStart < lines.count {
-                let end = min(nextStart + 4, lines.count)
+                let end = min(nextStart + 8, lines.count)
                 upcoming = lines[nextStart..<end].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             } else {
                 upcoming = []
             }
         } else {
-            upcoming = lines.prefix(4).map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            upcoming = lines.prefix(8).map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         }
 
         var lineProgress = 0.0
