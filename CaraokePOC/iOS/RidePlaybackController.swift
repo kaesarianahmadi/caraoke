@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 import WidgetKit
 
 // The REAL playback pipeline, wired end-to-end:
@@ -104,7 +105,10 @@ final class RidePlaybackController: ObservableObject {
 
     private var lastWidgetTitle: String?
     private var lastWidgetIsPlaying: Bool?
+    private var lastWidgetStatus: String?
     private var lastWidgetReloadTime: Date?
+    private var currentArtworkData: Data?
+    private var lastArtworkKey: String?
 
     func stop() {
         apple.stop()
@@ -116,6 +120,9 @@ final class RidePlaybackController: ObservableObject {
         lyricsFetchTask = nil
         lastLyricsKey = nil
         lastTrack = nil
+        currentArtworkData = nil
+        lastArtworkKey = nil
+        lastWidgetStatus = nil
         lastRelayStartMs = nil
         lastRelayIsPlaying = nil
         lastRelayRegisterAt = nil
@@ -157,6 +164,7 @@ final class RidePlaybackController: ObservableObject {
         )
         guard key == lastLyricsKey else {
             lastLyricsKey = key
+            lastTrack = nil
             lyricsFetchTask?.cancel()
             engine.setLyrics([])
             currentLine = ""
@@ -165,6 +173,27 @@ final class RidePlaybackController: ObservableObject {
             trackTitle = state.title
             trackArtist = state.artist
             lyricState = .loading
+
+            // Extract artwork: Apple Music supplies raw Data; Spotify provides URL
+            if let data = state.artworkData {
+                self.currentArtworkData = data
+                self.lastArtworkKey = key
+            } else if let urlStr = state.artworkURL, let url = URL(string: urlStr) {
+                self.lastArtworkKey = key
+                Task { [weak self] in
+                    guard let (data, _) = try? await URLSession.shared.data(from: url),
+                          let img = UIImage(data: data),
+                          let thumb = img.jpegData(compressionQuality: 0.7) else { return }
+                    await MainActor.run {
+                        guard let self, self.lastArtworkKey == key else { return }
+                        self.currentArtworkData = thumb
+                    }
+                }
+            } else {
+                self.currentArtworkData = nil
+                self.lastArtworkKey = key
+            }
+
             let signature = TrackSignature(
                 title: state.title, artist: state.artist,
                 album: state.album, durationMs: state.durationMs
@@ -301,18 +330,22 @@ final class RidePlaybackController: ObservableObject {
             status: snapshot.status.rawValue,
             trackStartEpochMs: startEpochMs,
             durationMs: snapshot.durationMs ?? 0,
-            lines: widgetLines
+            lines: widgetLines,
+            artworkData: currentArtworkData
         )
         SharedWidgetStore.write(payload)
 
         let isTitleChanged = snapshot.title != lastWidgetTitle
         let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
+        let isStatusChanged = snapshot.status.rawValue != lastWidgetStatus
         let elapsed = lastWidgetReloadTime.map { Date().timeIntervalSince($0) } ?? 60
 
-        // Rate-limit widget reloads to avoid iOS timeline quota exhaustion
-        if isTitleChanged || isPlayStateChanged || elapsed >= 30 {
+        // Rate-limit widget reloads to avoid iOS timeline quota exhaustion.
+        // Title, play/pause, or status transition (e.g. loading -> playing) reloads immediately.
+        if isTitleChanged || isPlayStateChanged || isStatusChanged || elapsed >= 30 {
             lastWidgetTitle = snapshot.title
             lastWidgetIsPlaying = snapshot.isPlaying
+            lastWidgetStatus = snapshot.status.rawValue
             lastWidgetReloadTime = Date()
             WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
         }

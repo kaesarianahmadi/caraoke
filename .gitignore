@@ -4,6 +4,7 @@
 *.o
 *.testrunner
 modulecache/
+design/refs/
 
 # Secrets — NEVER commit
 CaraokePOC/iOS/Resources/Secrets.plist

@@ -13,6 +13,7 @@ struct CaraokeWidgetEntry: TimelineEntry {
     let isPlaying: Bool
     let progress: Double
     let status: LyricStatus
+    let artworkData: Data?
 
     init(date: Date = Date(),
          title: String,
@@ -22,7 +23,8 @@ struct CaraokeWidgetEntry: TimelineEntry {
          upcomingLines: [String] = [],
          isPlaying: Bool = true,
          progress: Double = 0,
-         status: LyricStatus = .playing) {
+         status: LyricStatus = .playing,
+         artworkData: Data? = nil) {
         self.date = date
         self.title = title
         self.artist = artist
@@ -32,6 +34,7 @@ struct CaraokeWidgetEntry: TimelineEntry {
         self.isPlaying = isPlaying
         self.progress = progress
         self.status = status
+        self.artworkData = artworkData
     }
 }
 
@@ -64,7 +67,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
                 upcomingLines: payload.upcomingLines,
                 isPlaying: payload.isPlaying,
                 progress: payload.progress,
-                status: status
+                status: status,
+                artworkData: payload.artworkData
             )
             completion(entry)
         } else {
@@ -93,7 +97,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
                 upcomingLines: payload.upcomingLines,
                 isPlaying: payload.isPlaying,
                 progress: payload.progress,
-                status: status
+                status: status,
+                artworkData: payload.artworkData
             )
             completion(Timeline(entries: [entry], policy: .atEnd))
             return
@@ -137,7 +142,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
                 upcomingLines: Array(upcoming),
                 isPlaying: true,
                 progress: progress,
-                status: .playing
+                status: .playing,
+                artworkData: payload.artworkData
             ))
         }
 
@@ -155,10 +161,24 @@ struct CaraokeWidgetProvider: TimelineProvider {
 // MARK: - Widget View
 
 struct CaraokeWidgetEntryView: View {
+    @Environment(\.widgetFamily) private var family
     var entry: CaraokeWidgetEntry
 
     init(entry: CaraokeWidgetEntry) {
         self.entry = entry
+    }
+
+    private var surface: LyricTileView.Surface {
+        switch family {
+        case .systemSmall:
+            return .widgetSmall
+        case .systemMedium:
+            return .widgetMedium
+        case .systemLarge:
+            return .widgetLarge
+        default:
+            return .widgetMedium
+        }
     }
 
     var body: some View {
@@ -171,7 +191,8 @@ struct CaraokeWidgetEntryView: View {
             isPlaying: entry.isPlaying,
             progress: entry.progress,
             status: entry.status,
-            isWidget: true
+            surface: surface,
+            artworkData: entry.artworkData
         )
         .containerBackground(for: .widget) {
             Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255)

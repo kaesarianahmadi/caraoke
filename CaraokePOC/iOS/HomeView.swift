@@ -118,7 +118,7 @@ struct HomeView: View {
                     Circle()
                         .fill(AppTheme.ok)
                         .frame(width: 7, height: 7)
-                    Text("Home Widget")
+                    Text("Widgets")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(AppTheme.fg(scheme))
                 }
@@ -183,7 +183,7 @@ struct HomeView: View {
             status: isIdle ? .idle : model.lyricStatus,
             positionMs: isIdle ? 0 : model.positionMs,
             durationMs: isIdle ? nil : model.durationMs,
-            isHome: true,
+            surface: .home,
             palette: .home(scheme)
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))

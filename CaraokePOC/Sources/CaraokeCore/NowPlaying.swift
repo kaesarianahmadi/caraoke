@@ -28,12 +28,15 @@ struct NowPlayingState: Equatable {
     let source: MusicSource
     /// When `positionMs` was observed — the sync engine extrapolates from here.
     let capturedAt: Date
+    var artworkURL: String? = nil
+    var artworkData: Data? = nil
 
     func with(isPlaying: Bool) -> NowPlayingState {
         NowPlayingState(
             title: title, artist: artist, album: album,
             durationMs: durationMs, positionMs: positionMs,
-            isPlaying: isPlaying, source: source, capturedAt: capturedAt
+            isPlaying: isPlaying, source: source, capturedAt: capturedAt,
+            artworkURL: artworkURL, artworkData: artworkData
         )
     }
 

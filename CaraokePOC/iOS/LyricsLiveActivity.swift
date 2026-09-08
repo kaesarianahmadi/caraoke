@@ -76,7 +76,7 @@ private struct FamilyAdaptiveTile: View {
             status: status(of: context.state),
             positionMs: context.state.positionMs ?? 0,
             durationMs: context.state.durationMs,
-            isCarPlaySmall: activityFamily == .small
+            surface: activityFamily == .small ? .carPlaySmall : .lockBanner
         )
     }
 }

@@ -32,7 +32,7 @@ enum SpotifyAvailability: Equatable {
 
 final class SpotifySource: NowPlayingSource {
     static let endpoint = URL(string: "https://api.spotify.com/v1/me/player/currently-playing")!
-    static let defaultActiveInterval: TimeInterval = 3
+    static let defaultActiveInterval: TimeInterval = 2
     static let idleInterval: TimeInterval = 15
 
     private let subject = CurrentValueSubject<NowPlayingState?, Never>(nil)
@@ -156,7 +156,11 @@ final class SpotifySource: NowPlayingSource {
         struct Payload: Decodable {
             struct Item: Decodable {
                 struct Artist: Decodable { let name: String }
-                struct Album: Decodable { let name: String? }
+                struct Image: Decodable { let url: String }
+                struct Album: Decodable {
+                    let name: String?
+                    let images: [Image]?
+                }
                 let name: String
                 let duration_ms: Int?
                 let artists: [Artist]?
@@ -177,7 +181,8 @@ final class SpotifySource: NowPlayingSource {
             positionMs: payload.progress_ms ?? 0,
             isPlaying: payload.is_playing ?? false,
             source: .spotify,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            artworkURL: item.album?.images?.first?.url
         )
     }
 }

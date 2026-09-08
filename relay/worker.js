@@ -155,10 +155,11 @@ function lineAt(lines, nowMs, startEpochMs) {
 }
 
 // Next line boundary strictly after nowMs, or null past the schedule end.
+// 50 ms cushion only: any larger margin is a per-line sync LAG the user sees.
 function nextBoundaryAt(lines, startEpochMs, nowMs) {
   for (const line of lines) {
     const at = startEpochMs + line.t;
-    if (at > nowMs + 250) return at; // 250 ms cushion
+    if (at > nowMs + 50) return at;
   }
   return null; // past the last line
 }
@@ -173,6 +174,11 @@ function contentState(session, nowMs) {
   const nextLine = index === null
     ? (session.lines[1]?.text ?? session.lines[0]?.text ?? "")
     : (session.lines[index + 1]?.text ?? "");
+  // The 3 dimmed follow-on lines: without them the Lock Screen tile renders
+  // only 2 lines while the app is suspended (the build-31 complaint).
+  const upcomingLines = session.lines
+    .slice(index === null ? 1 : index + 1, index === null ? 4 : index + 4)
+    .map((l) => l.text);
   const duration = Math.max(session.endAtEpochMs - session.startEpochMs, 1);
   const progress = Math.min(Math.max((nowMs - session.startEpochMs) / duration, 0), 1);
   const positionMs = Math.min(Math.max(nowMs - session.startEpochMs, 0), duration);
@@ -186,6 +192,7 @@ function contentState(session, nowMs) {
     artist: session.trackArtist,
     currentLine,
     nextLine,
+    upcomingLines,
     isPlaying: session.isPlaying !== false,
     progress,
     status,

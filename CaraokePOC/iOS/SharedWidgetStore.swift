@@ -18,6 +18,7 @@ struct SharedWidgetPayload: Codable {
     var trackStartEpochMs: Int
     var durationMs: Int
     var lines: [SharedLyricLine]
+    var artworkData: Data?
 
     init(title: String,
          artist: String,
@@ -29,7 +30,8 @@ struct SharedWidgetPayload: Codable {
          status: String,
          trackStartEpochMs: Int = 0,
          durationMs: Int = 0,
-         lines: [SharedLyricLine] = []) {
+         lines: [SharedLyricLine] = [],
+         artworkData: Data? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -41,6 +43,7 @@ struct SharedWidgetPayload: Codable {
         self.trackStartEpochMs = trackStartEpochMs
         self.durationMs = durationMs
         self.lines = lines
+        self.artworkData = artworkData
     }
 }
 

@@ -24,6 +24,7 @@ struct AppleMusicSnapshot: Equatable {
     var durationSec: Double
     var positionSec: Double
     var isPlaying: Bool
+    var artworkData: Data? = nil
 }
 
 enum AppleMusicStateMapper {
@@ -41,7 +42,8 @@ enum AppleMusicStateMapper {
             positionMs: positionMs,
             isPlaying: snapshot.isPlaying,
             source: .appleMusic,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            artworkData: snapshot.artworkData
         )
     }
 }
@@ -149,6 +151,7 @@ final class AppleMusicSource: NowPlayingSource {
         let time = safePlaybackTime()
         let dur = item.playbackDuration
         let validDuration = (dur.isFinite && dur > 0) ? dur : 0
+        let artworkData = item.artwork?.image(at: CGSize(width: 140, height: 140))?.jpegData(compressionQuality: 0.7)
 
         let snapshot = AppleMusicSnapshot(
             title: item.title,
@@ -156,7 +159,8 @@ final class AppleMusicSource: NowPlayingSource {
             album: item.albumTitle,
             durationSec: validDuration,
             positionSec: time,
-            isPlaying: isPlaying
+            isPlaying: isPlaying,
+            artworkData: artworkData
         )
 
         guard snapshot != lastSnapshot else { return }
