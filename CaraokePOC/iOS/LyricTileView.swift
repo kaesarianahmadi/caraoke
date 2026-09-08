@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import UIKit
 import WidgetKit
@@ -419,8 +420,8 @@ struct LyricTileView: View {
         .foregroundColor(colors.heroText)
     }
 
-    private func widgetIntentButton<I: LiveActivityIntent>(_ name: String, intent: I,
-                                                           label: String, size: CGFloat) -> some View {
+    private func widgetIntentButton<I: AppIntent>(_ name: String, intent: I,
+                                                  label: String, size: CGFloat) -> some View {
         Button(intent: intent) {
             Image(systemName: name)
                 .font(.system(size: size, weight: .semibold))
