@@ -293,28 +293,38 @@ struct LyricTileView: View {
             .frame(height: spec.boxHeight, alignment: .topLeading)
             .padding(.top, 6)
         default:
-            ZStack(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 4) {
+            ZStack(alignment: .top) {
+                VStack(alignment: .center, spacing: 6) {
+                    // Line 1: Preceding line or context
+                    Text(status == .idle ? "" : " ")
+                        .font(.system(size: spec.lyricFont * 0.85, weight: .regular))
+                        .foregroundColor(colors.nextText.opacity(0.5))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    // Line 2: Active line (150% size, bold, centered karaoke focus)
                     Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
-                        .font(.system(size: spec.lyricFont, weight: .bold))
+                        .font(.system(size: spec.lyricFont * 1.45, weight: .bold))
                         .foregroundColor(colors.heroText)
+                        .multilineTextAlignment(.center)
                         .lineLimit(spec.heroLines)
-                        .minimumScaleFactor(0.8)
-                        .lineSpacing(1)
+                        .minimumScaleFactor(0.75)
+                        .lineSpacing(2)
+                        .frame(maxWidth: .infinity, alignment: .center)
                         .fixedSize(horizontal: false, vertical: true)
 
+                    // Line 3+: Upcoming lines (clean readability, no fading masks)
                     if status != .idle {
                         let linesToShow = displayUpcomingLines
                         ForEach(Array(linesToShow.prefix(spec.upcomingShown).enumerated()), id: \.offset) { idx, line in
                             Text(line)
-                                .font(.system(size: spec.lyricFont, weight: .medium))
-                                .foregroundColor(colors.nextText.opacity(upcomingOpacity(index: idx)))
-                                // Wrap long lines onto the row below so the
-                                // whole line is readable (user-mandated);
-                                // still tail-truncates past the budget.
+                                .font(.system(size: spec.lyricFont * 0.95, weight: .medium))
+                                .foregroundColor(colors.nextText.opacity(idx == 0 ? 0.70 : 0.50))
+                                .multilineTextAlignment(.center)
                                 .lineLimit(spec.upcomingLines)
                                 .lineSpacing(1)
                                 .minimumScaleFactor(0.8)
+                                .frame(maxWidth: .infinity, alignment: .center)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -325,9 +335,9 @@ struct LyricTileView: View {
                     removal: .move(edge: .top).combined(with: .opacity)
                 ))
             }
-            .frame(height: spec.boxHeight, alignment: .topLeading)
+            .frame(height: spec.boxHeight, alignment: .top)
             .clipped()
-            .padding(.top, 6)
+            .padding(.top, 4)
             .animation(.spring(response: 0.38, dampingFraction: 0.86), value: currentLine)
         }
     }
@@ -395,26 +405,26 @@ struct LyricTileView: View {
 
     @ViewBuilder
     private var artwork: some View {
-        Group {
-            if let data = artworkData, let img = UIImage(data: data) {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ZStack {
-                    colors.trackBackground
-                    Image(systemName: "music.note")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(colors.metaText)
+        Button(intent: ResyncWidgetIntent()) {
+            Group {
+                if let data = artworkData, let img = UIImage(data: data) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        Circle().fill(Color.black)
+                        Circle().stroke(Color.white.opacity(0.25), lineWidth: 1).frame(width: 28, height: 28)
+                        Circle().fill(colors.glow).frame(width: 10, height: 10)
+                    }
                 }
             }
+            .frame(width: 42, height: 42)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
         }
-        .frame(width: 42, height: 42)
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+        .buttonStyle(.plain)
+        .accessibilityLabel("Resync lyrics")
     }
 
     private var transportButtons: some View {

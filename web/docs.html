@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caraoke Documentation & FAQ</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --card: #121214;
+      --border: #27272A;
+      --fg: #FFFFFF;
+      --muted: #8E8E93;
+      --accent: #FF9845;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      padding: 0 20px;
+    }
+    header {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 36px 0 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header a { color: var(--fg); text-decoration: none; font-weight: 700; font-size: 20px; }
+    .content {
+      max-width: 800px;
+      margin: 40px auto 80px;
+    }
+    h1 { font-size: 32px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.5px; }
+    h2 { font-size: 22px; font-weight: 700; margin-top: 40px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; color: var(--fg); }
+    h3 { font-size: 17px; font-weight: 600; margin-top: 20px; margin-bottom: 6px; }
+    p, li { color: var(--muted); font-size: 15px; margin-bottom: 12px; }
+    ul, ol { padding-left: 20px; margin-bottom: 16px; }
+    code { background: #1C1C1F; padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+    .callout {
+      background: var(--card);
+      border-left: 4px solid var(--accent);
+      padding: 16px;
+      border-radius: 0 12px 12px 0;
+      margin: 20px 0;
+    }
+    .callout strong { color: var(--fg); }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html">&larr; Caraoke</a>
+    <span style="color: var(--muted); font-size: 14px;">User Guide</span>
+  </header>
+
+  <div class="content">
+    <h1>Documentation & User Guide</h1>
+
+    <div class="callout">
+      <strong>Quick Tip:</strong> Make sure <code>Live Activities</code> is enabled in <em>Settings &rarr; Caraoke</em> on your iPhone so lyrics can mirror to CarPlay.
+    </div>
+
+    <h2 id="carplay">1. CarPlay on iOS 26 Setup</h2>
+    <p>Caraoke mirrors real-time synchronized lyrics to Apple CarPlay using ActivityKit and supplemental widgets.</p>
+    <ol>
+      <li>Connect your iPhone to your car via wireless or wired CarPlay.</li>
+      <li>Open Caraoke on your iPhone and toggle <strong>Live Lyrics</strong> ON.</li>
+      <li>Start playing music on Spotify or Apple Music.</li>
+      <li>On your CarPlay screen, swipe to your dashboard widget view to view lyrics alongside maps.</li>
+    </ol>
+
+    <h2 id="common-problems">2. Troubleshooting & Common Problems</h2>
+    <h3>Lyrics not updating or showing "Paused"</h3>
+    <p>Ensure that either Apple Music or Spotify is actively selected as the source. If using Spotify, ensure the app has completed Spotify authorization.</p>
+
+    <h3>Tapping album artwork in widgets</h3>
+    <p>Tapping the vinyl disc or album artwork in your desktop or Lock Screen widget fires an instant resync request to refresh the timeline.</p>
+
+    <h3>Missing lyrics for obscure or new songs</h3>
+    <p>Caraoke features a multi-source provider fallback engine: it first searches LRCLIB, and if unavailable, automatically queries secondary open lyric databases.</p>
+
+    <h2 id="client-id">3. Configuring a Custom Spotify Client ID</h2>
+    <p>Power users who wish to use their own Spotify developer credentials can enter their Custom Client ID in <em>Settings &rarr; Music Sources &rarr; Spotify Setup &rarr; Advanced</em>.</p>
+
+    <h2 id="standby">4. StandBy Mode</h2>
+    <p>Place your iPhone horizontally on a MagSafe charger to enjoy full-screen lyrics on your nightstand or desk. The widget supports Pitch Black, Simple Slate, and Ivory White themes.</p>
+  </div>
+</body>
+</html>

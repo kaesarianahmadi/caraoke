@@ -188,6 +188,12 @@ struct CaraokeWidgetEntryView: View {
         }
     }
 
+    @AppStorage("widget_selected_theme") private var savedTheme: String = WidgetTheme.pitchBlack.rawValue
+
+    private var themeBackgroundColor: Color {
+        WidgetTheme(rawValue: savedTheme)?.backgroundColor ?? Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255)
+    }
+
     var body: some View {
         LyricTileView(
             title: entry.title,
@@ -201,8 +207,9 @@ struct CaraokeWidgetEntryView: View {
             surface: surface,
             artworkData: entry.artworkData
         )
+        .widgetURL(URL(string: "caraoke://lyrics"))
         .containerBackground(for: .widget) {
-            Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255)
+            themeBackgroundColor
         }
     }
 }

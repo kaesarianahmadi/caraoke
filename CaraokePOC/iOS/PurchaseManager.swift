@@ -1,10 +1,13 @@
 import Foundation
 import StoreKit
+#if canImport(RevenueCat)
+import RevenueCat
+#endif
 
-/// StoreKit 2 manager for the single "Caraoke Plus" entitlement.
-/// Deliberately no RevenueCat and no backend at this scale: StoreKit 2
-/// transactions are the source of truth, `Transaction.updates` covers
-/// out-of-process renewals/refunds, and `AppStore.sync()` covers restore.
+/// Purchase Manager supporting RevenueCat + StoreKit 2:
+/// - Connects to RevenueCat backend if configured (or API key set in Secrets)
+/// - Native StoreKit 2 transactions as source of truth
+/// - Provides entitlement state, product loading, and purchase processing
 @MainActor
 final class PurchaseManager: ObservableObject {
 
@@ -16,8 +19,15 @@ final class PurchaseManager: ObservableObject {
     private var updatesTask: Task<Void, Never>?
 
     init() {
+        #if canImport(RevenueCat)
+        // Check for RevenueCat API key in Secrets or bundle
+        if let key = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String,
+           !key.isEmpty && !key.contains("YOUR_") {
+            Purchases.configure(withAPIKey: key)
+        }
+        #endif
+
         updatesTask = Task { [weak self] in
-            // Out-of-process events: renewals, refunds, family-sharing grants.
             for await _ in Transaction.updates {
                 await self?.refreshEntitlement()
             }
@@ -41,11 +51,29 @@ final class PurchaseManager: ObservableObject {
         }
     }
 
-    /// Returns true when the purchase completed and granted the entitlement.
+    /// Purchase execution via RevenueCat / StoreKit 2
     @discardableResult
     func purchase(_ product: Product) async -> Bool {
         purchaseInFlight = true
         defer { purchaseInFlight = false }
+
+        #if canImport(RevenueCat)
+        if Purchases.isConfigured {
+            // RevenueCat purchase path if configured
+            do {
+                let customerInfo = try await Purchases.shared.purchase(storeProduct: StoreProduct(sk2Product: product))
+                let entitled = customerInfo.customerInfo.entitlements["Caraoke Plus"]?.isActive == true
+                if entitled {
+                    self.isEntitled = true
+                    return true
+                }
+            } catch {
+                // If RevenueCat purchase encounters an error, proceed to StoreKit 2 fallback
+            }
+        }
+        #endif
+
+        // Native StoreKit 2 path
         do {
             let result = try await product.purchase()
             switch result {
@@ -69,11 +97,25 @@ final class PurchaseManager: ObservableObject {
     }
 
     func restore() async {
+        #if canImport(RevenueCat)
+        if Purchases.isConfigured {
+            _ = try? await Purchases.shared.restorePurchases()
+        }
+        #endif
         try? await AppStore.sync()
         await refreshEntitlement()
     }
 
     func refreshEntitlement() async {
+        #if canImport(RevenueCat)
+        if Purchases.isConfigured, let info = try? await Purchases.shared.customerInfo() {
+            if info.entitlements["Caraoke Plus"]?.isActive == true {
+                isEntitled = true
+                return
+            }
+        }
+        #endif
+
         var owned = Set<String>()
         for await entitlement in Transaction.currentEntitlements {
             if case .verified(let transaction) = entitlement,
@@ -84,8 +126,6 @@ final class PurchaseManager: ObservableObject {
         isEntitled = CaraokeProducts.isEntitled(productIDs: owned)
     }
 
-    /// Localized price for a product ID, falling back to the paywall's
-    /// literal text while products are loading (or offline).
     func priceText(for offer: PlanOffer) -> String {
         if let product = products.first(where: { $0.id == offer.productID }) {
             return "\(product.displayPrice) / \(unit(for: product.id))"

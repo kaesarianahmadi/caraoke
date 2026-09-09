@@ -35,7 +35,7 @@ final class RidePlaybackController: ObservableObject {
 
     private let activity: CaraokeActivityController
     private let audioKeeper = RideAudioKeeper()
-    private let provider: LRCLIBLyricsProvider
+    private let provider: any LyricsRepository
     private let apple: AppleMusicSource
     let spotifyAuth: SpotifyAuth
     private let spotify: SpotifySource
@@ -61,7 +61,7 @@ final class RidePlaybackController: ObservableObject {
     private let relaySeekCoalesceSeconds: TimeInterval = 5
 
     init(activity: CaraokeActivityController,
-         provider: LRCLIBLyricsProvider = LRCLIBLyricsProvider(),
+         provider: any LyricsRepository = FallbackLyricsProvider(),
          spotifyAuth: SpotifyAuth? = nil,
          relay: LyricsRelayClient? = nil) {
         self.activity = activity
