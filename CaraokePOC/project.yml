@@ -25,6 +25,7 @@ targets:
           - "CaraokeWidgetBundle.swift"
           - "LyricsLiveActivity.swift"
           - "CaraokeWidget.swift"
+          - "VinylWidgetView.swift"
           - "Info.plist"
           - "WidgetInfo.plist"
           - "Caraoke.entitlements"
