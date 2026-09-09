@@ -58,12 +58,11 @@ final class PurchaseManager: ObservableObject {
         defer { purchaseInFlight = false }
 
         #if canImport(RevenueCat)
-        if Purchases.isConfigured {
-            // RevenueCat purchase path if configured
+        if Purchases.isConfigured,
+           let rcProduct = try? await Purchases.shared.products([product.id]).first {
             do {
-                let customerInfo = try await Purchases.shared.purchase(storeProduct: StoreProduct(sk2Product: product))
-                let entitled = customerInfo.customerInfo.entitlements["Caraoke Plus"]?.isActive == true
-                if entitled {
+                let result = try await Purchases.shared.purchase(product: rcProduct)
+                if result.customerInfo.entitlements["Caraoke Plus"]?.isActive == true {
                     self.isEntitled = true
                     return true
                 }
