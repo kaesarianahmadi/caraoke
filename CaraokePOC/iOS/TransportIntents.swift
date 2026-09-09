@@ -49,4 +49,40 @@ struct ResyncWidgetIntent: AppIntent {
         return .result()
     }
 }
+
+/// Widget transport intents
+struct PreviousTrackIntent: AppIntent {
+    static let title: LocalizedStringResource = "Previous Track"
+    static let description = IntentDescription("Skips to the previous song.")
+
+    func perform() async throws -> some IntentResult {
+        MPMusicPlayerController.systemMusicPlayer.skipToPreviousItem()
+        return .result()
+    }
+}
+
+struct PlayPauseIntent: AppIntent {
+    static let title: LocalizedStringResource = "Play or Pause"
+    static let description = IntentDescription("Plays or pauses the current song.")
+
+    func perform() async throws -> some IntentResult {
+        let player = MPMusicPlayerController.systemMusicPlayer
+        if player.playbackState == .playing {
+            player.pause()
+        } else {
+            player.play()
+        }
+        return .result()
+    }
+}
+
+struct NextTrackIntent: AppIntent {
+    static let title: LocalizedStringResource = "Next Track"
+    static let description = IntentDescription("Skips to the next song.")
+
+    func perform() async throws -> some IntentResult {
+        MPMusicPlayerController.systemMusicPlayer.skipToNextItem()
+        return .result()
+    }
+}
 #endif

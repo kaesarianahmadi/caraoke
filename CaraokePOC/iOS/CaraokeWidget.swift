@@ -195,21 +195,26 @@ struct CaraokeWidgetEntryView: View {
     }
 
     var body: some View {
-        LyricTileView(
-            title: entry.title,
-            artist: entry.artist,
-            currentLine: entry.currentLine,
-            nextLine: entry.nextLine,
-            upcomingLines: entry.upcomingLines,
-            isPlaying: entry.isPlaying,
-            progress: entry.progress,
-            status: entry.status,
-            surface: surface,
-            artworkData: entry.artworkData
-        )
-        .widgetURL(URL(string: "caraoke://lyrics"))
-        .containerBackground(for: .widget) {
-            themeBackgroundColor
+        // Use vinyl widget for medium size, standard tile for others
+        if family == .systemMedium {
+            VinylWidgetView(entry: entry)
+        } else {
+            LyricTileView(
+                title: entry.title,
+                artist: entry.artist,
+                currentLine: entry.currentLine,
+                nextLine: entry.nextLine,
+                upcomingLines: entry.upcomingLines,
+                isPlaying: entry.isPlaying,
+                progress: entry.progress,
+                status: entry.status,
+                surface: surface,
+                artworkData: entry.artworkData
+            )
+            .widgetURL(URL(string: "caraoke://lyrics"))
+            .containerBackground(for: .widget) {
+                themeBackgroundColor
+            }
         }
     }
 }
