@@ -486,3 +486,18 @@ struct HomeView: View {
             .padding(.top, 4)
     }
 }
+
+// MARK: - Source logo (Apple Music)
+
+struct AppleMusicLogo: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [Color(hex: 0xFB5C74), Color(hex: 0xFA233B)],
+                           startPoint: .top, endPoint: .bottom)
+            Image(systemName: "music.note")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
