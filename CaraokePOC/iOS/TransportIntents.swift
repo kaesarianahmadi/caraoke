@@ -2,49 +2,18 @@
 import AppIntents
 import WidgetKit
 
-/// Transport buttons for the Live Activity and the Home Screen widgets.
-/// Every intent routes through `TransportControl`, which drives whichever
-/// player is the active source (Apple Music or Spotify) — never a hardcoded
-/// `MPMusicPlayerController` call.
-struct PausePlayIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Play or Pause"
-    static let description = IntentDescription("Plays or pauses the current song.")
-
-    func perform() async throws -> some IntentResult {
-        await TransportControl.perform(.playPause)
-        return .result()
-    }
-}
-
-struct RewindIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Previous Song"
-    static let description = IntentDescription("Skips to the previous song.")
-
-    func perform() async throws -> some IntentResult {
-        await TransportControl.perform(.previous)
-        return .result()
-    }
-}
-
-struct SkipIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Next Song"
-    static let description = IntentDescription("Skips to the next song.")
-
-    func perform() async throws -> some IntentResult {
-        await TransportControl.perform(.next)
-        return .result()
-    }
-}
-
-/// Tapping the cover / refresh button in a widget rebuilds the timeline from
-/// the shared payload (which carries the full timed lyric list, so the widget
-/// lands on the correct current line immediately).
+/// Transport buttons for the Home Screen widgets. Plain `AppIntent` on
+/// purpose: a widget button runs in the widget extension, and the
+/// `LiveActivityIntent` trio this used to use only performs in the app
+/// process — the buttons silently did nothing. Both kinds route through
+/// `TransportControl`, which drives whichever player is the active source.
+/// (The Live Activity itself carries no transport buttons.)
 struct ResyncWidgetIntent: AppIntent {
     static let title: LocalizedStringResource = "Resync Caraoke Lyrics"
     static let description = IntentDescription("Refreshes widget lyrics timeline.")
 
     func perform() async throws -> some IntentResult {
-        WidgetCenter.shared.reloadAllTimelines()
+        await WidgetResync.run()
         return .result()
     }
 }

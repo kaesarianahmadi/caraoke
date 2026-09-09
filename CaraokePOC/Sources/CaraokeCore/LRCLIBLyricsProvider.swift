@@ -111,21 +111,33 @@ final class LRCLIBLyricsProvider: LyricsRepository {
 
     // MARK: - Endpoints
 
+    /// `api/get` matches EVERY supplied field, so a Spotify album name that
+    /// differs from LRCLIB's entry (deluxe editions, localised titles) 404s the
+    /// whole lookup and the ride falls through to a weaker provider. Retry
+    /// without the album before giving up on the exact endpoint.
     private func fetchExact(_ track: TrackSignature) async throws -> Data? {
+        if let album = track.album, !album.isEmpty,
+           let body = try await fetchOne(at: exactURL(track, album: album)) {
+            return body
+        }
+        return try await fetchOne(at: exactURL(track, album: nil))
+    }
+
+    private func exactURL(_ track: TrackSignature, album: String?) -> URL {
         var components = URLComponents(url: base.appendingPathComponent("api/get"),
                                        resolvingAgainstBaseURL: false)!
         var items = [
             URLQueryItem(name: "track_name", value: track.title),
             URLQueryItem(name: "artist_name", value: track.artist),
         ]
-        if let album = track.album, !album.isEmpty {
+        if let album, !album.isEmpty {
             items.append(URLQueryItem(name: "album_name", value: album))
         }
         if let ms = track.durationMs, ms > 0 {
             items.append(URLQueryItem(name: "duration", value: String(Int((Double(ms) / 1000).rounded()))))
         }
         components.queryItems = items
-        return try await fetchOne(at: components.url!)
+        return components.url!
     }
 
     private func fetchSearch(_ track: TrackSignature) async throws -> Data? {

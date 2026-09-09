@@ -109,6 +109,10 @@ final class RideModeViewModel: ObservableObject {
         return "Live Lyrics is off"
     }
 
+    /// Ride Mode survives a relaunch: the widget can open the app long after
+    /// iOS suspended it, and the lyrics page must not come up empty.
+    private static let rideModeKey = "caraoke_ride_mode"
+    private var playbackStarted = false
     private var rideModel = RideModeModel()
     private let track = DemoLyrics.track
     private let activity = CaraokeActivityController()
@@ -154,6 +158,7 @@ final class RideModeViewModel: ObservableObject {
             .store(in: &authCancellables)
 
         bindPlayback()
+        isOn = UserDefaults.standard.bool(forKey: Self.rideModeKey)
     }
 
     private func bindPlayback() {
@@ -248,6 +253,7 @@ final class RideModeViewModel: ObservableObject {
     func startRide() {
         guard !isOn else { return }
         isOn = true
+        UserDefaults.standard.set(true, forKey: Self.rideModeKey)
         elapsedMs = 0
         rideModel.start(at: 0)
         // Always-on: request the Live Activity up front (foreground-only)
@@ -258,6 +264,7 @@ final class RideModeViewModel: ObservableObject {
             startDemoClock()
         } else {
             startRealPlayback()
+            playbackStarted = true
         }
     }
 
@@ -265,13 +272,39 @@ final class RideModeViewModel: ObservableObject {
     /// the app was relaunched with Ride Mode still on). Called on every
     /// foreground transition — a no-op while an activity is live.
     func ensureActivity() {
-        guard isOn, !activity.isActive else { return }
+        guard isOn else { return }
+        if !Self.useSimulatedPlayback, !playbackStarted {
+            startRealPlayback()
+            playbackStarted = true
+        }
+        seedFromSharedPayload()
+        guard !activity.isActive else { return }
         activity.startIdle()
+    }
+
+    /// Fills the UI from the widget's shared payload. Opening the app from a
+    /// widget used to show an empty page for the few seconds the pipeline needs
+    /// to poll the player; the payload the widget was just rendering is
+    /// already the right answer.
+    func seedFromSharedPayload() {
+        guard trackTitle.isEmpty, let payload = SharedWidgetStore.read(), !payload.title.isEmpty else { return }
+        trackTitle = payload.title
+        trackArtist = payload.artist
+        currentLine = payload.currentLine
+        previousLines = payload.previousLines
+        nextLine = payload.nextLine
+        upcomingLines = payload.upcomingLines
+        durationMs = payload.durationMs > 0 ? payload.durationMs : nil
+        positionMs = WidgetTimelineBuilder.positionMs(for: payload, now: Date())
+        artworkData = payload.artworkData
+        lyricStatus = LyricStatus(raw: payload.status) ?? .idle
     }
 
     func stopRide() {
         guard isOn else { return }
         isOn = false
+        UserDefaults.standard.set(false, forKey: Self.rideModeKey)
+        playbackStarted = false
         rideModel.stop(at: elapsedMs)
         clockTask?.cancel()
         clockTask = nil

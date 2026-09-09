@@ -410,6 +410,14 @@ final class RidePlaybackController: ObservableObject {
         artworkData = thumb
         artworkColorHex = image.averageColorHex
         lastArtworkKey = key
+        // Artwork lands a beat after the track change (Spotify serves it over
+        // the network). Force the next widget write past the dedupe and reload,
+        // or the widget keeps the artwork-less timeline it was first handed.
+        lastWidgetSignature = nil
+        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+        // Re-render now: while paused the engine emits no position ticks, so
+        // waiting for the next tick would leave the payload artwork-less.
+        render(engine.positionSubject.value)
     }
 
     private func clearArtwork(key: String) {
@@ -417,6 +425,9 @@ final class RidePlaybackController: ObservableObject {
         artworkData = nil
         artworkColorHex = nil
         lastArtworkKey = key
+        lastWidgetSignature = nil
+        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+        render(engine.positionSubject.value)
     }
 
     /// Widgets and the mini player never need more than a 160 pt square, and

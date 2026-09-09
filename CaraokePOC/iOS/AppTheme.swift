@@ -38,6 +38,50 @@ enum AppTheme {
     static func background(_ scheme: ColorScheme) -> some View {
         bg(scheme).ignoresSafeArea()
     }
+
+    /// Cover-following wash — the same recipe the widgets paint, reused by the
+    /// lyrics page so a song's colour follows the user everywhere.
+    static func coverWash(_ hex: String?) -> LinearGradient? {
+        guard let hex, let color = Color(hexString: hex) else { return nil }
+        return LinearGradient(
+            colors: [color.opacity(0.92), color.opacity(0.5), .black.opacity(0.94)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
+/// Continuous vinyl rotation for the in-app discs. WidgetKit renders static
+/// snapshots, so a Home Screen widget can never spin — this is app-only.
+private struct VinylSpin: ViewModifier {
+    let isSpinning: Bool
+    @State private var angle: Double = 0
+
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.degrees(angle))
+            .onAppear { if isSpinning { spin() } }
+            .onChange(of: isSpinning) { _, spinning in
+                spinning ? spin() : halt()
+            }
+    }
+
+    private func spin() {
+        withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) { angle = 360 }
+    }
+
+    /// Retargeting the same property with a short animation cancels the repeat
+    /// and freezes the disc where it stands.
+    private func halt() {
+        withAnimation(.linear(duration: 0.3)) { angle = angle.truncatingRemainder(dividingBy: 360) }
+    }
+}
+
+extension View {
+    /// Spins while `isSpinning` (playback active), stops dead otherwise.
+    func vinylSpin(_ isSpinning: Bool) -> some View {
+        modifier(VinylSpin(isSpinning: isSpinning))
+    }
 }
 
 /// Widget theme options. Raw values are stable storage keys (they travel to

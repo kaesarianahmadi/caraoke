@@ -66,6 +66,9 @@ struct HomeView: View {
         // Widgets link here with `caraoke://lyrics`.
         .onOpenURL { url in
             if url.host == "lyrics" || url.path == "/lyrics" {
+                // Show what the widget was already displaying instead of an
+                // empty page while the pipeline polls the player.
+                model.seedFromSharedPayload()
                 showLyricsPage = true
             }
         }
@@ -175,7 +178,8 @@ struct HomeView: View {
                     .foregroundStyle(AppTheme.muted(scheme))
                 HomeWidgetPreview(title: model.trackTitle, artist: model.trackArtist,
                                   currentLine: model.currentLine, nextLine: model.nextLine,
-                                  previousLine: model.previousLines.last)
+                                  previousLine: model.previousLines.last,
+                                  isSpinning: model.isPlaybackActive)
             }
             .foregroundStyle(AppTheme.fg(scheme))
         }
@@ -216,7 +220,6 @@ struct HomeView: View {
             title: isIdle ? (model.isOn ? "Caraoke" : "Live Lyrics Paused") : model.trackTitle,
             artist: isIdle ? (model.isOn ? "Waiting for playback…" : "Switch on to stream to car") : model.trackArtist,
             currentLine: isIdle ? (model.isOn ? "Play a song on Apple Music or Spotify" : "Turn switch on to stream lyrics") : model.currentLine,
-            translation: isIdle ? nil : model.currentTranslation,
             previousLines: isIdle ? [] : model.previousLines,
             nextLine: isIdle ? nil : model.nextLine,
             upcomingLines: isIdle ? [] : model.upcomingLines,
@@ -485,6 +488,8 @@ struct HomeWidgetPreview: View {
     let currentLine: String
     let nextLine: String?
     var previousLine: String?
+    /// Spins the record while the active source is playing (app preview only).
+    var isSpinning: Bool = false
 
     /// Reads the same shared settings the widget itself uses.
     private var coverStyle: WidgetCoverStyle {
@@ -556,6 +561,7 @@ struct HomeWidgetPreview: View {
                 Circle().fill(.white.opacity(0.5)).frame(width: 7, height: 7)
             }
             .frame(width: 118, height: 118)
+            .vinylSpin(isSpinning)
         } else {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(LinearGradient(colors: [Color(hex: 0x9E6752), Color(hex: 0x27304D)],

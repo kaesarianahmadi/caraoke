@@ -314,6 +314,64 @@ final class TestRunner {
         }
         checkEqual("throttleIntervalElapsed", throttle.decide(critical: false, now: base.addingTimeInterval(2.5)), .sendNow)
 
+        // MARK: NetEase fallback — strict match only (wrong lyric > no lyric)
+        do {
+            MockURLProtocol.reset()
+            func makeFallback(cacheDir: URL) -> FallbackLyricsProvider {
+                FallbackLyricsProvider(
+                    session: MockURLProtocol.makeSession(),
+                    lrclib: LRCLIBLyricsProvider(
+                        session: MockURLProtocol.makeSession(),
+                        cache: LyricsDiskCache(directory: cacheDir)
+                    )
+                )
+            }
+            func cacheDir(_ name: String) -> URL {
+                FileManager.default.temporaryDirectory
+                    .appendingPathComponent("netease-\(name)-\(UUID().uuidString)")
+            }
+            let sig = TrackSignature(title: "Buyer's Remorse", artist: "Daniel Caesar",
+                                     durationMs: 152_000)
+
+            // A Mandarin cover with another artist and a 214 s runtime is not
+            // the song that is playing: the fallback must refuse it.
+            MockURLProtocol.handler = { request in
+                let path = request.url?.path ?? ""
+                if path.contains("search") {
+                    return (MockURLProtocol.httpResponse(200), Data("""
+                    {"result":{"songs":[{"id":1,"name":"买家懊悔","duration":214000,
+                     "artists":[{"name":"某歌手"}]}]}}
+                    """.utf8))
+                }
+                return (MockURLProtocol.httpResponse(404), Data("null".utf8))
+            }
+            check("neteaseRejectsMismatch",
+                  awaitLyrics { try await makeFallback(cacheDir: cacheDir("a")).lyrics(for: sig) }.value == nil)
+
+            // The real entry: title + artist + duration agree, and the credit
+            // rows at 0.0 s are dropped instead of rendered as lyrics.
+            MockURLProtocol.reset()
+            MockURLProtocol.handler = { request in
+                let path = request.url?.path ?? ""
+                if path.contains("search") {
+                    return (MockURLProtocol.httpResponse(200), Data("""
+                    {"result":{"songs":[{"id":2,"name":"Buyer's Remorse","duration":152170,
+                     "artists":[{"name":"Daniel Caesar"},{"name":"Omar Apollo"}]}]}}
+                    """.utf8))
+                }
+                if path.contains("lyric") {
+                    return (MockURLProtocol.httpResponse(200), Data("""
+                    {"lrc":{"lyric":"[00:00.000] 作词 : Ashton Simmonds\\n[00:00.168] I guess I got what I prayed for\\n[00:04.683] Now you're in my bed"}}
+                    """.utf8))
+                }
+                return (MockURLProtocol.httpResponse(404), Data("null".utf8))
+            }
+            let matched = awaitLyrics { try await makeFallback(cacheDir: cacheDir("b")).lyrics(for: sig) }
+            check("neteaseAcceptsMatch", matched.value?.lines.map(\.text)
+                == ["I guess I got what I prayed for", "Now you're in my bed"])
+            check("neteaseDropsCreditRows", matched.value?.lines.first?.startMs == 168)
+        }
+
         // MARK: LRCLIB lyrics provider (mocked network — no real requests)
         do {
             MockURLProtocol.reset()
@@ -373,7 +431,8 @@ final class TestRunner {
             let r2 = awaitLyrics { try await providerB.lyrics(for: sig) }
             check("lrclibSearchFallback", r2.value?.lines.map(\.text) == ["studio"])
             check("lrclibSearchFallbackStart", r2.value?.lines.first?.startMs == 2000)
-            check("lrclibSearchFallbackRequests", MockURLProtocol.requestCount == 2)
+            // exact-with-album 404 → exact-without-album 404 → search 200
+            check("lrclibSearchFallbackRequests", MockURLProtocol.requestCount == 3)
 
             // nothing at either endpoint → nil, no throw
             MockURLProtocol.reset()
@@ -691,6 +750,20 @@ final class TestRunner {
             checkEqual("widgetNoStartSingleEntry",
                        WidgetTimelineBuilder.entries(for: noStart, now: start).count, 1)
             checkEqual("widgetPositionMs", WidgetTimelineBuilder.positionMs(for: noStart, now: start), 0)
+
+            // A resync in flight leads with the cover pulse (WidgetKit has no
+            // animation, so the fade is alternating entries) and then hands
+            // back to the lyric timeline.
+            var pulsing = payload(lines: lines)
+            pulsing.resyncingUntilMs = Int(start.timeIntervalSince1970 * 1000) + 2_000
+            let pulse = WidgetTimelineBuilder.entries(for: pulsing, now: start)
+            check("widgetPulseAlternates", pulse.count > 3
+                && pulse[0].resyncPulse == 1 && pulse[1].resyncPulse < 1
+                && pulse[2].resyncPulse == 1)
+            check("widgetPulseHandsBack", pulse.last?.resyncPulse == 1
+                && pulse.contains { $0.resyncPulse == 1 && $0.currentLine == "two" })
+            checkEqual("widgetPulseExpiredIsNormal",
+                       WidgetTimelineBuilder.entries(for: payload(lines: lines), now: start).first?.resyncPulse, 1)
 
             // Long tracks are capped, and the cap still starts at the current line.
             let many = (0..<200).map { SharedLyricLine(timeMs: $0 * 1_000, text: "l\($0)") }

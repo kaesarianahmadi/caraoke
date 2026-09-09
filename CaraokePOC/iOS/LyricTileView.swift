@@ -17,10 +17,15 @@ struct LyricTileLayout {
     var previousShown: Int = 1      // dimmed karaoke context above the hero
     var upcomingShown: Int = 1      // dimmed follow-on line below the hero
     var upcomingLines: Int = 1      // each dimmed line may re-wrap to 2 visual rows
-    var boxHeight: CGFloat = 108    // fixed anti-flicker lyric container
+    /// nil = size to content instead of a fixed anti-flicker box.
+    var boxHeight: CGFloat? = 108
+    var maxBoxHeight: CGFloat? = nil
     var headerCompact: Bool = false // one identity row instead of title+artist stack
     var showsHeader: Bool = true
     var showsBottomBar: Bool = false // large-widget cover/title/transport row
+    /// Centres the whole stack in the surface (large widget: lifts the player
+    /// bar off the bottom edge).
+    var centersVertically: Bool = false
     var padding: CGFloat = 16
 }
 
@@ -51,10 +56,10 @@ struct LyricTilePalette {
         nextText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.55),
         metaText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.4),
         trackBackground: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.18),
-        // Caraoke's own touch on an otherwise system-default banner: the
-        // progress fill is the brand orange, not Spotify green or plain white.
-        trackFill: Color(hex: 0xFF9845),
-        glow: Color(hex: 0xFF9845)
+        // White, not the brand orange: the progress fill belongs to the lyric
+        // block, not to the accent.
+        trackFill: .white.opacity(0.92),
+        glow: .white.opacity(0.7)
     )
 
     /// Home player card — follows the app theme (AppTheme tokens).
@@ -79,8 +84,6 @@ struct LyricTileView: View {
     let title: String
     let artist: String
     let currentLine: String
-    /// Translation of the current line (rendered under the hero when present).
-    let translation: String?
     let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
@@ -106,6 +109,10 @@ struct LyricTileView: View {
     let surface: Surface
     var palette: LyricTilePalette?
     var artworkData: Data? = nil
+    /// Cover opacity for this render (widgets pulse it during a resync).
+    var resyncPulse: Double = 1
+    /// Shows the refresh glyph over the cover when the lyrics are out of sync.
+    var needsResync: Bool = false
 
     @Environment(\.colorScheme) private var scheme
 
@@ -114,43 +121,51 @@ struct LyricTileView: View {
     private var layout: LyricTileLayout {
         switch surface {
         case .lockBanner:
-            // Apple's own banner sizing: identity row, one dimmed previous
-            // line, the active line (up to 2 rows), one dimmed next line.
-            return LyricTileLayout()
+            // Apple's banner lands at ~160 pt. A two-row identity stack plus
+            // the 108 pt box ran ~30 pt over that, so the banner gets one
+            // identity row and a 100 pt box: 12 + 20 + 100 + 9 + 12 ≈ 153 pt.
+            return LyricTileLayout(heroLines: 2, previousShown: 1, upcomingShown: 1,
+                                   boxHeight: 100, headerCompact: true, padding: 12)
         case .carPlaySmall:
-            return LyricTileLayout()
+            return LyricTileLayout(heroLines: 2, previousShown: 1, upcomingShown: 1,
+                                   boxHeight: 92, headerCompact: true, padding: 12)
         case .widgetSmall:
             // Apple's 158×158 grid: one identity row + hero + next line.
-            return LyricTileLayout(heroLines: 3, previousShown: 0, upcomingShown: 1, upcomingLines: 1,
-                                   boxHeight: 92, headerCompact: true, padding: 14)
+            // Also the StandBy/CarPlay tile: the system scales this up, so it
+            // carries larger type and no dimmed past line.
+            return LyricTileLayout(lyricFont: 20, heroLines: 3, previousShown: 0, upcomingShown: 1,
+                                   upcomingLines: 1, boxHeight: 96, headerCompact: true, padding: 14)
         case .widgetMedium:
             return LyricTileLayout(previousShown: 1, upcomingShown: 2, upcomingLines: 1,
                                    boxHeight: 104, headerCompact: true, padding: 16)
         case .widgetLarge:
             // Competitor blueprint: lyrics own the top, identity + transport
-            // live in the bottom row — no header. The box is sized to the 4x4
-            // grid's remaining height so the wrapped lines are not clipped.
-            return LyricTileLayout(lyricFont: 21, heroLines: 3, previousShown: 1, upcomingShown: 3,
-                                   upcomingLines: 1, boxHeight: 240, showsHeader: false,
-                                   showsBottomBar: true, padding: 18)
+            // live in the bottom row — no header. The lyric block sizes to its
+            // content (more lines fill the 4x4 grid instead of leaving dead
+            // space above and below a fixed box) and the whole stack centres,
+            // which lifts the player bar off the bottom edge.
+            return LyricTileLayout(lyricFont: 21, heroLines: 3, previousShown: 2, upcomingShown: 4,
+                                   upcomingLines: 1, boxHeight: nil, maxBoxHeight: 250,
+                                   showsHeader: false, showsBottomBar: true,
+                                   centersVertically: true, padding: 16)
         case .home:
-            // Identical to the real Live Activity banner — same box, same
-            // font, same fade ramp, so the in-app card matches Apple's sizing.
+            // The in-app player card keeps the taller two-row identity stack
+            // and 108 pt box — it is a card, not a Lock Screen banner.
             return LyricTileLayout()
         }
     }
 
-    init(title: String, artist: String, currentLine: String, translation: String? = nil,
+    init(title: String, artist: String, currentLine: String,
          previousLines: [String] = [],
          nextLine: String? = nil,
          upcomingLines: [String] = [],
          isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
          positionMs: Int = 0, durationMs: Int? = nil,
-         surface: Surface, palette: LyricTilePalette? = nil, artworkData: Data? = nil) {
+         surface: Surface, palette: LyricTilePalette? = nil, artworkData: Data? = nil,
+         resyncPulse: Double = 1, needsResync: Bool = false) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
-        self.translation = translation
         self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
@@ -162,6 +177,8 @@ struct LyricTileView: View {
         self.surface = surface
         self.palette = palette
         self.artworkData = artworkData
+        self.resyncPulse = resyncPulse
+        self.needsResync = needsResync
     }
 
     var body: some View {
@@ -171,9 +188,6 @@ struct LyricTileView: View {
                 header(compact: spec.headerCompact)
             }
             lyricBody(spec: spec)
-            if spec.showsBottomBar {
-                Spacer(minLength: 8)
-            }
             if status != .stale {
                 progressRow
             }
@@ -181,7 +195,8 @@ struct LyricTileView: View {
                 bottomBar
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity,
+               alignment: spec.centersVertically ? .center : .topLeading)
         .padding(spec.padding)
         .background(cardShape(enabled: surface != .lockBanner))
         .overlay(cardStroke(enabled: surface != .lockBanner))
@@ -272,15 +287,14 @@ struct LyricTileView: View {
     private func lyricBody(spec: LyricTileLayout) -> some View {
         switch status {
         case .loading:
-            VStack(alignment: .leading, spacing: 8) {
+            boxed(VStack(alignment: .leading, spacing: 8) {
                 skeleton(widthFraction: 0.90)
                 skeleton(widthFraction: 0.70)
                 skeleton(widthFraction: 0.50)
-            }
-            .frame(height: spec.boxHeight, alignment: .topLeading)
+            }, spec: spec, alignment: .topLeading)
             .padding(.top, 6)
         case .noLyrics:
-            VStack(alignment: .leading, spacing: 6) {
+            boxed(VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     musicNoteGlyph(size: spec.lyricFont - 2)
                     Text(currentLine.isEmpty ? title : currentLine)
@@ -291,11 +305,10 @@ struct LyricTileView: View {
                 Text("No lyrics found for this song")
                     .font(.system(size: 13))
                     .foregroundColor(colors.metaText)
-            }
-            .frame(height: spec.boxHeight, alignment: .topLeading)
+            }, spec: spec, alignment: .topLeading)
             .padding(.top, 6)
         case .stale:
-            VStack(alignment: .leading, spacing: 6) {
+            boxed(VStack(alignment: .leading, spacing: 6) {
                 Text(currentLine.isEmpty ? "Ride ended" : currentLine)
                     .font(.system(size: spec.lyricFont, weight: .bold))
                     .foregroundColor(colors.heroText)
@@ -304,51 +317,85 @@ struct LyricTileView: View {
                 Text("Lyrics return when a song plays")
                     .font(.system(size: 13))
                     .foregroundColor(colors.metaText)
-            }
-            .frame(height: spec.boxHeight, alignment: .topLeading)
+            }, spec: spec, alignment: .topLeading)
             .padding(.top, 6)
         default:
-            // ZStack (not VStack) so the outgoing and incoming line overlap
-            // while they slide, instead of both being laid out at once.
-            ZStack(alignment: surface == .widgetLarge ? .center : .top) {
-                lyricRows(spec: spec)
-                    .id(slideKey)
+            boxed(lyricRows(spec: spec), spec: spec,
+                  alignment: spec.centersVertically ? .center : .top)
+                .padding(.top, 4)
+        }
+    }
+
+    /// Fixed anti-flicker box where the surface cannot reflow (Lock Screen
+    /// banner, in-app card); content-sized where it can (the large widget).
+    @ViewBuilder
+    private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
+        if let height = spec.boxHeight {
+            content.frame(height: height, alignment: alignment).clipped()
+        } else {
+            content.frame(maxHeight: spec.maxBoxHeight, alignment: alignment).clipped()
+        }
+    }
+
+    /// One lyric row with a stable identity. Rows that survive a line change
+    /// keep their view, so they slide up one slot while the outgoing row
+    /// leaves through the top and the new one arrives from the bottom — the
+    /// whole block never moves as a single unit.
+    private struct LyricRow: Identifiable {
+        enum Kind { case previous, hero, upcoming }
+        let id: String
+        let text: String
+        let kind: Kind
+        let opacity: Double
+    }
+
+    private func rows(spec: LyricTileLayout) -> [LyricRow] {
+        var seen: [String: Int] = [:]
+        func uniqueID(_ kind: String, _ text: String) -> String {
+            let key = kind + "\u{1}" + text
+            let count = seen[key, default: 0]
+            seen[key] = count + 1
+            return count == 0 ? "\(kind):\(text)" : "\(kind):\(text)#\(count)"
+        }
+        var rows: [LyricRow] = []
+        if status != .idle {
+            for (idx, line) in previousLines.suffix(spec.previousShown).enumerated() {
+                rows.append(LyricRow(id: uniqueID("p", line), text: line,
+                                     kind: .previous, opacity: fade(previousIndex: idx)))
+            }
+        }
+        let hero = currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine
+        rows.append(LyricRow(id: uniqueID("h", hero), text: hero, kind: .hero, opacity: 1))
+        if status != .idle {
+            for (idx, line) in displayUpcomingLines.prefix(spec.upcomingShown).enumerated() {
+                rows.append(LyricRow(id: uniqueID("u", line), text: line,
+                                     kind: .upcoming, opacity: upcomingOpacity(index: idx)))
+            }
+        }
+        return rows
+    }
+
+    @ViewBuilder
+    private func lyricRows(spec: LyricTileLayout) -> some View {
+        let items = rows(spec: spec)
+        VStack(alignment: .center, spacing: 6) {
+            ForEach(items) { row in
+                rowView(row, spec: spec)
                     .transition(.asymmetric(
                         insertion: .move(edge: .bottom).combined(with: .opacity),
                         removal: .move(edge: .top).combined(with: .opacity)
                     ))
             }
-            .frame(height: spec.boxHeight, alignment: surface == .widgetLarge ? .center : .top)
-            .clipped()
-            .padding(.top, 4)
-            .animation(.easeInOut(duration: 0.35), value: slideKey)
         }
+        .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.32), value: items.map(\.id))
     }
 
-    /// Identity of the currently rendered line — a change slides the old rows
-    /// up and the new ones in from the bottom (widgets animate this through
-    /// the system's timeline-entry transition).
-    private var slideKey: String { "\(status.rawValue)|\(currentLine)" }
-
     @ViewBuilder
-    private func lyricRows(spec: LyricTileLayout) -> some View {
-        VStack(alignment: .center, spacing: 6) {
-            if status != .idle {
-                ForEach(Array(previousLines.suffix(spec.previousShown).enumerated()), id: \.offset) { idx, line in
-                    Text(line)
-                        .font(.system(size: spec.lyricFont, weight: .regular))
-                        .foregroundColor(colors.nextText.opacity(fade(previousIndex: idx)))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-            }
-
-            // No `.fixedSize` here: the hero must be allowed to scale down
-            // (minimumScaleFactor) so a long line stays complete instead of
-            // running off a "…".
-            Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
+    private func rowView(_ row: LyricRow, spec: LyricTileLayout) -> some View {
+        switch row.kind {
+        case .hero:
+            Text(row.text)
                 .font(.system(size: spec.lyricFont, weight: .bold))
                 .foregroundColor(colors.heroText)
                 .multilineTextAlignment(.center)
@@ -356,30 +403,24 @@ struct LyricTileView: View {
                 .minimumScaleFactor(0.65)
                 .lineSpacing(2)
                 .frame(maxWidth: .infinity, alignment: .center)
-
-            if let translation, !translation.isEmpty {
-                Text(translation)
-                    .font(.system(size: spec.lyricFont - 4, weight: .regular))
-                    .foregroundColor(colors.nextText.opacity(0.72))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-
-            if status != .idle {
-                ForEach(Array(displayUpcomingLines.prefix(spec.upcomingShown).enumerated()), id: \.offset) { idx, line in
-                    Text(line)
-                        .font(.system(size: spec.lyricFont, weight: .regular))
-                        .foregroundColor(colors.nextText.opacity(upcomingOpacity(index: idx)))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(spec.upcomingLines)
-                        .lineSpacing(1)
-                        .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+        case .previous:
+            Text(row.text)
+                .font(.system(size: spec.lyricFont, weight: .regular))
+                .foregroundColor(colors.nextText.opacity(row.opacity))
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .center)
+        case .upcoming:
+            Text(row.text)
+                .font(.system(size: spec.lyricFont, weight: .regular))
+                .foregroundColor(colors.nextText.opacity(row.opacity))
+                .multilineTextAlignment(.center)
+                .lineLimit(spec.upcomingLines)
+                .lineSpacing(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -421,7 +462,7 @@ struct LyricTileView: View {
             }
         }
         .frame(height: 3)
-        .padding(.top, 8)
+        .padding(.top, 6)
         .opacity(status == .loading ? 0.4 : 1)
     }
 
@@ -469,6 +510,16 @@ struct LyricTileView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1))
+            .overlay {
+                if needsResync {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.5), radius: 3)
+                }
+            }
+            // The pulse is timeline-driven: WidgetKit has no animation.
+            .opacity(resyncPulse)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Resync lyrics")
@@ -476,11 +527,11 @@ struct LyricTileView: View {
 
     private var transportButtons: some View {
         HStack(spacing: 6) {
-            widgetIntentButton("backward.fill", intent: RewindIntent(), label: "Previous song", size: 16)
+            widgetIntentButton("backward.fill", intent: PreviousTrackIntent(), label: "Previous song", size: 16)
             widgetIntentButton(isPlaying ? "pause.fill" : "play.fill",
-                               intent: PausePlayIntent(),
+                               intent: PlayPauseIntent(),
                                label: isPlaying ? "Pause" : "Play", size: 19)
-            widgetIntentButton("forward.fill", intent: SkipIntent(), label: "Next song", size: 16)
+            widgetIntentButton("forward.fill", intent: NextTrackIntent(), label: "Next song", size: 16)
         }
         .foregroundColor(colors.heroText)
     }

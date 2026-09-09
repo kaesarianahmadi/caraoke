@@ -142,7 +142,9 @@ final class SyncEngine {
         let currentLine = index.map { lines[$0].text }
         let previous: [String]
         if let index, index > 0 {
-            let prevStart = max(0, index - 2)
+            // Six past lines: the lyrics page spends its free space on karaoke
+            // context instead of leaving the top of the window empty.
+            let prevStart = max(0, index - 6)
             previous = lines[prevStart..<index].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         } else {
             previous = []
@@ -158,13 +160,13 @@ final class SyncEngine {
         if let index {
             let nextStart = index + 1
             if nextStart < lines.count {
-                let end = min(nextStart + 8, lines.count)
+                let end = min(nextStart + 10, lines.count)
                 upcoming = lines[nextStart..<end].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             } else {
                 upcoming = []
             }
         } else {
-            upcoming = lines.prefix(8).map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            upcoming = lines.prefix(10).map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         }
 
         var lineProgress = 0.0

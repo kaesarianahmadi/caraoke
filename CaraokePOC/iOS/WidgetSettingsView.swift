@@ -21,7 +21,6 @@ struct WidgetSettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     widgetPreview
-                    settingsGroup
                     themeGroup
                     Button(showTips ? "Hide real-time update tips" : "Make widgets update in real time") {
                         withAnimation(.easeInOut(duration: 0.2)) { showTips.toggle() }
@@ -80,30 +79,21 @@ struct WidgetSettingsView: View {
                     .foregroundStyle(theme.mutedTextColor)
                     .lineLimit(1)
                 Spacer()
-                if settings.showLyrics {
-                    Text(previousLine)
-                        .font(.system(size: 15))
-                        .foregroundStyle(theme.mutedTextColor.opacity(0.5))
-                        .lineLimit(1)
-                        .padding(.bottom, 3)
-                    Text(heroLine)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(theme.textColor)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.75)
-                    if settings.showTranslation, let translation = model.currentTranslation, !translation.isEmpty {
-                        Text(translation)
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.mutedTextColor.opacity(0.8))
-                            .lineLimit(2)
-                            .padding(.top, 2)
-                    }
-                    Text(nextLine)
-                        .font(.system(size: 15))
-                        .foregroundStyle(theme.mutedTextColor.opacity(0.72))
-                        .lineLimit(1)
-                        .padding(.top, 3)
-                }
+                Text(previousLine)
+                    .font(.system(size: 15))
+                    .foregroundStyle(theme.mutedTextColor.opacity(0.5))
+                    .lineLimit(1)
+                    .padding(.bottom, 3)
+                Text(heroLine)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(theme.textColor)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.75)
+                Text(nextLine)
+                    .font(.system(size: 15))
+                    .foregroundStyle(theme.mutedTextColor.opacity(0.72))
+                    .lineLimit(1)
+                    .padding(.top, 3)
                 Spacer()
                 HStack(spacing: 18) {
                     Image(systemName: "backward.fill")
@@ -143,7 +133,7 @@ struct WidgetSettingsView: View {
     }
 
     @ViewBuilder private var previewCover: some View {
-        ZStack(alignment: .topTrailing) {
+        Group {
             if coverStyle == .vinyl {
                 ZStack {
                     Circle().fill(RadialGradient(colors: [.black, Color(white: 0.17), .black], center: .center, startRadius: 6, endRadius: 64))
@@ -157,18 +147,12 @@ struct WidgetSettingsView: View {
                     Circle().fill(.white.opacity(0.5)).frame(width: 7, height: 7)
                 }
                 .frame(width: 126, height: 126)
+                .vinylSpin(model.isPlaybackActive)
             } else {
                 coverLabel
                     .frame(width: 110, height: 110)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.12)))
-            }
-            if settings.showRefresh {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(.black.opacity(0.34), in: Circle())
             }
         }
     }
@@ -192,16 +176,6 @@ struct WidgetSettingsView: View {
     }
 
     // MARK: - Groups
-
-    private var settingsGroup: some View {
-        section(title: "Widget settings") {
-            toggleRow("Show lyrics", isOn: binding(\.showLyrics))
-            divider
-            toggleRow("Show refresh button", isOn: binding(\.showRefresh))
-            divider
-            toggleRow("Show translation (if available)", isOn: binding(\.showTranslation))
-        }
-    }
 
     private var themeGroup: some View {
         section(title: "Theme settings") {
@@ -242,7 +216,7 @@ struct WidgetSettingsView: View {
             Text("1  How to add widgets:").font(.system(size: 16, weight: .semibold))
             Text("Press and hold a blank area on the Home Screen, tap Edit, then Add Widget and choose Caraoke.")
             Text("2  Keep lyrics up to date:").font(.system(size: 16, weight: .semibold))
-            Text("Song changes update automatically. Tap the cover or refresh button whenever the widget needs to resync.")
+            Text("Song changes update automatically. Tap the cover whenever the widget needs to resync.")
             Text("3  StandBy:").font(.system(size: 16, weight: .semibold))
             Text("Place iPhone horizontally on a charger, then select the Caraoke lyrics widget.")
         }
@@ -257,15 +231,6 @@ struct WidgetSettingsView: View {
             VStack(spacing: 0, content: content)
                 .background(AppTheme.surface(scheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-    }
-
-    private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
-        HStack {
-            Text(title).font(.system(size: 15))
-            Spacer()
-            Toggle("", isOn: isOn).labelsHidden().tint(AppTheme.ok)
-        }
-        .padding(.horizontal, 16).frame(minHeight: 52)
     }
 
     private var divider: some View { Divider().padding(.leading, 16) }

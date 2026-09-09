@@ -45,6 +45,9 @@ struct SharedWidgetPayload: Codable, Sendable {
     var artworkColorHex: String?
     /// Which player the transport buttons must drive: `appleMusic` / `spotify`.
     var source: String
+    /// Wall-clock epoch (ms) until which the widget pulses its cover because a
+    /// resync is in flight (0 = not resyncing).
+    var resyncingUntilMs: Int
 
     init(title: String,
          artist: String,
@@ -61,7 +64,8 @@ struct SharedWidgetPayload: Codable, Sendable {
          lines: [SharedLyricLine] = [],
          artworkData: Data? = nil,
          artworkColorHex: String? = nil,
-         source: String = "appleMusic") {
+         source: String = "appleMusic",
+         resyncingUntilMs: Int = 0) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -78,28 +82,22 @@ struct SharedWidgetPayload: Codable, Sendable {
         self.artworkData = artworkData
         self.artworkColorHex = artworkColorHex
         self.source = source
+        self.resyncingUntilMs = resyncingUntilMs
     }
 }
 
 // MARK: - Widget configuration (shared, not per-process UserDefaults)
 
+/// Theme + cover style only. The show-lyrics / refresh / translation toggles
+/// are gone: lyrics are the widget's whole point, the cover itself is the
+/// resync button, and a translation rides along with its line.
 struct SharedWidgetSettings: Codable, Sendable, Equatable {
     var theme: String
     var coverStyle: String
-    var showLyrics: Bool
-    var showRefresh: Bool
-    var showTranslation: Bool
 
-    init(theme: String = "artwork",
-         coverStyle: String = "vinyl",
-         showLyrics: Bool = true,
-         showRefresh: Bool = true,
-         showTranslation: Bool = false) {
+    init(theme: String = "artwork", coverStyle: String = "vinyl") {
         self.theme = theme
         self.coverStyle = coverStyle
-        self.showLyrics = showLyrics
-        self.showRefresh = showRefresh
-        self.showTranslation = showTranslation
     }
 }
 
@@ -116,6 +114,8 @@ struct WidgetTimelineEntry: Equatable, Sendable {
     let nextLine: String?
     let upcomingLines: [String]
     let progress: Double
+    /// Cover opacity for this entry: 1 normally, lower while a resync pulses.
+    var resyncPulse: Double = 1
 }
 
 enum WidgetTimelineBuilder {
@@ -124,11 +124,45 @@ enum WidgetTimelineBuilder {
     static let maxEntries = 80
     static let upcomingShown = 6
 
+    /// Pulse cadence for an in-flight resync. WidgetKit renders static
+    /// snapshots, so the fade in/out is emitted as alternating entries.
+    static let resyncPulseStep: TimeInterval = 0.45
+    static let resyncPulseLow = 0.3
+    /// Longest pulse tail a single timeline carries.
+    static let resyncPulseWindowMs = 20_000
+
     /// Entries from `now` forward. Empty lyrics / paused / non-playing states
-    /// produce a single static entry (nothing to advance).
+    /// produce a single static entry (nothing to advance). A payload flagged
+    /// as resyncing leads with the cover pulse, then hands back to the normal
+    /// lyric entries so the widget recovers without another reload.
     static func entries(for payload: SharedWidgetPayload,
                         now: Date,
                         limit: Int = maxEntries) -> [WidgetTimelineEntry] {
+        let nowMs = Int(now.timeIntervalSince1970 * 1000)
+        guard payload.resyncingUntilMs > nowMs else {
+            return contentEntries(for: payload, now: now, limit: limit)
+        }
+        let endMs = min(payload.resyncingUntilMs, nowMs + resyncPulseWindowMs)
+        var pulse: [WidgetTimelineEntry] = []
+        var cursorMs = nowMs
+        var index = 0
+        while cursorMs < endMs, pulse.count < limit {
+            let date = Date(timeIntervalSince1970: Double(cursorMs) / 1000)
+            pulse.append(staticEntry(payload: payload, now: date,
+                                     resyncPulse: index % 2 == 0 ? 1 : resyncPulseLow))
+            cursorMs += Int(resyncPulseStep * 1000)
+            index += 1
+        }
+        let tail = contentEntries(for: payload,
+                                  now: Date(timeIntervalSince1970: Double(endMs) / 1000),
+                                  limit: max(1, limit - pulse.count))
+        return pulse + tail
+    }
+
+    /// The lyric timeline itself.
+    static func contentEntries(for payload: SharedWidgetPayload,
+                               now: Date,
+                               limit: Int = maxEntries) -> [WidgetTimelineEntry] {
         let lines = payload.lines
         guard payload.isPlaying,
               payload.status == LyricStatus.playing.rawValue,
@@ -180,7 +214,8 @@ enum WidgetTimelineBuilder {
         return entries.isEmpty ? [staticEntry(payload: payload, now: now)] : entries
     }
 
-    private static func staticEntry(payload: SharedWidgetPayload, now: Date) -> WidgetTimelineEntry {
+    private static func staticEntry(payload: SharedWidgetPayload, now: Date,
+                                    resyncPulse: Double = 1) -> WidgetTimelineEntry {
         WidgetTimelineEntry(
             date: now,
             lineIndex: payload.lines.firstIndex { $0.text == payload.currentLine },
@@ -189,7 +224,8 @@ enum WidgetTimelineBuilder {
             previousLines: payload.previousLines,
             nextLine: payload.nextLine,
             upcomingLines: payload.upcomingLines,
-            progress: payload.progress
+            progress: payload.progress,
+            resyncPulse: resyncPulse
         )
     }
 

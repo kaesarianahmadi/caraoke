@@ -74,8 +74,9 @@ enum TransportControl {
     }
 
     /// Refreshes the shared token when it is within the expiry margin; returns
-    /// the current access token, or nil when the user must reconnect.
-    private static func accessToken() async -> String? {
+    /// the current access token, or nil when the user must reconnect. Shared
+    /// with `WidgetResync`, which talks to Spotify from the widget extension.
+    static func accessToken() async -> String? {
         guard let token = SharedWidgetStore.readSpotifyToken() else { return nil }
         switch SpotifyTokenPolicy.action(for: token, now: Date()) {
         case .useCurrent:

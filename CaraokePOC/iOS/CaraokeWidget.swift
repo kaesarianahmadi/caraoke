@@ -10,7 +10,6 @@ struct CaraokeWidgetEntry: TimelineEntry {
     let date: Date
     let lineIndex: Int?
     let currentLine: String
-    let currentTranslation: String?
     let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
@@ -21,6 +20,8 @@ struct CaraokeWidgetEntry: TimelineEntry {
     let status: LyricStatus
     let artworkData: Data?
     let artworkColorHex: String?
+    /// Cover opacity for this entry — below 1 while a resync pulses.
+    let resyncPulse: Double
     let settings: SharedWidgetSettings
 }
 
@@ -32,7 +33,6 @@ struct CaraokeWidgetProvider: TimelineProvider {
             date: Date(),
             lineIndex: nil,
             currentLine: "Play a song to see lyrics",
-            currentTranslation: nil,
             previousLines: ["Sing along in real time"],
             nextLine: "Synced for CarPlay & Lock Screen",
             upcomingLines: [
@@ -46,6 +46,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
             status: .idle,
             artworkData: nil,
             artworkColorHex: nil,
+            resyncPulse: 1,
             settings: SharedWidgetSettings()
         )
     }
@@ -98,7 +99,6 @@ struct CaraokeWidgetProvider: TimelineProvider {
             date: built.date,
             lineIndex: built.lineIndex,
             currentLine: built.currentLine,
-            currentTranslation: built.currentTranslation,
             previousLines: built.previousLines,
             nextLine: built.nextLine,
             upcomingLines: built.upcomingLines,
@@ -109,6 +109,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
             status: LyricStatus(raw: payload.status) ?? .playing,
             artworkData: payload.artworkData,
             artworkColorHex: payload.artworkColorHex,
+            resyncPulse: built.resyncPulse,
             settings: settings
         )
     }
@@ -144,8 +145,10 @@ struct CaraokeWidgetEntryView: View {
             nextText: theme.mutedTextColor,
             metaText: theme.mutedTextColor,
             trackBackground: theme.textColor.opacity(0.18),
-            trackFill: AppTheme.darkAccent,
-            glow: AppTheme.darkAccent
+            // White (theme ink), not the brand orange — the progress bar reads
+            // as part of the lyric block, not as an accent.
+            trackFill: theme.textColor.opacity(0.92),
+            glow: theme.textColor.opacity(0.7)
         )
     }
 
@@ -158,7 +161,6 @@ struct CaraokeWidgetEntryView: View {
                     title: entry.title,
                     artist: entry.artist,
                     currentLine: entry.currentLine,
-                    translation: entry.settings.showTranslation ? entry.currentTranslation : nil,
                     previousLines: entry.previousLines,
                     nextLine: entry.nextLine,
                     upcomingLines: entry.upcomingLines,
@@ -167,7 +169,10 @@ struct CaraokeWidgetEntryView: View {
                     status: entry.status,
                     surface: surface,
                     palette: widgetPalette,
-                    artworkData: entry.artworkData
+                    artworkData: entry.artworkData,
+                    resyncPulse: entry.resyncPulse,
+                    // Out of sync = anything but a playing, lyric-backed state.
+                    needsResync: entry.status != .playing || entry.resyncPulse < 1
                 )
                 .widgetURL(URL(string: "caraoke://lyrics"))
                 .containerBackground(for: .widget) {
@@ -191,5 +196,8 @@ struct CaraokeWidget: Widget {
         .description("Synced lyrics widget for Home Screen and CarPlay dashboard.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
+        // StandBy and CarPlay drop the background and render the tile on
+        // black; the widget palette is card-free so the content survives it.
+        .containerBackgroundRemovable(true)
     }
 }

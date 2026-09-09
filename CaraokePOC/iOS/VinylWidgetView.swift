@@ -39,43 +39,33 @@ struct VinylWidgetView: View {
 
             Spacer(minLength: 4)
 
-            if entry.settings.showLyrics {
-                // Same size for every line; only the playing line is bold. The
-                // block is bounded so a long line SCALES DOWN instead of being
-                // clipped — the 158 pt medium grid has no room to grow. Keyed
-                // by line index so WidgetKit pushes each new line in from the
-                // bottom.
-                VStack(alignment: .leading, spacing: 2) {
-                    if let previous = entry.previousLines.last {
-                        Text(previous)
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.mutedTextColor.opacity(0.55))
-                            .lineLimit(1)
-                    }
-                    Text(entry.currentLine.isEmpty ? "Play a song to see lyrics" : entry.currentLine)
-                        .font(.system(size: 15, weight: .bold))
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.7)
-                    if entry.settings.showTranslation,
-                       let translation = entry.currentTranslation, !translation.isEmpty {
-                        Text(translation)
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.mutedTextColor.opacity(0.8))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                    }
-                    if let next = entry.nextLine, !next.isEmpty {
-                        Text(next)
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.mutedTextColor.opacity(0.72))
-                            .lineLimit(1)
-                    }
+            // Same size for every line; only the playing line is bold. The
+            // block is bounded so a long line SCALES DOWN instead of being
+            // clipped — the 158 pt medium grid has no room to grow. Keyed
+            // by line index so WidgetKit pushes each new line in from the
+            // bottom.
+            VStack(alignment: .leading, spacing: 2) {
+                if let previous = entry.previousLines.last {
+                    Text(previous)
+                        .font(.system(size: 13))
+                        .foregroundStyle(theme.mutedTextColor.opacity(0.55))
+                        .lineLimit(1)
                 }
-                .frame(maxWidth: .infinity, maxHeight: 80, alignment: .topLeading)
-                .clipped()
-                .id(entry.lineIndex)
-                .transition(.push(from: .bottom))
+                Text(entry.currentLine.isEmpty ? "Play a song to see lyrics" : entry.currentLine)
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.7)
+                if let next = entry.nextLine, !next.isEmpty {
+                    Text(next)
+                        .font(.system(size: 13))
+                        .foregroundStyle(theme.mutedTextColor.opacity(0.72))
+                        .lineLimit(1)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: 80, alignment: .topLeading)
+            .clipped()
+            .id(entry.lineIndex)
+            .transition(.push(from: .bottom))
 
             Spacer(minLength: 4)
 
@@ -87,34 +77,44 @@ struct VinylWidgetView: View {
         }
     }
 
+    /// The record/cover IS the resync button — tapping it refreshes the shared
+    /// payload in place instead of opening the app. It pulses (timeline-driven,
+    /// WidgetKit has no animation) while the resync is in flight, and shows a
+    /// refresh glyph whenever the lyrics are out of sync so the tap is obvious.
     @ViewBuilder private var cover: some View {
-        ZStack(alignment: .topTrailing) {
-            if coverStyle == .vinyl {
-                vinyl
-            } else {
-                Group {
-                    if let artwork {
-                        Image(uiImage: artwork).resizable().scaledToFill()
-                    } else {
-                        Rectangle().fill(.white.opacity(0.1)).overlay(Image(systemName: "music.note").font(.title2))
+        Button(intent: ResyncWidgetIntent()) {
+            Group {
+                if coverStyle == .vinyl {
+                    vinyl
+                } else {
+                    Group {
+                        if let artwork {
+                            Image(uiImage: artwork).resizable().scaledToFill()
+                        } else {
+                            Rectangle().fill(.white.opacity(0.1)).overlay(Image(systemName: "music.note").font(.title2))
+                        }
                     }
+                    .frame(width: 110, height: 110)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.12)))
                 }
-                .frame(width: 110, height: 110)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.12)))
             }
-
-            if entry.settings.showRefresh {
-                Button(intent: ResyncWidgetIntent()) {
+            .overlay {
+                if needsResync {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 36, height: 36)
-                        .background(.black.opacity(0.32), in: Circle())
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.55), radius: 4)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Refresh lyrics")
             }
+            .opacity(entry.resyncPulse)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Resync lyrics")
+    }
+
+    private var needsResync: Bool {
+        entry.status != .playing || entry.resyncPulse < 1
     }
 
     /// Record with the cover as its label. The label is 70 % of the disc
