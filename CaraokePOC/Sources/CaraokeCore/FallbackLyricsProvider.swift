@@ -4,16 +4,16 @@ import Foundation
 /// 1. LRCLIB (primary synced library, fast & keyless)
 /// 2. NetEase Open Endpoint (secondary fallback, zero cost, massive global & Asian pop coverage)
 /// 3. Returns nil gracefully if unavailable anywhere
-public final class FallbackLyricsProvider: LyricsRepository {
+final class FallbackLyricsProvider: LyricsRepository {
     private let lrclib: LRCLIBLyricsProvider
     private let session: URLSession
 
-    public init(session: URLSession = .shared, lrclib: LRCLIBLyricsProvider = LRCLIBLyricsProvider()) {
+    init(session: URLSession = .shared, lrclib: LRCLIBLyricsProvider = LRCLIBLyricsProvider()) {
         self.session = session
         self.lrclib = lrclib
     }
 
-    public func lyrics(for track: TrackSignature) async throws -> LyricTrack? {
+    func lyrics(for track: TrackSignature) async throws -> LyricTrack? {
         // 1. Try primary LRCLIB
         do {
             if let result = try await lrclib.lyrics(for: track) {

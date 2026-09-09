@@ -1,7 +1,7 @@
 import Foundation
 
 /// StoreKit product identifiers — one entitlement ("Caraoke Plus"), three
-/// plans per locked decisions: $1.99/mo (3-day trial) · $9.99/yr · $14.99 lifetime (was $27).
+/// plans per locked decisions: $1.99/mo (3-day trial) · $9.99/yr · $14.99 lifetime (was $20 / $27).
 enum CaraokeProducts {
     static let monthly = "caraoke.plus.monthly"
     static let yearly = "caraoke.plus.yearly"
@@ -25,17 +25,8 @@ struct PlanOffer: Equatable, Sendable {
 }
 
 enum PaywallContent {
-    /// Competitor structure: Monthly with 3-day trial, Yearly best value, Lifetime launch deal.
+    /// Competitor structure: Yearly first (recommended), Monthly with 3-day trial, Lifetime launch deal.
     static let plans: [PlanOffer] = [
-        PlanOffer(
-            productID: CaraokeProducts.monthly,
-            title: "Monthly",
-            subtitle: "3 days free, then $1.99/month",
-            fallbackPriceText: "$1.99 / mo",
-            originalPriceText: nil,
-            trialBadge: "3-DAY FREE TRIAL",
-            isRecommended: false
-        ),
         PlanOffer(
             productID: CaraokeProducts.yearly,
             title: "Yearly",
@@ -46,10 +37,19 @@ enum PaywallContent {
             isRecommended: true
         ),
         PlanOffer(
+            productID: CaraokeProducts.monthly,
+            title: "Monthly",
+            subtitle: "3 days free, then $1.99/month",
+            fallbackPriceText: "$1.99 / mo",
+            originalPriceText: nil,
+            trialBadge: "3-DAY FREE TRIAL",
+            isRecommended: false
+        ),
+        PlanOffer(
             productID: CaraokeProducts.lifetime,
             title: "Lifetime",
             subtitle: "One-time purchase, yours forever",
-            fallbackPriceText: "$14.99 once",
+            fallbackPriceText: "$14.99 once (was $20 launch special)",
             originalPriceText: "$27.00",
             trialBadge: "45% OFF",
             isRecommended: false
