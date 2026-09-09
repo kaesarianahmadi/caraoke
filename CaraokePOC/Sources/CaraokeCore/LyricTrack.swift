@@ -59,6 +59,13 @@ struct LyricTrack: Equatable, Sendable {
         return lines[nextIndex..<endIndex].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
 
+    /// Lines preceding the current one, used for karaoke context.
+    func previousLines(before positionMs: Int, limit: Int = 2) -> [String] {
+        guard let i = lineIndex(at: positionMs), i > 0 else { return [] }
+        let startIndex = max(0, i - limit)
+        return lines[startIndex..<i].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
     /// Progress through the track in 0...1, clamped, for the Live Activity
     /// progress bar. Treats a single-line track as complete once started.
     func progress(at positionMs: Int) -> Double {

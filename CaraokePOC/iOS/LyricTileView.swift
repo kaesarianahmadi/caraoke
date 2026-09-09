@@ -14,6 +14,7 @@ import WidgetKit
 struct LyricTileLayout {
     var lyricFont: CGFloat = 18
     var heroLines: Int = 2          // wrapping budget of the active line
+    var previousShown: Int = 1      // dimmed karaoke context above the hero
     var upcomingShown: Int = 3      // dimmed follow-on lines (LA: hero+3 = 4-5 rows)
     var upcomingLines: Int = 2      // each dimmed line may re-wrap to 2 visual rows
     var boxHeight: CGFloat = 128    // fixed anti-flicker lyric container
@@ -76,6 +77,7 @@ struct LyricTileView: View {
     let title: String
     let artist: String
     let currentLine: String
+    let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
     let isPlaying: Bool
@@ -112,16 +114,16 @@ struct LyricTileView: View {
         case .carPlaySmall:
             return LyricTileLayout(boxHeight: 128)
         case .widgetSmall:
-            return LyricTileLayout(upcomingShown: 1, upcomingLines: 1,
+            return LyricTileLayout(previousShown: 0, upcomingShown: 1, upcomingLines: 1,
                                    boxHeight: 76, padding: 14)
         case .widgetMedium:
-            return LyricTileLayout(upcomingShown: 3, upcomingLines: 2,
+            return LyricTileLayout(previousShown: 1, upcomingShown: 3, upcomingLines: 2,
                                    boxHeight: 104, headerCompact: true, padding: 16)
         case .widgetLarge:
             // Competitor blueprint: lyrics own the top, identity + transport
             // live in the bottom row — no header. 21pt lyric font and 235pt container
             // to fill vertical space with upcoming lines.
-            return LyricTileLayout(lyricFont: 21, heroLines: 2, upcomingShown: 7,
+            return LyricTileLayout(lyricFont: 21, heroLines: 2, previousShown: 1, upcomingShown: 5,
                                    upcomingLines: 2, boxHeight: 235, showsHeader: false,
                                    showsBottomBar: true, padding: 18)
         case .home:
@@ -129,7 +131,8 @@ struct LyricTileView: View {
         }
     }
 
-    init(title: String, artist: String, currentLine: String, nextLine: String? = nil,
+    init(title: String, artist: String, currentLine: String, previousLines: [String] = [],
+         nextLine: String? = nil,
          upcomingLines: [String] = [],
          isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
          positionMs: Int = 0, durationMs: Int? = nil,
@@ -137,6 +140,7 @@ struct LyricTileView: View {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
+        self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
         self.isPlaying = isPlaying
@@ -293,52 +297,48 @@ struct LyricTileView: View {
             .frame(height: spec.boxHeight, alignment: .topLeading)
             .padding(.top, 6)
         default:
-            ZStack(alignment: .top) {
-                VStack(alignment: .center, spacing: 6) {
-                    // Line 1: Preceding line or context
-                    Text(status == .idle ? "" : " ")
-                        .font(.system(size: spec.lyricFont * 0.85, weight: .regular))
-                        .foregroundColor(colors.nextText.opacity(0.5))
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .center)
-
-                    // Line 2: Active line (150% size, bold, centered karaoke focus)
-                    Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
-                        .font(.system(size: spec.lyricFont * 1.45, weight: .bold))
-                        .foregroundColor(colors.heroText)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(spec.heroLines)
-                        .minimumScaleFactor(0.75)
-                        .lineSpacing(2)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    // Line 3+: Upcoming lines (clean readability, no fading masks)
-                    if status != .idle {
-                        let linesToShow = displayUpcomingLines
-                        ForEach(Array(linesToShow.prefix(spec.upcomingShown).enumerated()), id: \.offset) { idx, line in
-                            Text(line)
-                                .font(.system(size: spec.lyricFont * 0.95, weight: .medium))
-                                .foregroundColor(colors.nextText.opacity(idx == 0 ? 0.70 : 0.50))
-                                .multilineTextAlignment(.center)
-                                .lineLimit(spec.upcomingLines)
-                                .lineSpacing(1)
-                                .minimumScaleFactor(0.8)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+            // One type size for every lyric row; the playing line is the only
+            // difference — bold and full opacity, neighbours regular and dimmed.
+            VStack(alignment: .center, spacing: 6) {
+                if status != .idle {
+                    ForEach(Array(previousLines.suffix(spec.previousShown).enumerated()), id: \.offset) { idx, line in
+                        Text(line)
+                            .font(.system(size: spec.lyricFont, weight: .regular))
+                            .foregroundColor(colors.nextText.opacity(0.42 - Double(idx) * 0.12))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
-                .id(currentLine)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                    removal: .move(edge: .top).combined(with: .opacity)
-                ))
+
+                Text(currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine)
+                    .font(.system(size: spec.lyricFont, weight: .bold))
+                    .foregroundColor(colors.heroText)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(spec.heroLines)
+                    .minimumScaleFactor(0.75)
+                    .lineSpacing(2)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if status != .idle {
+                    ForEach(Array(displayUpcomingLines.prefix(spec.upcomingShown).enumerated()), id: \.offset) { idx, line in
+                        Text(line)
+                            .font(.system(size: spec.lyricFont, weight: .regular))
+                            .foregroundColor(colors.nextText.opacity(upcomingOpacity(index: idx)))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(spec.upcomingLines)
+                            .lineSpacing(1)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
-            .frame(height: spec.boxHeight, alignment: .top)
+            .frame(height: spec.boxHeight, alignment: surface == .widgetLarge ? .center : .top)
             .clipped()
             .padding(.top, 4)
-            .animation(.spring(response: 0.38, dampingFraction: 0.86), value: currentLine)
         }
     }
 

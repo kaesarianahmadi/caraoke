@@ -22,11 +22,11 @@ struct HomeView: View {
             AppTheme.bg(scheme).ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     header
-                    switchCard
-                    featureCardsSection
-                    playerCard
+                    howToBanner
+                    liveActivitiesSection
+                    widgetsSection
                     sourcesSection
                     if showsFixes {
                         fixesSection
@@ -106,115 +106,72 @@ struct HomeView: View {
         .padding(.bottom, 4)
     }
 
-    // MARK: - Live Lyrics switch card
-
-    private var switchCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Live Lyrics")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(AppTheme.fg(scheme))
-                    Text("Streams synchronized lyrics to CarPlay, Lock Screen, and Home Screen widgets.")
-                        .font(.system(size: 13))
-                        .foregroundColor(AppTheme.muted(scheme))
-                        .lineSpacing(1.4 * 13 - 13)
-                        .padding(.top, 5)
-                }
-                Spacer(minLength: 12)
-                Toggle("", isOn: Binding(
-                    get: { model.isOn },
-                    set: { _ in model.toggle() }
-                ))
-                .labelsHidden()
-                .tint(AppTheme.ok)
-                .fixedSize()
+    private var howToBanner: some View {
+        Button {
+            if let url = URL(string: "https://caraoke.live/docs") { UIApplication.shared.open(url) }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "speaker.wave.2.fill")
+                Text("How to display lyrics everywhere")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
             }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 46)
+            .background(Color.blue.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
 
+    private var liveActivitiesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("Live Activities")
+                    .font(.system(size: 22, weight: .bold))
+                Text("Premium")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(.blue.opacity(0.14), in: Capsule())
+                Spacer()
+                Toggle("", isOn: Binding(get: { model.isOn }, set: { _ in model.toggle() }))
+                    .labelsHidden().tint(AppTheme.ok)
+            }
+            Text("Show lyrics on the Dynamic Island, Lock Screen, CarPlay, and Apple Watch.")
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.muted(scheme))
             if model.liveActivityGateMessage != nil {
                 gateBanner
             }
+            playerCard
+                .frame(minHeight: 220)
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
     }
 
-    // MARK: - Dedicated Feature Cards (Live Activities, Dynamic Island, Widgets)
-
-    private var featureCardsSection: some View {
-        VStack(spacing: 10) {
-            // Live Activities card
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(model.liveActivityGateMessage == nil ? AppTheme.ok : AppTheme.warn)
-                    .frame(width: 8, height: 8)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Live Activities")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(AppTheme.fg(scheme))
-                    Text(model.liveActivityGateMessage == nil ? "Ready on Lock Screen & CarPlay" : "Permission required")
-                        .font(.system(size: 12))
-                        .foregroundColor(AppTheme.muted(scheme))
-                }
-                Spacer()
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(AppTheme.ok)
-                    .font(.system(size: 16))
-            }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
-
-            // Dynamic Island card
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(AppTheme.ok)
-                    .frame(width: 8, height: 8)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Dynamic Island")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(AppTheme.fg(scheme))
-                    Text("Compact lyric pills on supported devices")
-                        .font(.system(size: 12))
-                        .foregroundColor(AppTheme.muted(scheme))
-                }
-                Spacer()
-                Image(systemName: "platter.2.filled.iphone")
-                    .font(.system(size: 16))
-                    .foregroundColor(AppTheme.muted(scheme))
-            }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
-
-            // Widgets card (taps to WidgetSettingsView)
-            Button {
-                showWidgetSettings = true
-            } label: {
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(Color(hex: 0xFF9845))
-                        .frame(width: 8, height: 8)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Home Screen & StandBy Widgets")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(AppTheme.fg(scheme))
-                        Text("Themes, vinyl style, and live preview")
-                            .font(.system(size: 12))
-                            .foregroundColor(AppTheme.muted(scheme))
-                    }
+    private var widgetsSection: some View {
+        Button { showWidgetSettings = true } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Widget")
+                        .font(.system(size: 22, weight: .bold))
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(AppTheme.muted(scheme))
+                        .foregroundStyle(AppTheme.muted(scheme))
                 }
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(AppTheme.surface(scheme)))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
+                Text("Add live lyrics to the Home Screen, CarPlay, and StandBy.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(AppTheme.muted(scheme))
+                HomeWidgetPreview(title: model.trackTitle, artist: model.trackArtist,
+                                  currentLine: model.currentLine, nextLine: model.nextLine,
+                                  previousLine: model.previousLines.last)
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.fg(scheme))
         }
+        .buttonStyle(.plain)
     }
 
     /// Gate warning box under the switch
@@ -251,6 +208,7 @@ struct HomeView: View {
             title: isIdle ? (model.isOn ? "Caraoke" : "Live Lyrics Paused") : model.trackTitle,
             artist: isIdle ? (model.isOn ? "Waiting for playback…" : "Switch on to stream to car") : model.trackArtist,
             currentLine: isIdle ? (model.isOn ? "Play a song on Apple Music or Spotify" : "Turn switch on to stream lyrics") : model.currentLine,
+            previousLines: isIdle ? [] : model.previousLines,
             nextLine: isIdle ? nil : model.nextLine,
             upcomingLines: isIdle ? [] : model.upcomingLines,
             isPlaying: model.isPlaying,
@@ -484,6 +442,95 @@ struct HomeView: View {
             .foregroundColor(AppTheme.muted(scheme))
             .frame(maxWidth: .infinity)
             .padding(.top, 4)
+    }
+}
+
+// MARK: - Home widget preview (competitor IMG_5085: lyrics left, record right)
+
+/// Static stand-in for the Home Screen widget, so the Widget section shows what
+/// the user gets before they add it.
+struct HomeWidgetPreview: View {
+    let title: String
+    let artist: String
+    let currentLine: String
+    let nextLine: String?
+    var previousLine: String?
+
+    @AppStorage("widget_selected_cover_style", store: UserDefaults(suiteName: "group.app.caraoke"))
+    private var coverStyle = WidgetCoverStyle.vinyl.rawValue
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(identity)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                VStack(alignment: .leading, spacing: 3) {
+                    if let previousLine {
+                        Text(previousLine)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.white.opacity(0.38))
+                            .lineLimit(1)
+                    }
+                    Text(currentLine.isEmpty ? "Play a song to see lyrics" : currentLine)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                    if let nextLine, !nextLine.isEmpty {
+                        Text(nextLine)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.white.opacity(0.55))
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 6)
+                HStack(spacing: 18) {
+                    Image(systemName: "backward.fill")
+                    Image(systemName: "pause.fill")
+                    Image(systemName: "forward.fill")
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            cover
+        }
+        .padding(14)
+        .frame(height: 158)
+        .background(
+            LinearGradient(colors: [Color(hex: 0x455B79), Color(hex: 0x192337), .black],
+                           startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.08)))
+    }
+
+    private var identity: String {
+        artist.isEmpty ? (title.isEmpty ? "Caraoke" : title) : "\(title) — \(artist)"
+    }
+
+    @ViewBuilder private var cover: some View {
+        if coverStyle == WidgetCoverStyle.vinyl.rawValue {
+            ZStack {
+                Circle().fill(RadialGradient(colors: [.black, Color(white: 0.16), .black],
+                                             center: .center, startRadius: 6, endRadius: 60))
+                ForEach(0..<6, id: \.self) { index in
+                    Circle().stroke(.white.opacity(0.07), lineWidth: 0.5).padding(CGFloat(index * 8 + 6))
+                }
+                Circle().fill(Color(hex: 0x9E6752)).frame(width: 70, height: 70)
+                Circle().fill(.white.opacity(0.5)).frame(width: 7, height: 7)
+            }
+            .frame(width: 118, height: 118)
+        } else {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0x9E6752), Color(hex: 0x27304D)],
+                                     startPoint: .top, endPoint: .bottom))
+                .frame(width: 104, height: 104)
+                .overlay(Image(systemName: "music.note").font(.title2).foregroundStyle(.white.opacity(0.85)))
+        }
     }
 }
 

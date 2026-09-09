@@ -1,266 +1,183 @@
-import SwiftUI
-import WidgetKit
 import AppIntents
+import SwiftUI
+import UIKit
+import WidgetKit
 
-/// Vinyl record widget with rotating animation and tap-to-refresh
-/// Matches competitor design from IMG_5103 and IMG_5105
+/// Competitor-style medium widget: lyrics left, large record or cover right.
+/// WidgetKit timeline transitions supply lyric motion; this view stays static
+/// so manual refresh never flashes through an animation reset.
 struct VinylWidgetView: View {
     let entry: CaraokeWidgetEntry
-    @State private var rotationAngle: Double = 0
-    @Environment(\.widgetFamily) private var family
-    
+
+    @AppStorage("widget_selected_theme", store: UserDefaults(suiteName: "group.app.caraoke")) private var savedTheme = WidgetTheme.artwork.rawValue
+    @AppStorage("widget_selected_cover_style", store: UserDefaults(suiteName: "group.app.caraoke")) private var savedCoverStyle = WidgetCoverStyle.vinyl.rawValue
+    @AppStorage("widget_show_lyrics", store: UserDefaults(suiteName: "group.app.caraoke")) private var showLyrics = true
+    @AppStorage("widget_show_refresh", store: UserDefaults(suiteName: "group.app.caraoke")) private var showRefresh = true
+
+    private var theme: WidgetTheme { WidgetTheme(rawValue: savedTheme) ?? .artwork }
+    private var coverStyle: WidgetCoverStyle { WidgetCoverStyle(rawValue: savedCoverStyle) ?? .vinyl }
+    private var artwork: UIImage? { entry.artworkData.flatMap(UIImage.init(data:)) }
+
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 0) {
-                // Left side: Lyrics
+            HStack(spacing: 4) {
                 lyricsSection
-                    .frame(width: geometry.size.width * 0.6)
-                
-                // Right side: Vinyl record
-                vinylSection
-                    .frame(width: geometry.size.width * 0.4)
+                    .frame(width: geometry.size.width * 0.58, alignment: .leading)
+                cover
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(14)
         }
-        .containerBackground(for: .widget) {
-            backgroundGradient
-        }
+        // Manual refresh swaps the entry date; the identity change fades the
+        // whole card out and back in instead of blinking to a blank frame.
+        .id(entry.date)
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.45), value: entry.date)
+        .foregroundStyle(theme.textColor)
+        .containerBackground(for: .widget) { WidgetArtworkBackground(theme: theme, artworkData: entry.artworkData) }
         .widgetURL(URL(string: "caraoke://lyrics"))
     }
-    
-    // MARK: - Lyrics Section
-    
+
     private var lyricsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                Text(entry.artist)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.6))
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            
-            Spacer()
-            
-            // Current lyric (active, bold, larger)
-            Text(entry.currentLine)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .padding(.horizontal, 16)
-            
-            // Next lyric (dimmed)
-            if let nextLine = entry.nextLine {
-                Text(nextLine)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white.opacity(0.5))
-                    .lineLimit(1)
-                    .padding(.horizontal, 16)
-            }
-            
-            Spacer()
-            
-            // Transport controls
-            HStack(spacing: 20) {
-                Button(intent: PreviousTrackIntent()) {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                .buttonStyle(.plain)
-                
-                Button(intent: PlayPauseIntent()) {
-                    Image(systemName: entry.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white)
-                }
-                .buttonStyle(.plain)
-                
-                Button(intent: NextTrackIntent()) {
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-        }
-    }
-    
-    // MARK: - Vinyl Section
-    
-    private var vinylSection: some View {
-        ZStack {
-            // Vinyl record
-            vinylRecord
-                .rotationEffect(.degrees(entry.isPlaying ? rotationAngle : 0))
-                .onAppear {
-                    if entry.isPlaying {
-                        withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) {
-                            rotationAngle = 360
-                        }
+        VStack(alignment: .leading, spacing: 0) {
+            Text(identity)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(theme.mutedTextColor)
+                .lineLimit(1)
+
+            Spacer(minLength: 5)
+
+            if showLyrics {
+                // Same size for every line; only the playing line is bold.
+                VStack(alignment: .leading, spacing: 3) {
+                    if let previous = entry.previousLines.last {
+                        Text(previous)
+                            .font(.system(size: 15))
+                            .foregroundStyle(theme.mutedTextColor.opacity(0.55))
+                            .lineLimit(1)
+                    }
+                    Text(entry.currentLine.isEmpty ? "Play a song to see lyrics" : entry.currentLine)
+                        .font(.system(size: 15, weight: .bold))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let next = entry.nextLine, !next.isEmpty {
+                        Text(next)
+                            .font(.system(size: 15))
+                            .foregroundStyle(theme.mutedTextColor.opacity(0.72))
+                            .lineLimit(1)
                     }
                 }
-                .onChange(of: entry.isPlaying) { _, isPlaying in
-                    if isPlaying {
-                        withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) {
-                            rotationAngle = 360
-                        }
-                    } else {
-                        withAnimation(.default) {
-                            rotationAngle = 0
-                        }
-                    }
-                }
-            
-            // Refresh button overlay (tap to resync)
-            Button(intent: ResyncWidgetIntent()) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
-                }
             }
-            .buttonStyle(.plain)
+
+            Spacer(minLength: 5)
+
+            HStack(spacing: 16) {
+                intentButton("backward.fill", intent: PreviousTrackIntent(), label: "Previous song", size: 14)
+                intentButton(entry.isPlaying ? "pause.fill" : "play.fill", intent: PlayPauseIntent(), label: entry.isPlaying ? "Pause" : "Play", size: 17)
+                intentButton("forward.fill", intent: NextTrackIntent(), label: "Next song", size: 14)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
-    private var vinylRecord: some View {
-        ZStack {
-            // Outer vinyl disc
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            Color.black,
-                            Color(white: 0.15),
-                            Color.black
-                        ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 100
-                    )
-                )
-                .frame(width: 120, height: 120)
-            
-            // Vinyl grooves
-            ForEach(0..<8) { i in
-                Circle()
-                    .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                    .frame(width: CGFloat(100 - i * 10), height: CGFloat(100 - i * 10))
-            }
-            
-            // Album art center
-            if let artworkData = entry.artworkData,
-               let uiImage = UIImage(data: artworkData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 50, height: 50)
-                    .clipShape(Circle())
+
+    @ViewBuilder private var cover: some View {
+        ZStack(alignment: .topTrailing) {
+            if coverStyle == .vinyl {
+                vinyl
             } else {
-                Circle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 50, height: 50)
-                    .overlay(
-                        Image(systemName: "music.note")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white.opacity(0.5))
-                    )
+                Group {
+                    if let artwork {
+                        Image(uiImage: artwork).resizable().scaledToFill()
+                    } else {
+                        Rectangle().fill(.white.opacity(0.1)).overlay(Image(systemName: "music.note").font(.title2))
+                    }
+                }
+                .frame(width: 110, height: 110)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.12)))
             }
-            
-            // Center spindle
-            Circle()
-                .fill(Color.white.opacity(0.3))
-                .frame(width: 8, height: 8)
+
+            if showRefresh {
+                Button(intent: ResyncWidgetIntent()) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(width: 36, height: 36)
+                        .background(.black.opacity(0.32), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Refresh lyrics")
+            }
         }
     }
-    
-    // MARK: - Background
-    
-    private var backgroundGradient: some View {
-        // Extract colors from album art or use default
-        if let artworkData = entry.artworkData,
-           let uiImage = UIImage(data: artworkData),
-           let avgColor = uiImage.averageColor {
-            return LinearGradient(
-                colors: [
-                    Color(avgColor).opacity(0.8),
-                    Color(avgColor).opacity(0.4)
-                ],
+
+    private var vinyl: some View {
+        ZStack {
+            Circle().fill(RadialGradient(colors: [.black, Color(white: 0.16), .black], center: .center, startRadius: 8, endRadius: 65))
+            ForEach(0..<7, id: \.self) { index in
+                Circle().stroke(.white.opacity(0.07), lineWidth: 0.5)
+                    .padding(CGFloat(index * 7 + 5))
+            }
+            Group {
+                if let artwork {
+                    Image(uiImage: artwork).resizable().scaledToFill()
+                } else {
+                    Circle().fill(.gray.opacity(0.35)).overlay(Image(systemName: "music.note"))
+                }
+            }
+            .frame(width: 76, height: 76)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(.white.opacity(0.15)))
+            Circle().fill(.white.opacity(0.55)).frame(width: 7, height: 7)
+        }
+        .frame(width: 126, height: 126)
+        .shadow(color: .black.opacity(0.28), radius: 7, y: 4)
+    }
+
+    private var identity: String {
+        entry.artist.isEmpty ? entry.title : "\(entry.title) — \(entry.artist)"
+    }
+
+    private func intentButton<I: AppIntent>(_ name: String, intent: I, label: String, size: CGFloat) -> some View {
+        Button(intent: intent) {
+            Image(systemName: name)
+                .font(.system(size: size, weight: .semibold))
+                .frame(width: 30, height: 36)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
+struct WidgetArtworkBackground: View {
+    let theme: WidgetTheme
+    let artworkData: Data?
+
+    var body: some View {
+        if theme == .artwork, let data = artworkData, let image = UIImage(data: data), let average = image.averageColor {
+            LinearGradient(
+                colors: [Color(average).opacity(0.88), Color(average).opacity(0.48), .black.opacity(0.88)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         } else {
-            return LinearGradient(
-                colors: [
-                    Color(red: 0.1, green: 0.1, blue: 0.15),
-                    Color(red: 0.05, green: 0.05, blue: 0.1)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            theme.backgroundColor
         }
     }
 }
 
-// MARK: - UIImage Extension for Average Color
-
 extension UIImage {
     var averageColor: UIColor? {
-        guard let inputImage = CIImage(image: self) else { return nil }
-        let extentVector = CIVector(x: inputImage.extent.origin.x,
-                                    y: inputImage.extent.origin.y,
-                                    z: inputImage.extent.size.width,
-                                    w: inputImage.extent.size.height)
-        
-        guard let filter = CIFilter(name: "CIAreaAverage",
-                                    parameters: [kCIInputImageKey: inputImage,
-                                                 kCIInputExtentKey: extentVector]) else { return nil }
-        guard let outputImage = filter.outputImage else { return nil }
-        
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        let context = CIContext(options: [.workingColorSpace: kCFNull as Any])
-        context.render(outputImage,
-                       toBitmap: &bitmap,
-                       rowBytes: 4,
-                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                       format: .RGBA8,
-                       colorSpace: nil)
-        
-        return UIColor(red: CGFloat(bitmap[0]) / 255,
-                       green: CGFloat(bitmap[1]) / 255,
-                       blue: CGFloat(bitmap[2]) / 255,
-                       alpha: CGFloat(bitmap[3]) / 255)
+        guard let input = CIImage(image: self),
+              let filter = CIFilter(name: "CIAreaAverage", parameters: [
+                kCIInputImageKey: input,
+                kCIInputExtentKey: CIVector(cgRect: input.extent)
+              ]), let output = filter.outputImage else { return nil }
+        var rgba = [UInt8](repeating: 0, count: 4)
+        CIContext(options: [.workingColorSpace: kCFNull as Any]).render(
+            output, toBitmap: &rgba, rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8, colorSpace: nil
+        )
+        return UIColor(red: CGFloat(rgba[0]) / 255, green: CGFloat(rgba[1]) / 255,
+                       blue: CGFloat(rgba[2]) / 255, alpha: 1)
     }
 }
-
-// MARK: - Preview
-
-#if DEBUG
-struct VinylWidgetView_Previews: PreviewProvider {
-    static var previews: some View {
-        VinylWidgetView(entry: CaraokeWidgetEntry(
-            title: "Hati-Hati di Jalan",
-            artist: "Tulus",
-            currentLine: "Kukira kita akan bersama",
-            nextLine: "Tak seindah itu",
-            isPlaying: true,
-            progress: 0.45,
-            status: .playing
-        ))
-        .previewContext(WidgetPreviewContext(family: .systemMedium))
-    }
-}
-#endif

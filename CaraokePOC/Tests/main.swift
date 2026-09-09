@@ -161,6 +161,13 @@ final class TestRunner {
         checkEqual("nextAfterEnd", track.nextLine(after: 99999), nil)
         checkEqual("nextBeforeStart", track.nextLine(after: -1), nil)
 
+        // MARK: previous lines (karaoke context row)
+        checkEqual("previousBeforeFirstEmpty", track.previousLines(before: 0, limit: 2), [])
+        checkEqual("previousDuringFirstEmpty", track.previousLines(before: 100, limit: 2), [])
+        checkEqual("previousDuringSecond", track.previousLines(before: 5000, limit: 2), ["line one"])
+        checkEqual("previousDuringLast", track.previousLines(before: 12345, limit: 2), ["line one", "line two"])
+        checkEqual("previousLimitOne", track.previousLines(before: 12345, limit: 1), ["line two"])
+
         // MARK: progress
         check("progressBeforeStart0", abs(track.progress(at: -100) - 0) < 0.0001)
         check("progressAtEnd1", abs(track.progress(at: 10000) - 1) < 0.0001)
@@ -558,6 +565,11 @@ final class TestRunner {
             // position building
             let pos = SyncEngine.position(atMs: 7000, lines: lines, durationMs: 12_000, isPlaying: true)
             check("syncPosCurrent", pos.currentLine == "b" && pos.nextLine == "c")
+            check("syncPosPrevious", pos.previousLines == ["a"])
+            check("syncPosPreviousFirstLineEmpty",
+                  SyncEngine.position(atMs: 1000, lines: lines, durationMs: 12_000, isPlaying: true).previousLines == [])
+            check("syncPosPreviousBeforeStartEmpty",
+                  SyncEngine.position(atMs: 0, lines: lines, durationMs: 12_000, isPlaying: true).previousLines == [])
             check("syncPosLineProgress", abs(pos.lineProgress - 0.5) < 0.001)
             check("syncPosTrackProgress", abs(pos.trackProgress - 7000.0 / 12000.0) < 0.001)
 

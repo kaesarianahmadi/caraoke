@@ -12,6 +12,7 @@ struct LyricsPosition: Equatable {
     let positionMs: Int
     let lineIndex: Int?
     let currentLine: String?
+    let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
     /// 0–1 through the current line's time window.
@@ -23,6 +24,7 @@ struct LyricsPosition: Equatable {
     init(positionMs: Int,
          lineIndex: Int?,
          currentLine: String?,
+         previousLines: [String] = [],
          nextLine: String?,
          upcomingLines: [String] = [],
          lineProgress: Double,
@@ -31,6 +33,7 @@ struct LyricsPosition: Equatable {
         self.positionMs = positionMs
         self.lineIndex = lineIndex
         self.currentLine = currentLine
+        self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
         self.lineProgress = lineProgress
@@ -133,6 +136,13 @@ final class SyncEngine {
     static func position(atMs pos: Int, lines: [LRCLine], durationMs: Int?, isPlaying: Bool) -> LyricsPosition {
         let index = lineIndex(forPositionMs: pos, in: lines)
         let currentLine = index.map { lines[$0].text }
+        let previous: [String]
+        if let index, index > 0 {
+            let prevStart = max(0, index - 2)
+            previous = lines[prevStart..<index].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        } else {
+            previous = []
+        }
         let nextLine: String?
         if let index {
             nextLine = index + 1 < lines.count ? lines[index + 1].text : nil
@@ -167,7 +177,9 @@ final class SyncEngine {
 
         return LyricsPosition(
             positionMs: pos, lineIndex: index,
-            currentLine: currentLine, nextLine: nextLine,
+            currentLine: currentLine,
+            previousLines: previous,
+            nextLine: nextLine,
             upcomingLines: upcoming,
             lineProgress: lineProgress, trackProgress: trackProgress,
             isPlaying: isPlaying

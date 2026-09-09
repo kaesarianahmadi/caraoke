@@ -26,6 +26,7 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var isOn = false
     @Published private(set) var elapsedMs = 0
     @Published private(set) var currentLine = ""
+    @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
     @Published private(set) var upcomingLines: [String] = []
     /// Now-playing identity + clock, bridged from the real playback pipeline
@@ -145,6 +146,14 @@ final class RideModeViewModel: ObservableObject {
             }
             .store(in: &playbackCancellables)
 
+        realPlayback.$previousLines
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.previousLines = val
+            }
+            .store(in: &playbackCancellables)
+
         realPlayback.$nextLine
             .receive(on: RunLoop.main)
             .sink { [weak self] val in
@@ -232,6 +241,7 @@ final class RideModeViewModel: ObservableObject {
         trackTitle = ""
         trackArtist = ""
         currentLine = ""
+        previousLines = []
         nextLine = nil
         upcomingLines = []
         positionMs = 0

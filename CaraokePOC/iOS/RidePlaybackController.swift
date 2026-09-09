@@ -19,6 +19,7 @@ import WidgetKit
 final class RidePlaybackController: ObservableObject {
 
     @Published private(set) var currentLine = ""
+    @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
     @Published private(set) var upcomingLines: [String] = []
     /// Track identity + playback clock the home screen's player card shows.
@@ -127,6 +128,7 @@ final class RidePlaybackController: ObservableObject {
         lastRelayIsPlaying = nil
         lastRelayRegisterAt = nil
         currentLine = ""
+        previousLines = []
         nextLine = nil
         upcomingLines = []
         trackTitle = ""
@@ -168,6 +170,7 @@ final class RidePlaybackController: ObservableObject {
             lyricsFetchTask?.cancel()
             engine.setLyrics([])
             currentLine = ""
+            previousLines = []
             nextLine = nil
             upcomingLines = []
             trackTitle = state.title
@@ -275,6 +278,7 @@ final class RidePlaybackController: ObservableObject {
     private func render(_ position: LyricsPosition?) {
         guard let position else { return }
         currentLine = position.currentLine ?? ""
+        previousLines = position.previousLines
         nextLine = position.nextLine
         upcomingLines = position.upcomingLines
         let anchor = engine.anchor
@@ -291,6 +295,7 @@ final class RidePlaybackController: ObservableObject {
             title: anchor?.title ?? "",
             artist: anchor?.artist ?? "",
             currentLine: position.currentLine ?? "",
+            previousLines: position.previousLines,
             nextLine: position.nextLine,
             upcomingLines: position.upcomingLines,
             isPlaying: position.isPlaying,
@@ -323,6 +328,7 @@ final class RidePlaybackController: ObservableObject {
             title: snapshot.title,
             artist: snapshot.artist,
             currentLine: snapshot.currentLine,
+            previousLines: snapshot.previousLines,
             nextLine: snapshot.nextLine,
             upcomingLines: snapshot.upcomingLines,
             isPlaying: snapshot.isPlaying,

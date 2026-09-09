@@ -40,12 +40,14 @@ enum AppTheme {
 
 /// Widget Theme Options
 enum WidgetTheme: String, CaseIterable, Codable {
+    case artwork = "Follow Cover"
     case pitchBlack = "Pitch Black"
     case simpleSlate = "Simple Slate"
     case ivoryWhite = "Ivory White"
 
     var backgroundColor: Color {
         switch self {
+        case .artwork: return Color(hex: 0x243047)
         case .pitchBlack: return Color(hex: 0x000000)
         case .simpleSlate: return Color(hex: 0x18181B)
         case .ivoryWhite: return Color(hex: 0xFAFAFA)
@@ -54,14 +56,14 @@ enum WidgetTheme: String, CaseIterable, Codable {
 
     var textColor: Color {
         switch self {
-        case .pitchBlack, .simpleSlate: return .white
+        case .artwork, .pitchBlack, .simpleSlate: return .white
         case .ivoryWhite: return Color(hex: 0x09090B)
         }
     }
 
     var mutedTextColor: Color {
         switch self {
-        case .pitchBlack, .simpleSlate: return Color(hex: 0xA1A1AA)
+        case .artwork, .pitchBlack, .simpleSlate: return Color(hex: 0xA1A1AA)
         case .ivoryWhite: return Color(hex: 0x71717A)
         }
     }

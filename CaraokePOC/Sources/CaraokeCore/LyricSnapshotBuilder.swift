@@ -14,6 +14,7 @@ struct LyricSnapshotBuilder {
             title: title,
             artist: artist,
             currentLine: track.line(at: positionMs)?.text ?? "",
+            previousLines: track.previousLines(before: positionMs, limit: 2),
             nextLine: track.nextLine(after: positionMs)?.text,
             upcomingLines: track.upcomingLines(after: positionMs, limit: 8),
             isPlaying: isPlaying,

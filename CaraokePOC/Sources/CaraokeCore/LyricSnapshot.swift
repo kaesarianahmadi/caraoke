@@ -7,6 +7,7 @@ struct LyricSnapshot: Equatable, Sendable {
     let title: String
     let artist: String
     let currentLine: String
+    let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
     let isPlaying: Bool
@@ -25,6 +26,7 @@ struct LyricSnapshot: Equatable, Sendable {
     init(title: String,
          artist: String,
          currentLine: String,
+         previousLines: [String] = [],
          nextLine: String? = nil,
          upcomingLines: [String] = [],
          isPlaying: Bool,
@@ -36,6 +38,7 @@ struct LyricSnapshot: Equatable, Sendable {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
+        self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
         self.isPlaying = isPlaying

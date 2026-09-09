@@ -8,6 +8,7 @@ struct CaraokeWidgetEntry: TimelineEntry {
     let title: String
     let artist: String
     let currentLine: String
+    let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
     let isPlaying: Bool
@@ -19,6 +20,7 @@ struct CaraokeWidgetEntry: TimelineEntry {
          title: String,
          artist: String,
          currentLine: String,
+         previousLines: [String] = [],
          nextLine: String? = nil,
          upcomingLines: [String] = [],
          isPlaying: Bool = true,
@@ -29,6 +31,7 @@ struct CaraokeWidgetEntry: TimelineEntry {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
+        self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
         self.isPlaying = isPlaying
@@ -70,6 +73,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
                 title: payload.title,
                 artist: payload.artist,
                 currentLine: payload.currentLine,
+                previousLines: payload.previousLines,
                 nextLine: payload.nextLine,
                 upcomingLines: payload.upcomingLines,
                 isPlaying: payload.isPlaying,
@@ -100,6 +104,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
                 title: payload.title,
                 artist: payload.artist,
                 currentLine: payload.currentLine,
+                previousLines: payload.previousLines,
                 nextLine: payload.nextLine,
                 upcomingLines: payload.upcomingLines,
                 isPlaying: payload.isPlaying,
@@ -138,6 +143,9 @@ struct CaraokeWidgetProvider: TimelineProvider {
 
             let nextLineText = (globalIndex + 1 < lines.count) ? lines[globalIndex + 1].text : nil
             let upcoming = lines.dropFirst(globalIndex + 1).prefix(8).map(\.text)
+            let previous: [String] = globalIndex > 0
+                ? lines[max(0, globalIndex - 2)..<globalIndex].map(\.text)
+                : []
             let progress = payload.durationMs > 0 ? min(1.0, Double(line.timeMs) / Double(payload.durationMs)) : 0.0
 
             entries.append(CaraokeWidgetEntry(
@@ -145,6 +153,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
                 title: payload.title,
                 artist: payload.artist,
                 currentLine: line.text,
+                previousLines: Array(previous),
                 nextLine: nextLineText,
                 upcomingLines: Array(upcoming),
                 isPlaying: true,
@@ -188,10 +197,26 @@ struct CaraokeWidgetEntryView: View {
         }
     }
 
-    @AppStorage("widget_selected_theme") private var savedTheme: String = WidgetTheme.pitchBlack.rawValue
+    @AppStorage("widget_selected_theme", store: UserDefaults(suiteName: "group.app.caraoke")) private var savedTheme: String = WidgetTheme.artwork.rawValue
 
-    private var themeBackgroundColor: Color {
-        WidgetTheme(rawValue: savedTheme)?.backgroundColor ?? Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255)
+    private var theme: WidgetTheme {
+        WidgetTheme(rawValue: savedTheme) ?? .artwork
+    }
+
+    private var widgetPalette: LyricTilePalette {
+        LyricTilePalette(
+            cardBackground: .clear,
+            cardBorder: .clear,
+            titleText: theme.textColor,
+            artistText: theme.mutedTextColor,
+            badgeText: theme.mutedTextColor,
+            heroText: theme.textColor,
+            nextText: theme.mutedTextColor,
+            metaText: theme.mutedTextColor,
+            trackBackground: theme.textColor.opacity(0.18),
+            trackFill: theme.textColor.opacity(0.75),
+            glow: .white
+        )
     }
 
     var body: some View {
@@ -203,18 +228,25 @@ struct CaraokeWidgetEntryView: View {
                 title: entry.title,
                 artist: entry.artist,
                 currentLine: entry.currentLine,
+                previousLines: entry.previousLines,
                 nextLine: entry.nextLine,
                 upcomingLines: entry.upcomingLines,
                 isPlaying: entry.isPlaying,
                 progress: entry.progress,
                 status: entry.status,
                 surface: surface,
+                palette: widgetPalette,
                 artworkData: entry.artworkData
             )
             .widgetURL(URL(string: "caraoke://lyrics"))
             .containerBackground(for: .widget) {
-                themeBackgroundColor
+                WidgetArtworkBackground(theme: theme, artworkData: entry.artworkData)
             }
+            // Refresh swaps the entry date: fade the card out and back in
+            // instead of blinking through an empty frame.
+            .id(entry.date)
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.45), value: entry.date)
         }
     }
 }

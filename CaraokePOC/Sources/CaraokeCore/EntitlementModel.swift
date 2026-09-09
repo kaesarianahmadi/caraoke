@@ -25,15 +25,15 @@ struct PlanOffer: Equatable, Sendable {
 }
 
 enum PaywallContent {
-    /// Competitor structure: Yearly first (recommended), Monthly with 3-day trial, Lifetime launch deal.
+    /// Plans: Yearly first (3-day trial, recommended), Monthly (3-day trial), Lifetime launch special.
     static let plans: [PlanOffer] = [
         PlanOffer(
             productID: CaraokeProducts.yearly,
             title: "Yearly",
-            subtitle: "Save 58% — just $0.83/month",
+            subtitle: "3 days free, then $9.99/year ($0.83/mo)",
             fallbackPriceText: "$9.99 / yr",
             originalPriceText: nil,
-            trialBadge: "BEST VALUE",
+            trialBadge: "3-DAY FREE TRIAL",
             isRecommended: true
         ),
         PlanOffer(

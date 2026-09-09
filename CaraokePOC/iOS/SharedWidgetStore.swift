@@ -10,6 +10,7 @@ struct SharedWidgetPayload: Codable {
     var title: String
     var artist: String
     var currentLine: String
+    var previousLines: [String]
     var nextLine: String?
     var upcomingLines: [String]
     var isPlaying: Bool
@@ -23,6 +24,7 @@ struct SharedWidgetPayload: Codable {
     init(title: String,
          artist: String,
          currentLine: String,
+         previousLines: [String] = [],
          nextLine: String? = nil,
          upcomingLines: [String] = [],
          isPlaying: Bool,
@@ -35,6 +37,7 @@ struct SharedWidgetPayload: Codable {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
+        self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
         self.isPlaying = isPlaying
@@ -61,6 +64,7 @@ enum SharedWidgetStore {
                 store.set(payload.title, forKey: "widget_title")
                 store.set(payload.artist, forKey: "widget_artist")
                 store.set(payload.currentLine, forKey: "widget_current_line")
+                store.set(payload.previousLines, forKey: "widget_previous_lines")
                 store.set(payload.nextLine, forKey: "widget_next_line")
                 store.set(payload.isPlaying, forKey: "widget_is_playing")
                 store.set(payload.progress, forKey: "widget_progress")
@@ -70,6 +74,7 @@ enum SharedWidgetStore {
                 }
             } else {
                 store.removeObject(forKey: "widget_title")
+                store.removeObject(forKey: "widget_previous_lines")
                 store.removeObject(forKey: payloadKey)
                 store.set("idle", forKey: "widget_status")
             }
@@ -114,6 +119,7 @@ enum SharedWidgetStore {
                     title: title,
                     artist: store.string(forKey: "widget_artist") ?? "",
                     currentLine: store.string(forKey: "widget_current_line") ?? "",
+                    previousLines: store.stringArray(forKey: "widget_previous_lines") ?? [],
                     nextLine: store.string(forKey: "widget_next_line"),
                     upcomingLines: [],
                     isPlaying: store.bool(forKey: "widget_is_playing"),
