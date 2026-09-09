@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caraoke — Synced Live Lyrics for CarPlay & Lock Screen</title>
+  <meta name="description" content="Streams synchronized lyrics directly to your CarPlay dashboard, Lock Screen Live Activities, and Home Screen widgets while driving.">
+  <style>
+    :root {
+      --bg: #000000;
+      --card: #121214;
+      --border: #27272A;
+      --fg: #FFFFFF;
+      --muted: #8E8E93;
+      --accent: #FF9845;
+      --ok: #34C759;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding: 0 20px;
+    }
+    header {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: #000;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      transition: color 0.2s, border-color 0.2s;
+    }
+    nav a:hover {
+      color: var(--fg);
+      border-color: var(--fg);
+    }
+    .hero {
+      max-width: 760px;
+      margin: 80px auto 60px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 56px);
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .hero p {
+      font-size: clamp(17px, 2.5vw, 20px);
+      color: var(--muted);
+      max-width: 620px;
+      margin: 0 auto 36px;
+      line-height: 1.5;
+    }
+    .cta-group {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      background: var(--fg);
+      color: #000;
+      font-weight: 600;
+      font-size: 16px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-secondary {
+      background: var(--card);
+      color: var(--fg);
+      font-weight: 600;
+      font-size: 16px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      text-decoration: none;
+      border: 1px solid var(--border);
+    }
+    .preview-card {
+      max-width: 680px;
+      margin: 40px auto 80px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      text-align: center;
+    }
+    .karaoke-lead {
+      color: var(--muted);
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+    .karaoke-active {
+      font-size: clamp(22px, 3.5vw, 28px);
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+    .karaoke-next {
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .features {
+      max-width: 900px;
+      margin: 0 auto 100px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+    }
+    .feature-item h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--fg);
+    }
+    .feature-item p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    footer {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 13px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--fg); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <div class="logo-icon">C</div>
+      <span>Caraoke</span>
+    </div>
+    <nav>
+      <a href="docs.html">Documentation & FAQ</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Live lyrics on CarPlay,<br>wherever you drive.</h1>
+      <p>Seamlessly streams synchronized music lyrics to your vehicle dashboard, Lock Screen Live Activities, and StandBy widgets.</p>
+      <div class="cta-group">
+        <a href="https://testflight.apple.com" class="btn-primary">Join TestFlight Beta</a>
+        <a href="docs.html" class="btn-secondary">Read Docs</a>
+      </div>
+    </section>
+
+    <div class="preview-card">
+      <div class="karaoke-lead">Fever dream high in the quiet of the night</div>
+      <div class="karaoke-active">You know that I caught it</div>
+      <div class="karaoke-next">Bad, bad boy, shiny toy with a price</div>
+    </div>
+
+    <section class="features">
+      <div class="feature-item">
+        <h3>CarPlay Dashboard Mirror</h3>
+        <p>Real-time synchronized lyrics mirrored right next to your navigation map with zero distraction.</p>
+      </div>
+      <div class="feature-item">
+        <h3>Multi-Source Lyrics Fallback</h3>
+        <p>Cascades across LRCLIB and international lyrics providers to ensure every track has matched lyrics.</p>
+      </div>
+      <div class="feature-item">
+        <h3>Interactive Widgets & StandBy</h3>
+        <p>Dock iPhone horizontally on a charger for full-screen lyrics, or tap album art to resync timelines instantly.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>&copy; 2026 Caraoke. Designed for passengers.</div>
+    <div>
+      <a href="docs.html">Docs</a> &middot;
+      <a href="docs.html#common-problems">Troubleshooting</a> &middot;
+      <a href="docs.html#carplay">CarPlay on iOS 26</a>
+    </div>
+  </footer>
+</body>
+</html>
