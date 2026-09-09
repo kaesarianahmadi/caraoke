@@ -10,44 +10,15 @@ import UIKit
 // auth manager. PKCE/policy/token-client logic lives in CaraokeCore.
 
 // MARK: - Keychain storage
+//
+// Delegates to SharedWidgetStore: the widget extension's transport buttons
+// need the same token to call the Spotify player API, so both processes read
+// one keychain item under the shared access group.
 
 final class KeychainTokenStore: SpotifyTokenStore {
-    private let service = "com.caraoke.spotify"
-    private let account = "token"
-
-    private var baseQuery: [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-    }
-
-    func load() -> SpotifyToken? {
-        var query = baseQuery
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
-              let data = out as? Data else { return nil }
-        return try? JSONDecoder().decode(SpotifyToken.self, from: data)
-    }
-
-    func save(_ token: SpotifyToken) {
-        guard let data = try? JSONEncoder().encode(token) else { return }
-        SecItemDelete(baseQuery as CFDictionary)
-        var add = baseQuery
-        add[kSecValueData as String] = data
-        // Ride Mode polls Spotify while the phone is locked; the default
-        // (WhenUnlocked) makes those reads fail and triggers spurious
-        // reconnect banners mid-drive.
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
-    }
-
-    func clear() {
-        SecItemDelete(baseQuery as CFDictionary)
-    }
+    func load() -> SpotifyToken? { SharedWidgetStore.readSpotifyToken() }
+    func save(_ token: SpotifyToken) { SharedWidgetStore.writeSpotifyToken(token) }
+    func clear() { SharedWidgetStore.writeSpotifyToken(nil) }
 }
 
 // MARK: - Client ID storage
@@ -55,23 +26,12 @@ final class KeychainTokenStore: SpotifyTokenStore {
 /// Where the Spotify Client ID used for OAuth lives. Caraoke (like the
 /// category leader) uses the "bring your own Client ID" model: each user
 /// creates their own development-mode app (owner is exempt from the 5-user
-/// allowlist) and pastes their Client ID here. Public IDs, so UserDefaults
-/// is appropriate — the OAuth token stays in the Keychain.
+/// allowlist) and pastes their Client ID here. It lives in the SHARED keychain
+/// because the widget extension refreshes the token with it.
 enum SpotifyClientIDStore {
-    static let key = "spotify.customClientID"
-
     static var stored: String? {
-        get {
-            let value = UserDefaults.standard.string(forKey: key)
-            return (value?.isEmpty == false) ? value : nil
-        }
-        set {
-            if let newValue {
-                UserDefaults.standard.set(newValue, forKey: key)
-            } else {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
-        }
+        get { SharedWidgetStore.readSpotifyClientID() }
+        set { SharedWidgetStore.writeSpotifyClientID(newValue) }
     }
 
     /// Resolution order: the user's own pasted Client ID first, then the
@@ -80,6 +40,13 @@ enum SpotifyClientIDStore {
 
     static var effective: String? {
         stored ?? SecretsLoader.spotifyClientID
+    }
+
+    /// The bundled Client ID ships in the app bundle only, so copy it into the
+    /// shared keychain once at launch for the widget extension.
+    static func mirrorBundledClientID() {
+        guard stored == nil, let bundled = SecretsLoader.spotifyClientID else { return }
+        SharedWidgetStore.writeSpotifyClientID(bundled)
     }
 }
 

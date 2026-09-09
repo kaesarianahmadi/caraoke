@@ -19,6 +19,7 @@ import WidgetKit
 final class RidePlaybackController: ObservableObject {
 
     @Published private(set) var currentLine = ""
+    @Published private(set) var currentTranslation: String?
     @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
     @Published private(set) var upcomingLines: [String] = []
@@ -27,6 +28,10 @@ final class RidePlaybackController: ObservableObject {
     @Published private(set) var trackArtist = ""
     @Published private(set) var positionMs = 0
     @Published private(set) var durationMs: Int?
+    /// Cover art for the in-app mini player / lyrics page, plus its average
+    /// colour for the widget background.
+    @Published private(set) var artworkData: Data?
+    private(set) var artworkColorHex: String?
 
     /// Active source from engine's anchor
     var currentSource: MusicSource? { engine.anchor?.source }
@@ -107,7 +112,12 @@ final class RidePlaybackController: ObservableObject {
     private var lastWidgetTitle: String?
     private var lastWidgetIsPlaying: Bool?
     private var lastWidgetStatus: String?
-    private var lastWidgetReloadTime: Date?
+    private var lastWidgetSignature: String?
+    private var lastWidgetArtworkHex: String?
+    /// Track start in wall-clock epoch ms — only recomputed while playing, so
+    /// a paused track keeps the true start the widget extrapolates from.
+    private var trackStartEpochMs = 0
+    private var trackStartKey: String?
     private var currentArtworkData: Data?
     private var lastArtworkKey: String?
 
@@ -122,12 +132,21 @@ final class RidePlaybackController: ObservableObject {
         lastLyricsKey = nil
         lastTrack = nil
         currentArtworkData = nil
+        artworkColorHex = nil
+        artworkData = nil
         lastArtworkKey = nil
         lastWidgetStatus = nil
+        lastWidgetSignature = nil
+        lastWidgetArtworkHex = nil
+        lastWidgetTitle = nil
+        lastWidgetIsPlaying = nil
+        trackStartEpochMs = 0
+        trackStartKey = nil
         lastRelayStartMs = nil
         lastRelayIsPlaying = nil
         lastRelayRegisterAt = nil
         currentLine = ""
+        currentTranslation = nil
         previousLines = []
         nextLine = nil
         upcomingLines = []
@@ -170,6 +189,7 @@ final class RidePlaybackController: ObservableObject {
             lyricsFetchTask?.cancel()
             engine.setLyrics([])
             currentLine = ""
+            currentTranslation = nil
             previousLines = []
             nextLine = nil
             upcomingLines = []
@@ -178,23 +198,20 @@ final class RidePlaybackController: ObservableObject {
             lyricState = .loading
 
             // Extract artwork: Apple Music supplies raw Data; Spotify provides URL
-            if let data = state.artworkData {
-                self.currentArtworkData = data
-                self.lastArtworkKey = key
+            if let data = state.artworkData, let image = UIImage(data: data) {
+                setArtwork(image: image, key: key)
             } else if let urlStr = state.artworkURL, let url = URL(string: urlStr) {
                 self.lastArtworkKey = key
                 Task { [weak self] in
                     guard let (data, _) = try? await URLSession.shared.data(from: url),
-                          let img = UIImage(data: data),
-                          let thumb = img.jpegData(compressionQuality: 0.7) else { return }
+                          let image = UIImage(data: data) else { return }
                     await MainActor.run {
                         guard let self, self.lastArtworkKey == key else { return }
-                        self.currentArtworkData = thumb
+                        self.setArtwork(image: image, key: key)
                     }
                 }
             } else {
-                self.currentArtworkData = nil
-                self.lastArtworkKey = key
+                clearArtwork(key: key)
             }
 
             let signature = TrackSignature(
@@ -212,7 +229,7 @@ final class RidePlaybackController: ObservableObject {
                 guard !Task.isCancelled else { return }
                 self.lastTrack = track
                 self.engine.setLyrics(
-                    track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
+                    track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation) }
                 )
                 self.armRelay(track: track)
                 self.lyricState = .playing
@@ -278,6 +295,7 @@ final class RidePlaybackController: ObservableObject {
     private func render(_ position: LyricsPosition?) {
         guard let position else { return }
         currentLine = position.currentLine ?? ""
+        currentTranslation = position.currentTranslation
         previousLines = position.previousLines
         nextLine = position.nextLine
         upcomingLines = position.upcomingLines
@@ -295,6 +313,7 @@ final class RidePlaybackController: ObservableObject {
             title: anchor?.title ?? "",
             artist: anchor?.artist ?? "",
             currentLine: position.currentLine ?? "",
+            currentTranslation: position.currentTranslation,
             previousLines: position.previousLines,
             nextLine: position.nextLine,
             upcomingLines: position.upcomingLines,
@@ -313,47 +332,104 @@ final class RidePlaybackController: ObservableObject {
         syncWidget(snapshot: snapshot)
     }
 
+    /// Writes the shared payload and asks WidgetKit to rebuild the timeline.
+    ///
+    /// Two deliberate limits, both learned from build 38's dead widgets:
+    /// - the write is skipped unless the rendered state actually changed
+    ///   (`render` runs 4×/s, and keychain writes are not free);
+    /// - the reload is skipped unless the track, play state or lyric status
+    ///   changed. The widget's own timeline already advances line by line, so
+    ///   reloading on a timer only burned WidgetKit's daily budget.
     private func syncWidget(snapshot: LyricSnapshot) {
         let anchor = engine.anchor
-        let startEpochMs: Int
-        if let anchor {
-            startEpochMs = Int(anchor.capturedAt.timeIntervalSince1970 * 1000) - anchor.positionMs
-        } else {
-            startEpochMs = Int(Date().timeIntervalSince1970 * 1000)
+        let key = TrackMatcher.signature(
+            title: snapshot.title, artist: snapshot.artist, durationMs: snapshot.durationMs
+        )
+        if anchor?.isPlaying == true || trackStartKey != key {
+            trackStartEpochMs = (Int((anchor?.capturedAt.timeIntervalSince1970 ?? Date().timeIntervalSince1970) * 1000))
+                - (anchor?.positionMs ?? 0)
+            trackStartKey = key
         }
 
-        let widgetLines = lastTrack?.lines.map { SharedLyricLine(timeMs: $0.startMs, text: $0.text) } ?? []
+        let widgetLines = lastTrack?.lines.map {
+            SharedLyricLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation)
+        } ?? []
+
+        let signature = [
+            key,
+            snapshot.currentLine,
+            snapshot.isPlaying ? "1" : "0",
+            snapshot.status.rawValue,
+            String(trackStartEpochMs / 1000),
+            String(widgetLines.count),
+            artworkColorHex ?? "-",
+        ].joined(separator: "|")
+        guard signature != lastWidgetSignature else { return }
+        lastWidgetSignature = signature
 
         let payload = SharedWidgetPayload(
             title: snapshot.title,
             artist: snapshot.artist,
             currentLine: snapshot.currentLine,
+            currentTranslation: snapshot.currentTranslation,
             previousLines: snapshot.previousLines,
             nextLine: snapshot.nextLine,
             upcomingLines: snapshot.upcomingLines,
             isPlaying: snapshot.isPlaying,
             progress: snapshot.progress,
             status: snapshot.status.rawValue,
-            trackStartEpochMs: startEpochMs,
+            trackStartEpochMs: trackStartEpochMs,
             durationMs: snapshot.durationMs ?? 0,
             lines: widgetLines,
-            artworkData: currentArtworkData
+            artworkData: currentArtworkData,
+            artworkColorHex: artworkColorHex,
+            source: anchor?.source.rawValue ?? "appleMusic"
         )
         SharedWidgetStore.write(payload)
 
         let isTitleChanged = snapshot.title != lastWidgetTitle
         let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
         let isStatusChanged = snapshot.status.rawValue != lastWidgetStatus
-        let elapsed = lastWidgetReloadTime.map { Date().timeIntervalSince($0) } ?? 60
+        // Artwork (and its colour) often lands a beat AFTER the track change —
+        // Spotify serves it over the network — so the widget must reload again
+        // or it keeps the artwork-less timeline it was first handed.
+        let isArtworkChanged = artworkColorHex != lastWidgetArtworkHex
+        guard isTitleChanged || isPlayStateChanged || isStatusChanged || isArtworkChanged else { return }
+        lastWidgetTitle = snapshot.title
+        lastWidgetIsPlaying = snapshot.isPlaying
+        lastWidgetStatus = snapshot.status.rawValue
+        lastWidgetArtworkHex = artworkColorHex
+        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+    }
 
-        // Rate-limit widget reloads to avoid iOS timeline quota exhaustion.
-        // Title, play/pause, or status transition (e.g. loading -> playing) reloads immediately.
-        if isTitleChanged || isPlayStateChanged || isStatusChanged || elapsed >= 30 {
-            lastWidgetTitle = snapshot.title
-            lastWidgetIsPlaying = snapshot.isPlaying
-            lastWidgetStatus = snapshot.status.rawValue
-            lastWidgetReloadTime = Date()
-            WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+    // MARK: - Artwork
+
+    private func setArtwork(image: UIImage, key: String) {
+        let thumb = Self.thumbnail(image)
+        currentArtworkData = thumb
+        artworkData = thumb
+        artworkColorHex = image.averageColorHex
+        lastArtworkKey = key
+    }
+
+    private func clearArtwork(key: String) {
+        currentArtworkData = nil
+        artworkData = nil
+        artworkColorHex = nil
+        lastArtworkKey = key
+    }
+
+    /// Widgets and the mini player never need more than a 160 pt square, and
+    /// the payload travels to the extension through the keychain.
+    private static func thumbnail(_ image: UIImage, side: CGFloat = 160) -> Data {
+        guard image.size.width > 0, image.size.height > 0 else {
+            return image.jpegData(compressionQuality: 0.8) ?? Data()
+        }
+        let scale = min(1, side / max(image.size.width, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.jpegData(withCompressionQuality: 0.8) { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
         }
     }
 }

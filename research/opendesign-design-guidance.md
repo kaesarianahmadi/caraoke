@@ -124,9 +124,9 @@ Design **5 families × 5 states** at real scale — this is the surface users se
 
 ### 4.4 Paywall sheet (Caraoke Plus)
 **[SYSTEM] Three plans, yearly visually recommended, lifetime secondary:**
-- Yearly **$11.99/yr** — "Best value — just $1.00/month" + Recommended badge
+- Yearly **$9.99/yr** — "3 days free, then $9.99/year ($0.83/mo)" + Recommended badge
 - Monthly **$1.99/mo** — "Try it for a trip"
-- Founding Lifetime **$20 once** — "One payment. Keep Caraoke forever." + "limited launch offer" footnote
+- Founding Lifetime **$14.99 once** — "$14.99 once (was $27)" + "45% off · limited launch offer" footnote
 - Headline: "Make every ride a sing-along" · sub: "Keep live lyrics ready on CarPlay, whenever the chorus comes on."
 - Restore purchases link + auto-renew fine print (Apple-required wording: renews unless cancelled ≥24 h before period end; manage in Apple ID settings)
 - **[SYSTEM]** Prices render from StoreKit `displayPrice` at runtime; design with the literal fallback strings above.
@@ -150,7 +150,7 @@ The MVP app (per PRD D7: one screen + sheets) has **no full-screen scrolling lyr
 | "Use while parked · Designed for passengers" | Footers |
 | "Make every ride a sing-along" | Paywall headline |
 | "Keep live lyrics ready on CarPlay, whenever the chorus comes on." | Paywall sub |
-| $1.99 / month · $11.99 / year · $20 once — limited launch offer | Paywall plans |
+| $1.99 / month · $9.99 / year · $14.99 once (was $27) — limited launch offer | Paywall plans |
 | "Restore purchases" | Paywall |
 | "Community lyrics via LRCLIB" | Settings |
 | "Connect Spotify with your own Spotify app (2–3 minutes…)" | Settings footer |

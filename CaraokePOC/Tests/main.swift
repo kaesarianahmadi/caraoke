@@ -642,6 +642,63 @@ final class TestRunner {
             check("relayEncoding", false)
         }
 
+        // MARK: widget timeline (shared payload → WidgetKit entries)
+        do {
+            let start = Date(timeIntervalSince1970: 1_700_000_000)
+            func payload(lines: [SharedLyricLine],
+                         playing: Bool = true,
+                         status: String = LyricStatus.playing.rawValue,
+                         startedSecondsAgo: Double = 6) -> SharedWidgetPayload {
+                SharedWidgetPayload(
+                    title: "T", artist: "A", currentLine: "ignored",
+                    isPlaying: playing, progress: 0,
+                    status: status,
+                    trackStartEpochMs: Int((start.timeIntervalSince1970 - startedSecondsAgo) * 1000),
+                    durationMs: 30_000,
+                    lines: lines,
+                    source: "spotify"
+                )
+            }
+            let lines = [
+                SharedLyricLine(timeMs: 0, text: "one"),
+                SharedLyricLine(timeMs: 5_000, text: "two", translation: "dua"),
+                SharedLyricLine(timeMs: 10_000, text: "three"),
+            ]
+
+            let advancing = WidgetTimelineBuilder.entries(for: payload(lines: lines), now: start)
+            checkEqual("widgetEntriesFromCurrentLine", advancing.map(\.lineIndex), [1, 2])
+            checkEqual("widgetEntryText", advancing.first?.currentLine, "two")
+            checkEqual("widgetEntryTranslation", advancing.first?.currentTranslation, "dua")
+            checkEqual("widgetEntryNextLine", advancing.first?.nextLine, "three")
+            checkEqual("widgetEntryPrevious", advancing.first?.previousLines, ["one"])
+            checkEqual("widgetEntryFirstDateIsNow", advancing.first?.date, start)
+            checkEqual("widgetEntrySecondDate",
+                       advancing.last?.date,
+                       Date(timeIntervalSince1970: start.timeIntervalSince1970 + 4))
+
+            // Paused / loading / no lines → one static entry, nothing to advance.
+            checkEqual("widgetPausedSingleEntry",
+                       WidgetTimelineBuilder.entries(for: payload(lines: lines, playing: false), now: start).count, 1)
+            checkEqual("widgetLoadingSingleEntry",
+                       WidgetTimelineBuilder.entries(
+                        for: payload(lines: lines, status: LyricStatus.loading.rawValue), now: start).count, 1)
+            checkEqual("widgetNoLinesSingleEntry",
+                       WidgetTimelineBuilder.entries(for: payload(lines: [], startedSecondsAgo: 1), now: start).count, 1)
+
+            // A missing track start must not extrapolate from epoch 0.
+            var noStart = payload(lines: lines)
+            noStart.trackStartEpochMs = 0
+            checkEqual("widgetNoStartSingleEntry",
+                       WidgetTimelineBuilder.entries(for: noStart, now: start).count, 1)
+            checkEqual("widgetPositionMs", WidgetTimelineBuilder.positionMs(for: noStart, now: start), 0)
+
+            // Long tracks are capped, and the cap still starts at the current line.
+            let many = (0..<200).map { SharedLyricLine(timeMs: $0 * 1_000, text: "l\($0)") }
+            let capped = WidgetTimelineBuilder.entries(for: payload(lines: many, startedSecondsAgo: 10), now: start)
+            checkEqual("widgetCappedCount", capped.count, WidgetTimelineBuilder.maxEntries)
+            checkEqual("widgetCappedStart", capped.first?.lineIndex, 10)
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {

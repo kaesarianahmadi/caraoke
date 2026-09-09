@@ -8,6 +8,8 @@ import Foundation
 struct LRCLine: Equatable, Hashable {
     let timeMs: Int
     let text: String
+    /// Optional translation of this line (only some providers supply one).
+    var translation: String? = nil
 }
 
 /// Pure LRC parser. No I/O, no state.

@@ -12,6 +12,8 @@ struct LyricsPosition: Equatable {
     let positionMs: Int
     let lineIndex: Int?
     let currentLine: String?
+    /// Translation of the current line, when the provider supplied one.
+    let currentTranslation: String?
     let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
@@ -24,6 +26,7 @@ struct LyricsPosition: Equatable {
     init(positionMs: Int,
          lineIndex: Int?,
          currentLine: String?,
+         currentTranslation: String? = nil,
          previousLines: [String] = [],
          nextLine: String?,
          upcomingLines: [String] = [],
@@ -33,6 +36,7 @@ struct LyricsPosition: Equatable {
         self.positionMs = positionMs
         self.lineIndex = lineIndex
         self.currentLine = currentLine
+        self.currentTranslation = currentTranslation
         self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
@@ -178,6 +182,7 @@ final class SyncEngine {
         return LyricsPosition(
             positionMs: pos, lineIndex: index,
             currentLine: currentLine,
+            currentTranslation: index.flatMap { lines[$0].translation },
             previousLines: previous,
             nextLine: nextLine,
             upcomingLines: upcoming,

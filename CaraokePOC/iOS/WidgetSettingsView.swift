@@ -1,18 +1,20 @@
 import SwiftUI
+import UIKit
+import WidgetKit
 
-/// Widget controls and live competitor-style preview.
+/// Widget controls and live preview. Every toggle writes to the shared
+/// keychain store the widget extension reads, then asks WidgetKit to rebuild
+/// — build 38 wrote these to an App Group container the extension has no
+/// entitlement for, so none of them ever reached the widget.
 struct WidgetSettingsView: View {
-    @AppStorage("widget_selected_theme", store: UserDefaults(suiteName: "group.app.caraoke")) private var savedTheme = WidgetTheme.artwork.rawValue
-    @AppStorage("widget_selected_cover_style", store: UserDefaults(suiteName: "group.app.caraoke")) private var savedCoverStyle = WidgetCoverStyle.vinyl.rawValue
-    @AppStorage("widget_show_lyrics", store: UserDefaults(suiteName: "group.app.caraoke")) private var showLyrics = true
-    @AppStorage("widget_show_refresh", store: UserDefaults(suiteName: "group.app.caraoke")) private var showRefresh = true
-    @AppStorage("widget_show_translation", store: UserDefaults(suiteName: "group.app.caraoke")) private var showTranslation = false
+    @ObservedObject var model: RideModeViewModel
+    @State private var settings = SharedWidgetStore.readSettings()
     @State private var showTips = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
 
-    private var theme: WidgetTheme { WidgetTheme(rawValue: savedTheme) ?? .artwork }
-    private var coverStyle: WidgetCoverStyle { WidgetCoverStyle(rawValue: savedCoverStyle) ?? .vinyl }
+    private var theme: WidgetTheme { WidgetTheme(rawValue: settings.theme) ?? .artwork }
+    private var coverStyle: WidgetCoverStyle { WidgetCoverStyle(rawValue: settings.coverStyle) ?? .vinyl }
 
     var body: some View {
         NavigationStack {
@@ -25,7 +27,7 @@ struct WidgetSettingsView: View {
                         withAnimation(.easeInOut(duration: 0.2)) { showTips.toggle() }
                     }
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(AppTheme.accent(scheme))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
                         .background(AppTheme.surface(scheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -52,25 +54,51 @@ struct WidgetSettingsView: View {
         }
     }
 
+    // MARK: - Write-through bindings
+
+    private func binding<T>(_ keyPath: WritableKeyPath<SharedWidgetSettings, T>) -> Binding<T> {
+        Binding(
+            get: { settings[keyPath: keyPath] },
+            set: { value in update { $0[keyPath: keyPath] = value } }
+        )
+    }
+
+    /// Persist to the shared store and rebuild the widget timeline.
+    private func update(_ mutate: (inout SharedWidgetSettings) -> Void) {
+        mutate(&settings)
+        SharedWidgetStore.writeSettings(settings)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    // MARK: - Preview (mirrors the real medium widget)
+
     private var widgetPreview: some View {
         HStack(spacing: 4) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Do You Like Me? — Daniel Caesar")
+                Text(identity)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(theme.mutedTextColor)
                     .lineLimit(1)
                 Spacer()
-                if showLyrics {
-                    Text("Do I titillate your mind?")
+                if settings.showLyrics {
+                    Text(previousLine)
                         .font(.system(size: 15))
                         .foregroundStyle(theme.mutedTextColor.opacity(0.5))
                         .lineLimit(1)
                         .padding(.bottom, 3)
-                    Text("Do you like the way I talk to you?")
+                    Text(heroLine)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(theme.textColor)
-                        .lineLimit(2)
-                    Text(showTranslation ? "Apakah kamu suka caraku bicara?" : "And I'd love to make you mine")
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.75)
+                    if settings.showTranslation, let translation = model.currentTranslation, !translation.isEmpty {
+                        Text(translation)
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.mutedTextColor.opacity(0.8))
+                            .lineLimit(2)
+                            .padding(.top, 2)
+                    }
+                    Text(nextLine)
                         .font(.system(size: 15))
                         .foregroundStyle(theme.mutedTextColor.opacity(0.72))
                         .lineLimit(1)
@@ -79,7 +107,7 @@ struct WidgetSettingsView: View {
                 Spacer()
                 HStack(spacing: 18) {
                     Image(systemName: "backward.fill")
-                    Image(systemName: "pause.fill")
+                    Image(systemName: model.isPlaybackActive ? "pause.fill" : "play.fill")
                     Image(systemName: "forward.fill")
                 }
                 .font(.system(size: 14, weight: .semibold))
@@ -97,6 +125,23 @@ struct WidgetSettingsView: View {
         .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
     }
 
+    private var identity: String {
+        guard !model.trackTitle.isEmpty else { return "Do You Like Me? — Daniel Caesar" }
+        return model.trackArtist.isEmpty ? model.trackTitle : "\(model.trackTitle) — \(model.trackArtist)"
+    }
+
+    private var heroLine: String {
+        model.currentLine.isEmpty ? "Do you like the way I talk to you?" : model.currentLine
+    }
+
+    private var previousLine: String {
+        model.previousLines.last ?? "Do I titillate your mind?"
+    }
+
+    private var nextLine: String {
+        model.nextLine ?? "And I'd love to make you mine"
+    }
+
     @ViewBuilder private var previewCover: some View {
         ZStack(alignment: .topTrailing) {
             if coverStyle == .vinyl {
@@ -105,17 +150,20 @@ struct WidgetSettingsView: View {
                     ForEach(0..<6, id: \.self) { index in
                         Circle().stroke(.white.opacity(0.08), lineWidth: 0.5).padding(CGFloat(index * 8 + 6))
                     }
-                    Circle().fill(Color(hex: 0x9E6752)).frame(width: 76, height: 76)
+                    coverLabel
+                        .frame(width: 88, height: 88)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.15)))
                     Circle().fill(.white.opacity(0.5)).frame(width: 7, height: 7)
                 }
                 .frame(width: 126, height: 126)
             } else {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(hex: 0x9E6752), Color(hex: 0x27304D)], startPoint: .top, endPoint: .bottom))
+                coverLabel
                     .frame(width: 110, height: 110)
-                    .overlay(Image(systemName: "music.note").font(.title).foregroundStyle(.white.opacity(0.8)))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.12)))
             }
-            if showRefresh {
+            if settings.showRefresh {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
@@ -125,36 +173,50 @@ struct WidgetSettingsView: View {
         }
     }
 
-    private var previewBackground: AnyShapeStyle {
-        theme == .artwork
-            ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x455B79), Color(hex: 0x192337), .black],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing))
-            : AnyShapeStyle(theme.backgroundColor)
+    @ViewBuilder private var coverLabel: some View {
+        if let data = model.artworkData, let image = UIImage(data: data) {
+            Image(uiImage: image).resizable().scaledToFill()
+        } else {
+            LinearGradient(colors: [Color(hex: 0x9E6752), Color(hex: 0x27304D)], startPoint: .top, endPoint: .bottom)
+                .overlay(Image(systemName: "music.note").font(.title).foregroundStyle(.white.opacity(0.8)))
+        }
     }
 
+    private var previewBackground: AnyShapeStyle {
+        if theme == .artwork, let image = model.artworkData.flatMap(UIImage.init(data:)),
+           let hex = image.averageColorHex, let color = Color(hexString: hex) {
+            return AnyShapeStyle(LinearGradient(colors: [color.opacity(0.92), color.opacity(0.52), .black.opacity(0.9)],
+                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+        return AnyShapeStyle(theme.backgroundColor)
+    }
+
+    // MARK: - Groups
+
     private var settingsGroup: some View {
-        section(title: "Widget Setting") {
-            toggleRow("Show lyrics", isOn: $showLyrics, badge: "Free try")
+        section(title: "Widget settings") {
+            toggleRow("Show lyrics", isOn: binding(\.showLyrics))
             divider
-            toggleRow("Show refresh button", isOn: $showRefresh)
+            toggleRow("Show refresh button", isOn: binding(\.showRefresh))
             divider
-            toggleRow("Show translation (if available)", isOn: $showTranslation)
+            toggleRow("Show translation (if available)", isOn: binding(\.showTranslation))
         }
     }
 
     private var themeGroup: some View {
-        section(title: "Theme settings", badge: "Premium") {
+        section(title: "Theme settings") {
             HStack {
                 Text("Theme")
                 Spacer()
                 ForEach(WidgetTheme.allCases, id: \.self) { item in
-                    Button { savedTheme = item.rawValue } label: {
+                    Button { update { $0.theme = item.rawValue } } label: {
                         Circle()
                             .fill(item.backgroundColor)
                             .frame(width: 28, height: 28)
-                            .overlay(Circle().stroke(item == theme ? Color.blue : AppTheme.border(scheme), lineWidth: item == theme ? 3 : 1))
+                            .overlay(Circle().stroke(item == theme ? AppTheme.accent(scheme) : AppTheme.border(scheme),
+                                                     lineWidth: item == theme ? 3 : 1))
                     }
-                    .accessibilityLabel(item.rawValue)
+                    .accessibilityLabel(item.displayName)
                 }
             }
             .padding(16)
@@ -162,12 +224,13 @@ struct WidgetSettingsView: View {
             HStack {
                 Text("Cover style")
                 Spacer()
-                Picker("Cover style", selection: $savedCoverStyle) {
-                    Text("Vinyl").tag(WidgetCoverStyle.vinyl.rawValue)
-                    Text("Picture").tag(WidgetCoverStyle.picture.rawValue)
+                Picker("Cover style", selection: binding(\.coverStyle)) {
+                    ForEach(WidgetCoverStyle.allCases, id: \.self) { style in
+                        Text(style.displayName).tag(style.rawValue)
+                    }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 170)
+                .frame(width: 190)
             }
             .padding(16)
         }
@@ -188,29 +251,19 @@ struct WidgetSettingsView: View {
         .padding(.bottom, 20)
     }
 
-    private func section<Content: View>(title: String, badge: String? = nil, @ViewBuilder content: () -> Content) -> some View {
+    private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).font(.system(size: 15, weight: .semibold))
-                if let badge {
-                    Text(badge).font(.system(size: 11, weight: .bold)).foregroundStyle(.blue)
-                        .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.14), in: Capsule())
-                }
-            }
+            Text(title).font(.system(size: 15, weight: .semibold))
             VStack(spacing: 0, content: content)
                 .background(AppTheme.surface(scheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
-    private func toggleRow(_ title: String, isOn: Binding<Bool>, badge: String? = nil) -> some View {
+    private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
         HStack {
             Text(title).font(.system(size: 15))
-            if let badge {
-                Text(badge).font(.system(size: 11, weight: .bold)).foregroundStyle(.blue)
-                    .padding(.horizontal, 7).padding(.vertical, 3).background(.blue.opacity(0.14), in: Capsule())
-            }
             Spacer()
-            Toggle("", isOn: isOn).labelsHidden().tint(.green)
+            Toggle("", isOn: isOn).labelsHidden().tint(AppTheme.ok)
         }
         .padding(.horizontal, 16).frame(minHeight: 52)
     }

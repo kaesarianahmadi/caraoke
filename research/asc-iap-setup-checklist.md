@@ -29,8 +29,8 @@ App Store Connect → **Monetization → Subscriptions** (your app) →
 | Type | Product ID (exact) | Display name / Reference name | Price (US base) | Localization note |
 |---|---|---|---|---|
 | Auto-Renewable Subscription | `caraoke.plus.monthly` | "Caraoke Plus — Monthly" | **$1.99 / month** | Subtitle: "Try it for a trip" |
-| Auto-Renewable Subscription | `caraoke.plus.yearly` | "Caraoke Plus — Yearly" | **$11.99 / year** | Subtitle: "Best value — just $1.00/month" — mark **Recommended** |
-| Non-Consumable (one-time) | `caraoke.plus.lifetime` | "Caraoke Plus — Lifetime" | **$20 once** | Display name: "Founding Lifetime"; "limited launch offer" |
+| Auto-Renewable Subscription | `caraoke.plus.yearly` | "Caraoke Plus — Yearly" | **$9.99 / year** | Subtitle: "3 days free, then $9.99/year ($0.83/mo)" — mark **Recommended** |
+| Non-Consumable (one-time) | `caraoke.plus.lifetime` | "Caraoke Plus — Lifetime" | **$14.99 once** | Display name: "Founding Lifetime"; anchor: $27 strikethrough (45% off), "limited launch offer" |
 
 Steps per product (App Store Connect → **Monetization → Subscriptions / In-App Purchases**):
 
@@ -39,16 +39,18 @@ Steps per product (App Store Connect → **Monetization → Subscriptions / In-A
      create.
   2. **Subscription Details**: fill *Display Name*, *Description* ("Access to Caraoke Plus
      features (live lyrics fully enabled)." — keep simple), *Price* → **Create** the price
-     point $1.99 / $11.99 (add all storefronts or let it auto-convert).
+     point $1.99 / $9.99 (add all storefronts or let it auto-convert).
   3. **Subscription Localization**: at least English (Primary) — title/subtitle above.
-  4. *(Recommended)* Set **Introductory Offer** = "Free Trial" 3 days if you want a trial
-     later; can add anytime, even after launch. Not required for MVP.
+  4. *(Required by the locked monetization model)* Set **Introductory Offer** =
+     "Free Trial" 3 days on **both** subscriptions. The app is hard-paywall: no
+     perpetual free tier, so the 3-day trial is the only free entry point.
   5. **Review**: submit the IAP itself for review (IAPs review separately; do this once,
      before or with the build).
 
 - **Non-consumable:**
   1. **+ In-App Purchase → Non-Consumable**.
-  2. Reference/Display name "Caraoke Plus — Lifetime", **$20**, localized name
+  2. Reference/Display name "Caraoke Plus — Lifetime", **$14.99** (anchor $27
+     strikethrough, 45% off), localized name
      "Founding Lifetime — one payment, keep Caraoke forever", review submit.
 
 ## 3. Verify entitlements wiring (already in code — sanity check only)
@@ -79,10 +81,11 @@ No code change needed as long as the ASC product IDs match the constants above
 
 ## 5. Price/consistency double-checks (why these numbers)
 
-- Monthly **$1.99/mo** → "Try it for a trip" (subtitle) — shortest commitment.
-- Yearly **$11.99/yr** = $1.00/mo effective → "Best value" + Recommended badge — first
+- Monthly **$1.99/mo** → "Try it for a trip" (subtitle) — shortest commitment, 3-day trial.
+- Yearly **$9.99/yr** = $0.83/mo effective → "Best value" + Recommended badge — first
   listed in the paywall per `PaywallContent.plans` order (yearly, monthly, lifetime).
-- Lifetime **$20 once** → "Founding Lifetime" + "limited launch offer" footnote.
+- Lifetime **$14.99 once** (anchor $27, 45% off) → "Founding Lifetime" + "limited
+  launch offer" footnote.
 - These are the **locked Phase A decisions**; changing them later is easy in ASC
   (new price points), but keep the app's fallback literal strings in sync
   (`EntitlementModel.swift` lines 33–49) if you ever change them.

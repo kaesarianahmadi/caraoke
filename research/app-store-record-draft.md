@@ -13,7 +13,7 @@ your launch date / link specifics.
 | Primary category | **Music** |
 | Secondary category | (optional) None |
 | Bundle ID | `app.caraoke.ios` (+ `app.caraoke.ios.widgets` extension) |
-| Price base | US storefront: $1.99 / $11.99 / $20 lifetime (other storefronts auto-convert; override only where you have data) |
+| Price base | US storefront: $1.99/mo · $9.99/yr · $14.99 lifetime (anchor $27 strikethrough, 45% off); other storefronts auto-convert, override only where you have data |
 | App icon | 1024×1024 per `research/app-icon-screenshot-specs.md` |
 
 ## Description
@@ -80,7 +80,8 @@ Ride Mode, live lyrics on CarPlay, Apple Music + Spotify, lifetime option.
   CarPlay Dashboard. The app ships with a bundled demo track for review if no
   music service is available.
 - **No account, no sign-in.** Purchases via StoreKit 2: auto-renewable
-  subscriptions ($1.99/mo, $11.99/yr) + a non-consumable lifetime ($20).
+  subscriptions ($1.99/mo, $9.99/yr, both with a 3-day free trial) + a
+  non-consumable lifetime ($14.99, normally $27).
 
 ## App Privacy questionnaire (honest mapping)
 
@@ -100,8 +101,9 @@ Ride Mode, live lyrics on CarPlay, Apple Music + Spotify, lifetime option.
 1. Create the app record (bundle ID `app.caraoke.ios`) + register the widget
    extension bundle.
 2. Subscription group "Caraoke Plus": `caraoke.plus.monthly` ($1.99),
-   `caraoke.plus.yearly` ($11.99) + non-consumable `caraoke.plus.lifetime`
-   ($20); set US as base storefront, enable all storefronts by default.
+   `caraoke.plus.yearly` ($9.99) — each with a 3-day free trial introductory
+   offer — + non-consumable `caraoke.plus.lifetime`
+   ($14.99, anchor $27); set US as base storefront, enable all storefronts by default.
 3. Fill Privacy, Age Rating, Export Compliance, Support URL
    (GitHub Pages `https://<you>.github.io/caraoke/`), and the legal URLs
    (`site/privacy.md`, `site/terms.md` drafts ready to publish).

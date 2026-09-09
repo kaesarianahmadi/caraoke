@@ -11,8 +11,9 @@ a catalog service.
 
 ## 2. Subscriptions & purchases
 
-- Caraoke Plus is offered as $1.99/month, $11.99/year, or a one-time $20
-  lifetime purchase (launch offer), billed through your Apple ID.
+- Caraoke Plus is offered as $1.99/month, $9.99/year (each with a 3-day free
+  trial), or a one-time $14.99 lifetime purchase (launch offer, normally $27),
+  billed through your Apple ID.
 - Subscriptions renew automatically unless cancelled at least 24 hours before
   the period ends; manage or cancel in your Apple ID settings.
 - Restore previous purchases with "Restore purchases" in the app.

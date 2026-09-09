@@ -7,6 +7,8 @@ struct LyricSnapshot: Equatable, Sendable {
     let title: String
     let artist: String
     let currentLine: String
+    /// Translation of the current line when the provider supplied one.
+    let currentTranslation: String?
     let previousLines: [String]
     let nextLine: String?
     let upcomingLines: [String]
@@ -26,6 +28,7 @@ struct LyricSnapshot: Equatable, Sendable {
     init(title: String,
          artist: String,
          currentLine: String,
+         currentTranslation: String? = nil,
          previousLines: [String] = [],
          nextLine: String? = nil,
          upcomingLines: [String] = [],
@@ -38,6 +41,7 @@ struct LyricSnapshot: Equatable, Sendable {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
+        self.currentTranslation = currentTranslation
         self.previousLines = previousLines
         self.nextLine = nextLine
         self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines

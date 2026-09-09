@@ -36,8 +36,7 @@ struct SettingsView: View {
                         caraokePlusSection
                         connectMusicSection
                         appearanceSection
-                        supportSection
-                        contactSection
+                        supportAndAboutSection
                         footnote
                     }
                     .padding(.horizontal, 20)
@@ -417,15 +416,31 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Support us
+    // MARK: - Support & about (one grouping: feedback, rate, share, version)
 
-    private var supportSection: some View {
+    private var supportAndAboutSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Support us")
+            sectionLabel("Support & about")
             group {
+                // Feedback (design chat-bubble mark).
+                Button {
+                    if let url = URL(string: "mailto:support@caraoke.app?subject=Caraoke%20feedback") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    gRow {
+                        iconCircle("message.fill")
+                        Text("Feedback").gLabel()
+                        Image(systemName: "chevron.right").gChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+                rowDivider()
                 rateRow
                 rowDivider()
                 shareRow
+                rowDivider()
+                aboutRow
             }
         }
     }
@@ -455,46 +470,6 @@ struct SettingsView: View {
             }
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - Contact & about
-
-    private var contactSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Contact & about")
-            group {
-                // Troubleshooting → support mail (the site's FAQ lands at
-                // support@ until a help page ships).
-                Button {
-                    if let url = URL(string: "mailto:support@caraoke.app?subject=Troubleshooting") {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    gRow {
-                        iconCircle("circle.grid.cross")
-                        Text("Troubleshooting").gLabel()
-                        Image(systemName: "chevron.right").gChevron()
-                    }
-                }
-                .buttonStyle(.plain)
-                rowDivider()
-                // Feedback (design chat-bubble mark).
-                Button {
-                    if let url = URL(string: "mailto:support@caraoke.app?subject=Caraoke%20feedback") {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    gRow {
-                        iconCircle("message.fill")
-                        Text("Feedback").gLabel()
-                        Image(systemName: "chevron.right").gChevron()
-                    }
-                }
-                .buttonStyle(.plain)
-                rowDivider()
-                aboutRow
-            }
-        }
     }
 
     private var aboutRow: some View {

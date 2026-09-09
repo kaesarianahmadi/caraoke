@@ -5,4 +5,12 @@ import Foundation
 struct LyricLine: Equatable, Sendable {
     let startMs: Int
     let text: String
+    /// Provider-supplied translation of this line (NetEase only today).
+    var translation: String?
+
+    init(startMs: Int, text: String, translation: String? = nil) {
+        self.startMs = startMs
+        self.text = text
+        self.translation = translation
+    }
 }

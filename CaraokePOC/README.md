@@ -25,7 +25,7 @@ line (plus the next line) on CarPlay through a system-rendered Live Activity.
 | Lyrics cache | `Sources/CaraokeCore/LyricsDiskCache.swift` | Cache-first when fresh, stale-serving offline, 30-day TTL, clearable from Settings |
 | **Spotify source** | `Sources/CaraokeCore/SpotifySource.swift` | Official Web API `currently-playing` polling (5 s active / 15 s idle) |
 | **Spotify auth core** | `Sources/CaraokeCore/SpotifyAuthCore.swift` | Official OAuth authorization-code + PKCE (RFC 7636), token policy + endpoint client |
-| **Entitlements** | `Sources/CaraokeCore/EntitlementModel.swift` | One "Caraoke Plus" entitlement; $1.99/mo · $11.99/yr · $20 lifetime product model |
+| **Entitlements** | `Sources/CaraokeCore/EntitlementModel.swift` | One "Caraoke Plus" entitlement; $1.99/mo · $9.99/yr · $14.99 lifetime (anchor $27) product model |
 | Now-playing seam | `Sources/CaraokeCore/NowPlaying.swift` | `NowPlayingSource` protocol + `NowPlayingState` (moved to Core for testability) |
 | Update policy | `Sources/CaraokeCore/ActivityUpdatePolicy.swift` | Sends Activity updates only on real line/track/pause changes |
 | Update throttle | `Sources/CaraokeCore/ActivityUpdateThrottle.swift` | Coalesces rapid line changes; never drops a line |

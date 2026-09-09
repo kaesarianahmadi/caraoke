@@ -1,183 +1,119 @@
 import Foundation
 import Security
 
-struct SharedLyricLine: Codable, Hashable {
-    var timeMs: Int
-    var text: String
-}
+// The one cross-process store: app ⇄ widget extension ⇄ Live Activity.
+//
+// The shared KEYCHAIN is the transport, not an App Group: the committed
+// distribution profiles grant `R3Y5ZR429L.*` keychain access to both targets
+// but carry no `com.apple.security.application-groups` entitlement, so
+// `UserDefaults(suiteName: "group.app.caraoke")` silently wrote to the app's
+// own container and every widget read came back empty. Keychain items written
+// with an explicit access group are readable by both processes with no
+// provisioning change.
 
-struct SharedWidgetPayload: Codable {
-    var title: String
-    var artist: String
-    var currentLine: String
-    var previousLines: [String]
-    var nextLine: String?
-    var upcomingLines: [String]
-    var isPlaying: Bool
-    var progress: Double
-    var status: String
-    var trackStartEpochMs: Int
-    var durationMs: Int
-    var lines: [SharedLyricLine]
-    var artworkData: Data?
+enum SharedKeychain {
+    /// Both targets declare `$(AppIdentifierPrefix)app.caraoke.ios`.
+    static let accessGroup = "R3Y5ZR429L.app.caraoke.ios"
 
-    init(title: String,
-         artist: String,
-         currentLine: String,
-         previousLines: [String] = [],
-         nextLine: String? = nil,
-         upcomingLines: [String] = [],
-         isPlaying: Bool,
-         progress: Double,
-         status: String,
-         trackStartEpochMs: Int = 0,
-         durationMs: Int = 0,
-         lines: [SharedLyricLine] = [],
-         artworkData: Data? = nil) {
-        self.title = title
-        self.artist = artist
-        self.currentLine = currentLine
-        self.previousLines = previousLines
-        self.nextLine = nextLine
-        self.upcomingLines = upcomingLines.isEmpty ? (nextLine.map { [$0] } ?? []) : upcomingLines
-        self.isPlaying = isPlaying
-        self.progress = progress
-        self.status = status
-        self.trackStartEpochMs = trackStartEpochMs
-        self.durationMs = durationMs
-        self.lines = lines
-        self.artworkData = artworkData
+    private static func base(service: String, account: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup,
+        ]
+    }
+
+    static func data(service: String, account: String) -> Data? {
+        var query = base(service: service, account: account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess else { return nil }
+        return out as? Data
+    }
+
+    static func set(_ data: Data, service: String, account: String) {
+        let query = base(service: service, account: account)
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        if SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecItemNotFound {
+            SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+        }
+    }
+
+    static func remove(service: String, account: String) {
+        SecItemDelete(base(service: service, account: account) as CFDictionary)
     }
 }
 
 enum SharedWidgetStore {
     private static let service = "app.caraoke.widget"
-    private static let account = "state"
-    private static let accessGroup = "R3Y5ZR429L.app.caraoke.ios"
-    private static let suiteName = "group.app.caraoke"
-    private static let payloadKey = "widget_full_payload"
+    private static let payloadAccount = "state"
+    private static let settingsAccount = "settings"
+
+    private static let spotifyService = "com.caraoke.spotify"
+    private static let spotifyTokenAccount = "token"
+    private static let spotifyClientIDAccount = "clientID"
+
+    // MARK: - Now-playing payload
 
     static func write(_ payload: SharedWidgetPayload?) {
-        // 1. Write to App Group UserDefaults
-        if let store = UserDefaults(suiteName: suiteName) {
-            if let payload {
-                store.set(payload.title, forKey: "widget_title")
-                store.set(payload.artist, forKey: "widget_artist")
-                store.set(payload.currentLine, forKey: "widget_current_line")
-                store.set(payload.previousLines, forKey: "widget_previous_lines")
-                store.set(payload.nextLine, forKey: "widget_next_line")
-                store.set(payload.isPlaying, forKey: "widget_is_playing")
-                store.set(payload.progress, forKey: "widget_progress")
-                store.set(payload.status, forKey: "widget_status")
-                if let data = try? JSONEncoder().encode(payload) {
-                    store.set(data, forKey: payloadKey)
-                }
-            } else {
-                store.removeObject(forKey: "widget_title")
-                store.removeObject(forKey: "widget_previous_lines")
-                store.removeObject(forKey: payloadKey)
-                store.set("idle", forKey: "widget_status")
-            }
-        }
-
-        // 2. Write to Shared Keychain
         guard let payload else {
-            deleteKeychain()
+            SharedKeychain.remove(service: service, account: payloadAccount)
             return
         }
         guard let data = try? JSONEncoder().encode(payload) else { return }
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrAccessGroup as String: accessGroup,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-
-        let updateFields: [String: Any] = [
-            kSecValueData as String: data
-        ]
-
-        let status = SecItemUpdate(query as CFDictionary, updateFields as CFDictionary)
-        if status == errSecItemNotFound {
-            var newQuery = query
-            newQuery[kSecValueData as String] = data
-            SecItemAdd(newQuery as CFDictionary, nil)
-        }
+        SharedKeychain.set(data, service: service, account: payloadAccount)
     }
 
     static func read() -> SharedWidgetPayload? {
-        // Try App Group UserDefaults first
-        if let store = UserDefaults(suiteName: suiteName) {
-            if let data = store.data(forKey: payloadKey),
-               let decoded = try? JSONDecoder().decode(SharedWidgetPayload.self, from: data) {
-                return decoded
-            }
-            if let title = store.string(forKey: "widget_title"), !title.isEmpty {
-                return SharedWidgetPayload(
-                    title: title,
-                    artist: store.string(forKey: "widget_artist") ?? "",
-                    currentLine: store.string(forKey: "widget_current_line") ?? "",
-                    previousLines: store.stringArray(forKey: "widget_previous_lines") ?? [],
-                    nextLine: store.string(forKey: "widget_next_line"),
-                    upcomingLines: [],
-                    isPlaying: store.bool(forKey: "widget_is_playing"),
-                    progress: store.double(forKey: "widget_progress"),
-                    status: store.string(forKey: "widget_status") ?? "playing"
-                )
-            }
-        }
-
-        // Fallback to Shared Keychain
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrAccessGroup as String: accessGroup,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecSuccess, let data = result as? Data,
-           let decoded = try? JSONDecoder().decode(SharedWidgetPayload.self, from: data) {
-            return decoded
-        }
-
-        // Generic query without access group fallback (simulator)
-        let simQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var simResult: AnyObject?
-        if SecItemCopyMatching(simQuery as CFDictionary, &simResult) == errSecSuccess,
-           let simData = simResult as? Data,
-           let decoded = try? JSONDecoder().decode(SharedWidgetPayload.self, from: simData) {
-            return decoded
-        }
-
-        return nil
+        guard let data = SharedKeychain.data(service: service, account: payloadAccount) else { return nil }
+        return try? JSONDecoder().decode(SharedWidgetPayload.self, from: data)
     }
 
-    private static func deleteKeychain() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrAccessGroup as String: accessGroup
-        ]
-        SecItemDelete(query as CFDictionary)
+    // MARK: - Widget configuration (theme / toggles)
 
-        let simQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(simQuery as CFDictionary)
+    static func readSettings() -> SharedWidgetSettings {
+        guard let data = SharedKeychain.data(service: service, account: settingsAccount),
+              let settings = try? JSONDecoder().decode(SharedWidgetSettings.self, from: data) else {
+            return SharedWidgetSettings()
+        }
+        return settings
+    }
+
+    static func writeSettings(_ settings: SharedWidgetSettings) {
+        guard let data = try? JSONEncoder().encode(settings) else { return }
+        SharedKeychain.set(data, service: service, account: settingsAccount)
+    }
+
+    // MARK: - Spotify credentials (so widget buttons can drive Spotify)
+
+    static func readSpotifyToken() -> SpotifyToken? {
+        guard let data = SharedKeychain.data(service: spotifyService, account: spotifyTokenAccount) else { return nil }
+        return try? JSONDecoder().decode(SpotifyToken.self, from: data)
+    }
+
+    static func writeSpotifyToken(_ token: SpotifyToken?) {
+        guard let token, let data = try? JSONEncoder().encode(token) else {
+            SharedKeychain.remove(service: spotifyService, account: spotifyTokenAccount)
+            return
+        }
+        SharedKeychain.set(data, service: spotifyService, account: spotifyTokenAccount)
+    }
+
+    static func readSpotifyClientID() -> String? {
+        guard let data = SharedKeychain.data(service: spotifyService, account: spotifyClientIDAccount) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func writeSpotifyClientID(_ clientID: String?) {
+        guard let clientID, !clientID.isEmpty, let data = clientID.data(using: .utf8) else {
+            SharedKeychain.remove(service: spotifyService, account: spotifyClientIDAccount)
+            return
+        }
+        SharedKeychain.set(data, service: spotifyService, account: spotifyClientIDAccount)
     }
 }

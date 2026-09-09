@@ -49,6 +49,8 @@ final class FallbackLyricsProvider: LyricsRepository {
             let lyric: String?
         }
         let lrc: LyricData?
+        /// Translated lines, same LRC shape (empty when none exist).
+        let tlyric: LyricData?
     }
 
     private func fetchNetEaseLyrics(for track: TrackSignature) async -> LyricTrack? {
@@ -79,7 +81,18 @@ final class FallbackLyricsProvider: LyricsRepository {
               let rawLrc = lyricObj.lrc?.lyric, !rawLrc.isEmpty
         else { return nil }
 
-        let parsedLines = LRCParser.parse(rawLrc).map { LyricLine(startMs: $0.timeMs, text: $0.text) }
+        // Translations arrive as a second LRC; key them by timestamp so each
+        // line can carry its own.
+        var translations: [Int: String] = [:]
+        if let rawTranslation = lyricObj.tlyric?.lyric, !rawTranslation.isEmpty {
+            for line in LRCParser.parse(rawTranslation) where !line.text.isEmpty {
+                translations[line.timeMs] = line.text
+            }
+        }
+
+        let parsedLines = LRCParser.parse(rawLrc).map {
+            LyricLine(startMs: $0.timeMs, text: $0.text, translation: translations[$0.timeMs])
+        }
         guard !parsedLines.isEmpty else { return nil }
         return LyricTrack(lines: parsedLines)
     }

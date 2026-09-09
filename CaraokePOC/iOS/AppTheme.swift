@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import CoreImage
 
 /// App design tokens: Pure OLED Black & Zinc for dark mode, clean Ivory White for light mode.
 /// Follows competitor palette (Dynamic Lyrics reference IMG_5085).
@@ -38,12 +40,22 @@ enum AppTheme {
     }
 }
 
-/// Widget Theme Options
+/// Widget theme options. Raw values are stable storage keys (they travel to
+/// the widget extension through the shared keychain); `displayName` is UI.
 enum WidgetTheme: String, CaseIterable, Codable {
-    case artwork = "Follow Cover"
-    case pitchBlack = "Pitch Black"
-    case simpleSlate = "Simple Slate"
-    case ivoryWhite = "Ivory White"
+    case artwork
+    case pitchBlack
+    case simpleSlate
+    case ivoryWhite
+
+    var displayName: String {
+        switch self {
+        case .artwork: return "Follow Cover"
+        case .pitchBlack: return "Pitch Black"
+        case .simpleSlate: return "Simple Slate"
+        case .ivoryWhite: return "Ivory White"
+        }
+    }
 
     var backgroundColor: Color {
         switch self {
@@ -69,10 +81,17 @@ enum WidgetTheme: String, CaseIterable, Codable {
     }
 }
 
-/// Widget Cover Art Style
+/// Widget cover art style.
 enum WidgetCoverStyle: String, CaseIterable, Codable {
-    case picture = "Picture"
-    case vinyl = "Vinyl Disc"
+    case picture
+    case vinyl
+
+    var displayName: String {
+        switch self {
+        case .picture: return "Picture"
+        case .vinyl: return "Vinyl Disc"
+        }
+    }
 }
 
 extension Color {
@@ -82,5 +101,31 @@ extension Color {
                   green: Double((hex >> 8) & 0xFF) / 255,
                   blue: Double(hex & 0xFF) / 255,
                   opacity: 1)
+    }
+
+    /// Parses the `RRGGBB` string produced by `UIImage.averageColorHex`.
+    init?(hexString: String) {
+        guard hexString.count == 6, let value = UInt32(hexString, radix: 16) else { return nil }
+        self.init(hex: value)
+    }
+}
+
+extension UIImage {
+    /// Average colour of the cover as `RRGGBB`. Computed once in the app and
+    /// shipped in the shared payload so the widget paints a song-following
+    /// background without re-running CoreImage on every timeline reload.
+    var averageColorHex: String? {
+        guard let input = CIImage(image: self),
+              let filter = CIFilter(name: "CIAreaAverage", parameters: [
+                kCIInputImageKey: input,
+                kCIInputExtentKey: CIVector(cgRect: input.extent)
+              ]), let output = filter.outputImage else { return nil }
+        var rgba = [UInt8](repeating: 0, count: 4)
+        CIContext(options: [.workingColorSpace: kCFNull as Any]).render(
+            output, toBitmap: &rgba, rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8, colorSpace: nil
+        )
+        return String(format: "%02X%02X%02X", rgba[0], rgba[1], rgba[2])
     }
 }

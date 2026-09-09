@@ -26,6 +26,7 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var isOn = false
     @Published private(set) var elapsedMs = 0
     @Published private(set) var currentLine = ""
+    @Published private(set) var currentTranslation: String?
     @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
     @Published private(set) var upcomingLines: [String] = []
@@ -36,6 +37,8 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var positionMs = 0
     @Published private(set) var durationMs: Int?
     @Published private(set) var lyricStatus: LyricStatus = .idle
+    /// Cover art of the current track — the mini player and the lyrics page.
+    @Published private(set) var artworkData: Data?
 
     // Home screen bindings (design states A–D).
 
@@ -103,7 +106,7 @@ final class RideModeViewModel: ObservableObject {
     /// authorization denied at the system level.
     var liveActivityGateMessage: String? {
         guard activity.authorizationDenied else { return nil }
-        return "Live Activities is off"
+        return "Live Lyrics is off"
     }
 
     private var rideModel = RideModeModel()
@@ -119,6 +122,22 @@ final class RideModeViewModel: ObservableObject {
     private let tickInterval: Duration = .seconds(1)
 
     var isPlaying: Bool { isOn }
+
+    /// True when the active source is actually playing (drives the in-app
+    /// transport icon — `isOn` is Ride Mode, not playback).
+    var isPlaybackActive: Bool { lyricStatus == .playing }
+
+    /// In-app transport: same routing as the widget / Live Activity buttons,
+    /// so the app never drives the wrong player either.
+    func transport(_ action: TransportAction) async {
+        let source: String?
+        switch activeSource {
+        case .spotify: source = "spotify"
+        case .appleMusic: source = "appleMusic"
+        case .auto: source = nil // let the running pipeline decide
+        }
+        await TransportControl.perform(action, source: source, isPlaying: isPlaybackActive)
+    }
 
     /// Ride length across all rides (for the Settings screen).
     var totalRideMs: Int { rideModel.totalRideMs }
@@ -146,6 +165,14 @@ final class RideModeViewModel: ObservableObject {
             }
             .store(in: &playbackCancellables)
 
+        realPlayback.$currentTranslation
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.currentTranslation = val
+            }
+            .store(in: &playbackCancellables)
+
         realPlayback.$previousLines
             .receive(on: RunLoop.main)
             .sink { [weak self] val in
@@ -153,7 +180,6 @@ final class RideModeViewModel: ObservableObject {
                 self.previousLines = val
             }
             .store(in: &playbackCancellables)
-
         realPlayback.$nextLine
             .receive(on: RunLoop.main)
             .sink { [weak self] val in
@@ -202,6 +228,13 @@ final class RideModeViewModel: ObservableObject {
                 self.durationMs = val
             }
             .store(in: &playbackCancellables)
+
+        realPlayback.$artworkData
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                self?.artworkData = val
+            }
+            .store(in: &playbackCancellables)
     }
 
     func resetStats() {
@@ -228,6 +261,14 @@ final class RideModeViewModel: ObservableObject {
         }
     }
 
+    /// Re-requests the Live Activity when it is missing (system ended it, or
+    /// the app was relaunched with Ride Mode still on). Called on every
+    /// foreground transition — a no-op while an activity is live.
+    func ensureActivity() {
+        guard isOn, !activity.isActive else { return }
+        activity.startIdle()
+    }
+
     func stopRide() {
         guard isOn else { return }
         isOn = false
@@ -247,6 +288,7 @@ final class RideModeViewModel: ObservableObject {
         positionMs = 0
         durationMs = nil
         lyricStatus = .idle
+        artworkData = nil
     }
 
     private func startDemoClock() {

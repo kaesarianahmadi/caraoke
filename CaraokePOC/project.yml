@@ -12,7 +12,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "38"
+    CURRENT_PROJECT_VERSION: "39"
     GENERATE_INFOPLIST_FILE: false
     TARGETED_DEVICE_FAMILY: "1"
 targets:
@@ -60,8 +60,11 @@ targets:
       - iOS/LyricTileView.swift
       - iOS/AppTheme.swift
       - iOS/TransportIntents.swift
+      - iOS/TransportControl.swift
       - iOS/SharedWidgetStore.swift
       - Sources/CaraokeCore/LyricStatus.swift
+      - Sources/CaraokeCore/WidgetShared.swift
+      - Sources/CaraokeCore/SpotifyAuthCore.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.caraoke.ios.widgets

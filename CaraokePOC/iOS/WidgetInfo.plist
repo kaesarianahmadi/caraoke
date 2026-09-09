@@ -25,5 +25,12 @@
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.widgetkit-extension</string>
 	</dict>
+	<!-- The Live Activity UI is hosted by this extension; both keys must be
+	     present on the extension bundle as well as the app for the activity
+	     to be accepted by the system. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
 </dict>
 </plist>
