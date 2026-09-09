@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Caraoke — Synced Live Lyrics for CarPlay & Lock Screen</title>
-  <meta name="description" content="Streams synchronized lyrics directly to your CarPlay dashboard, Lock Screen Live Activities, and Home Screen widgets while driving.">
+  <title>Caraoke — Live Lyrics for CarPlay, Lock Screen & Widgets</title>
+  <meta name="description" content="Sing along with real-time synchronized lyrics on CarPlay, Lock Screen Live Activities, Dynamic Island, and Home Screen widgets.">
   <style>
     :root {
-      --bg: #000000;
-      --card: #121214;
-      --border: #27272A;
-      --fg: #FFFFFF;
-      --muted: #8E8E93;
+      --bg: #FFFFFF;
+      --card: #F5F5F7;
+      --border: #E5E5EA;
+      --fg: #1D1D1F;
+      --muted: #6E6E73;
       --accent: #FF9845;
       --ok: #34C759;
     }
@@ -49,7 +49,7 @@
       place-items: center;
       font-size: 16px;
       font-weight: 800;
-      color: #000;
+      color: #FFF;
     }
     nav a {
       color: var(--muted);
@@ -76,6 +76,7 @@
       letter-spacing: -1.5px;
       line-height: 1.1;
       margin-bottom: 20px;
+      color: var(--fg);
     }
     .hero p {
       font-size: clamp(17px, 2.5vw, 20px);
@@ -89,10 +90,11 @@
       justify-content: center;
       gap: 16px;
       flex-wrap: wrap;
+      margin-bottom: 20px;
     }
     .btn-primary {
       background: var(--fg);
-      color: #000;
+      color: #FFF;
       font-weight: 600;
       font-size: 16px;
       padding: 14px 28px;
@@ -101,6 +103,30 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      transition: transform 0.2s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+    }
+    .btn-appstore {
+      background: #000;
+      color: #FFF;
+      font-weight: 600;
+      font-size: 16px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: transform 0.2s;
+    }
+    .btn-appstore:hover {
+      transform: translateY(-2px);
+    }
+    .btn-appstore svg {
+      width: 20px;
+      height: 20px;
     }
     .btn-secondary {
       background: var(--card);
@@ -111,6 +137,10 @@
       border-radius: 12px;
       text-decoration: none;
       border: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+    .btn-secondary:hover {
+      background: var(--border);
     }
     .preview-card {
       max-width: 680px;
@@ -119,7 +149,7 @@
       border: 1px solid var(--border);
       border-radius: 24px;
       padding: 32px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       text-align: center;
     }
     .karaoke-lead {
@@ -130,7 +160,7 @@
     .karaoke-active {
       font-size: clamp(22px, 3.5vw, 28px);
       font-weight: 700;
-      color: #FFFFFF;
+      color: var(--fg);
       margin-bottom: 8px;
     }
     .karaoke-next {
@@ -149,6 +179,11 @@
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 24px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .feature-item:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     }
     .feature-item h3 {
       font-size: 18px;
@@ -190,11 +225,16 @@
 
   <main>
     <section class="hero">
-      <h1>Live lyrics on CarPlay,<br>wherever you drive.</h1>
-      <p>Seamlessly streams synchronized music lyrics to your vehicle dashboard, Lock Screen Live Activities, and StandBy widgets.</p>
+      <h1>Live lyrics everywhere.<br>CarPlay, Lock Screen, Dynamic Island.</h1>
+      <p>Real-time synchronized lyrics for Spotify and Apple Music. Works on CarPlay, Lock Screen Live Activities, Dynamic Island, and Home Screen widgets.</p>
       <div class="cta-group">
-        <a href="https://testflight.apple.com" class="btn-primary">Join TestFlight Beta</a>
-        <a href="docs.html" class="btn-secondary">Read Docs</a>
+        <a href="https://apps.apple.com/app/caraoke" class="btn-appstore">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+          </svg>
+          Download on App Store
+        </a>
+        <a href="docs.html" class="btn-secondary">Read Documentation</a>
       </div>
     </section>
 
@@ -206,26 +246,38 @@
 
     <section class="features">
       <div class="feature-item">
-        <h3>CarPlay Dashboard Mirror</h3>
-        <p>Real-time synchronized lyrics mirrored right next to your navigation map with zero distraction.</p>
+        <h3>🚗 CarPlay Dashboard</h3>
+        <p>Real-time synchronized lyrics mirrored on your CarPlay screen. Works with iOS 26 CarPlay widgets and dashboard view.</p>
       </div>
       <div class="feature-item">
-        <h3>Multi-Source Lyrics Fallback</h3>
-        <p>Cascades across LRCLIB and international lyrics providers to ensure every track has matched lyrics.</p>
+        <h3>🔒 Lock Screen Live Activities</h3>
+        <p>See lyrics on your Lock Screen without unlocking your phone. Dynamic Island support for iPhone 14 Pro and later.</p>
       </div>
       <div class="feature-item">
-        <h3>Interactive Widgets & StandBy</h3>
-        <p>Dock iPhone horizontally on a charger for full-screen lyrics, or tap album art to resync timelines instantly.</p>
+        <h3>📱 Home Screen Widgets</h3>
+        <p>Beautiful widgets with vinyl animation. Tap the vinyl to refresh lyrics. Multiple themes: Pitch Black, Slate, Ivory White.</p>
+      </div>
+      <div class="feature-item">
+        <h3>🎵 Multi-Source Lyrics</h3>
+        <p>Automatic fallback across multiple lyrics providers. If one source doesn't have the lyrics, we try another.</p>
+      </div>
+      <div class="feature-item">
+        <h3>🎤 Spotify & Apple Music</h3>
+        <p>Works seamlessly with both Spotify and Apple Music. Switch between sources with one tap.</p>
+      </div>
+      <div class="feature-item">
+        <h3>⏱️ StandBy Mode</h3>
+        <p>Place your iPhone horizontally on a charger for full-screen lyrics. Perfect for your nightstand or desk.</p>
       </div>
     </section>
   </main>
 
   <footer>
-    <div>&copy; 2026 Caraoke. Designed for passengers.</div>
+    <div>&copy; 2026 Caraoke. Made for music lovers.</div>
     <div>
-      <a href="docs.html">Docs</a> &middot;
+      <a href="docs.html">Documentation</a> &middot;
       <a href="docs.html#common-problems">Troubleshooting</a> &middot;
-      <a href="docs.html#carplay">CarPlay on iOS 26</a>
+      <a href="docs.html#carplay">CarPlay Setup</a>
     </div>
   </footer>
 </body>
