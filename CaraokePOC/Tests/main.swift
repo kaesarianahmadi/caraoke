@@ -314,7 +314,7 @@ final class TestRunner {
         }
         checkEqual("throttleIntervalElapsed", throttle.decide(critical: false, now: base.addingTimeInterval(2.5)), .sendNow)
 
-        // MARK: NetEase fallback — strict match only (wrong lyric > no lyric)
+        // MARK: YouTube Music InnerTube fallback & concurrent race
         do {
             MockURLProtocol.reset()
             func makeFallback(cacheDir: URL) -> FallbackLyricsProvider {
@@ -323,53 +323,93 @@ final class TestRunner {
                     lrclib: LRCLIBLyricsProvider(
                         session: MockURLProtocol.makeSession(),
                         cache: LyricsDiskCache(directory: cacheDir)
+                    ),
+                    ytm: YouTubeMusicLyricsProvider(
+                        session: MockURLProtocol.makeSession()
                     )
                 )
             }
             func cacheDir(_ name: String) -> URL {
                 FileManager.default.temporaryDirectory
-                    .appendingPathComponent("netease-\(name)-\(UUID().uuidString)")
+                    .appendingPathComponent("ytm-\(name)-\(UUID().uuidString)")
             }
             let sig = TrackSignature(title: "Buyer's Remorse", artist: "Daniel Caesar",
                                      durationMs: 152_000)
 
-            // A Mandarin cover with another artist and a 214 s runtime is not
-            // the song that is playing: the fallback must refuse it.
+            let mismatchSearchJSON = Data("""
+            {"contents":{"tabbedSearchResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[{"musicShelfRenderer":{"contents":[{"musicResponsiveListItemRenderer":{"overlay":{"musicItemThumbnailOverlayRenderer":{"content":{"musicPlayButtonRenderer":{"playNavigationEndpoint":{"watchEndpoint":{"videoId":"vidMismatch"}}}}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Different Song"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Other Artist"},{"text":" • "},{"text":"3:34"}]}}}]}}]}}]}}}}]}}}
+            """.utf8)
+
+            let matchSearchJSON = Data("""
+            {"contents":{"tabbedSearchResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[{"musicShelfRenderer":{"contents":[{"musicResponsiveListItemRenderer":{"overlay":{"musicItemThumbnailOverlayRenderer":{"content":{"musicPlayButtonRenderer":{"playNavigationEndpoint":{"watchEndpoint":{"videoId":"vid123"}}}}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Buyer's Remorse"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Daniel Caesar"},{"text":" • "},{"text":"2:32"}]}}}]}}]}}]}}}}]}}}
+            """.utf8)
+
+            let nextJSON = Data("""
+            {"contents":{"singleColumnMusicWatchNextResultsRenderer":{"tabbedRenderer":{"watchNextTabbedResultsRenderer":{"tabs":[{"tabRenderer":{"title":"Lyrics","endpoint":{"browseEndpoint":{"browseId":"MPLY123"}}}}]}}}}}
+            """.utf8)
+
+            let browseJSON = Data("""
+            {"contents":{"elementRenderer":{"newElement":{"type":{"componentType":{"model":{"timedLyricsModel":{"lyricsData":{"sourceMessage":"Source: LyricFind","timedLyricsData":[{"lyricLine":"I guess I got what I prayed for","cueRange":{"startTimeMilliseconds":"168","endTimeMilliseconds":"4683"}},{"lyricLine":"Now you're in my bed","cueRange":{"startTimeMilliseconds":"4683","endTimeMilliseconds":"8000"}}]}}}}}}}}}
+            """.utf8)
+
+            // Mismatch candidate is rejected
             MockURLProtocol.handler = { request in
                 let path = request.url?.path ?? ""
                 if path.contains("search") {
-                    return (MockURLProtocol.httpResponse(200), Data("""
-                    {"result":{"songs":[{"id":1,"name":"买家懊悔","duration":214000,
-                     "artists":[{"name":"某歌手"}]}]}}
-                    """.utf8))
+                    return (MockURLProtocol.httpResponse(200), mismatchSearchJSON)
                 }
                 return (MockURLProtocol.httpResponse(404), Data("null".utf8))
             }
-            check("neteaseRejectsMismatch",
+            check("ytmRejectsMismatch",
                   awaitLyrics { try await makeFallback(cacheDir: cacheDir("a")).lyrics(for: sig) }.value == nil)
 
-            // The real entry: title + artist + duration agree, and the credit
-            // rows at 0.0 s are dropped instead of rendered as lyrics.
+            // Matching candidate is resolved with timed lines
             MockURLProtocol.reset()
             MockURLProtocol.handler = { request in
                 let path = request.url?.path ?? ""
                 if path.contains("search") {
-                    return (MockURLProtocol.httpResponse(200), Data("""
-                    {"result":{"songs":[{"id":2,"name":"Buyer's Remorse","duration":152170,
-                     "artists":[{"name":"Daniel Caesar"},{"name":"Omar Apollo"}]}]}}
-                    """.utf8))
+                    return (MockURLProtocol.httpResponse(200), matchSearchJSON)
                 }
-                if path.contains("lyric") {
-                    return (MockURLProtocol.httpResponse(200), Data("""
-                    {"lrc":{"lyric":"[00:00.000] 作词 : Ashton Simmonds\\n[00:00.168] I guess I got what I prayed for\\n[00:04.683] Now you're in my bed"}}
-                    """.utf8))
+                if path.contains("next") {
+                    return (MockURLProtocol.httpResponse(200), nextJSON)
+                }
+                if path.contains("browse") {
+                    return (MockURLProtocol.httpResponse(200), browseJSON)
                 }
                 return (MockURLProtocol.httpResponse(404), Data("null".utf8))
             }
             let matched = awaitLyrics { try await makeFallback(cacheDir: cacheDir("b")).lyrics(for: sig) }
-            check("neteaseAcceptsMatch", matched.value?.lines.map(\.text)
+            check("ytmAcceptsMatch", matched.value?.lines.map(\.text)
                 == ["I guess I got what I prayed for", "Now you're in my bed"])
-            check("neteaseDropsCreditRows", matched.value?.lines.first?.startMs == 168)
+            check("ytmStartMsExact", matched.value?.lines.first?.startMs == 168)
+
+            // Race test: LRCLIB succeeds first
+            MockURLProtocol.reset()
+            MockURLProtocol.handler = { request in
+                let host = request.url?.host ?? ""
+                if host.contains("lrclib") {
+                    return (MockURLProtocol.httpResponse(200), MockURLProtocol.trackJSON(id: 99, synced: "[00:01.00]from lrclib"))
+                }
+                return (MockURLProtocol.httpResponse(404), Data("null".utf8))
+            }
+            let raceFast = awaitLyrics { try await makeFallback(cacheDir: cacheDir("c")).lyrics(for: sig) }
+            check("raceLRCLIBWinsFast", raceFast.value?.lines.map(\.text) == ["from lrclib"])
+
+            // Race test: LRCLIB 404, YTM rescues
+            MockURLProtocol.reset()
+            MockURLProtocol.handler = { request in
+                let host = request.url?.host ?? ""
+                let path = request.url?.path ?? ""
+                if host.contains("lrclib") {
+                    return (MockURLProtocol.httpResponse(404), Data("{\"error\":\"not found\"}".utf8))
+                }
+                if path.contains("search") { return (MockURLProtocol.httpResponse(200), matchSearchJSON) }
+                if path.contains("next") { return (MockURLProtocol.httpResponse(200), nextJSON) }
+                if path.contains("browse") { return (MockURLProtocol.httpResponse(200), browseJSON) }
+                return (MockURLProtocol.httpResponse(404), Data("null".utf8))
+            }
+            let raceRescue = awaitLyrics { try await makeFallback(cacheDir: cacheDir("d")).lyrics(for: sig) }
+            check("raceYTMRescuesLRCLIB404", raceRescue.value?.lines.first?.text == "I guess I got what I prayed for")
         }
 
         // MARK: LRCLIB lyrics provider (mocked network — no real requests)
@@ -646,6 +686,10 @@ final class TestRunner {
             let jitter = nowPlayingState(posMs: 15_500, playedAgo: 0, playing: true, at: t0)
             engine.apply(jitter)
             check("syncEngineJitterKeptAnchor", engine.anchor?.positionMs == 10_000)
+
+            let drift = nowPlayingState(posMs: 15_700, playedAgo: 0, playing: true, at: t0)
+            engine.apply(drift)
+            check("syncEngineDriftSlewed", engine.anchor?.positionMs == 15_350)
 
             let seek = nowPlayingState(posMs: 20_500, playedAgo: 0, playing: true, at: t0)
             engine.apply(seek)

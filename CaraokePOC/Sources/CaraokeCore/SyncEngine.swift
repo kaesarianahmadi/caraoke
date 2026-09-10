@@ -47,6 +47,7 @@ struct LyricsPosition: Equatable {
 }
 
 final class SyncEngine {
+    static let jitterThresholdMs = 500
     static let seekThresholdMs = 1000
     static let tickInterval: TimeInterval = 0.25
 
@@ -65,22 +66,39 @@ final class SyncEngine {
         tick()
     }
 
-    /// Adopts a new source report. Small deviations from the extrapolated
-    /// position (≤ 2 s) are treated as polling jitter and ignored so the
-    /// display doesn't stutter; anything larger is a seek and snaps.
+    /// Adopts a new source report.
+    /// - Track change: purges lines immediately to eliminate stale lyric flash.
+    /// - Jitter (<= 500 ms): ignored to preserve smooth continuous extrapolation.
+    /// - Drift (500-1000 ms): slews smoothly toward reported position without visual jumps.
+    /// - Seek (> 1000 ms) or play/pause flip: hard snaps anchor.
     func apply(_ state: NowPlayingState?) {
         defer { tick() }
         guard let new = state else {
             anchor = nil
             return
         }
-        if let current = anchor,
-           current.isSameTrack(as: new),
-           current.isPlaying == new.isPlaying,
-           new.isPlaying {
-            let expected = Self.extrapolatedPositionMs(anchor: current, at: new.capturedAt)
-            if abs(expected - new.positionMs) <= Self.seekThresholdMs {
-                return // within jitter tolerance — keep the smoother existing anchor
+        if let current = anchor {
+            if current.isSameTrack(as: new),
+               current.isPlaying == new.isPlaying,
+               new.isPlaying {
+                let expected = Self.extrapolatedPositionMs(anchor: current, at: new.capturedAt)
+                let delta = abs(expected - new.positionMs)
+                if delta <= Self.jitterThresholdMs {
+                    return // within jitter tolerance — keep existing smooth anchor
+                }
+                if delta <= Self.seekThresholdMs {
+                    // Slew: converge smoothly towards reported position
+                    let slewedMs = expected + (new.positionMs - expected) / 2
+                    anchor = NowPlayingState(
+                        title: current.title, artist: current.artist, album: current.album,
+                        durationMs: current.durationMs, positionMs: slewedMs,
+                        isPlaying: current.isPlaying, source: current.source,
+                        capturedAt: new.capturedAt,
+                        artworkURL: new.artworkURL ?? current.artworkURL,
+                        artworkData: new.artworkData ?? current.artworkData
+                    )
+                    return
+                }
             }
         }
         anchor = new // new track, play/pause flip, or a real seek: snap
