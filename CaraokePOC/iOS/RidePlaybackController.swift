@@ -178,12 +178,15 @@ final class RidePlaybackController: ObservableObject {
     /// pauses/resumes (the relay otherwise holds a stale wall-clock schedule
     /// and overwrites the tile with out-of-sync lines).
     private func handle(_ state: NowPlayingState?) {
-        engine.apply(state)
-        guard let state else { return }
+        guard let state else {
+            engine.apply(nil)
+            return
+        }
         let key = TrackMatcher.signature(
             title: state.title, artist: state.artist, durationMs: state.durationMs
         )
-        guard key == lastLyricsKey else {
+        let isNewTrack = key != lastLyricsKey
+        if isNewTrack {
             lastLyricsKey = key
             lastTrack = nil
             lyricsFetchTask?.cancel()
@@ -196,51 +199,55 @@ final class RidePlaybackController: ObservableObject {
             trackTitle = state.title
             trackArtist = state.artist
             lyricState = .loading
-
-            // Extract artwork: Apple Music supplies raw Data; Spotify provides URL
-            if let data = state.artworkData, let image = UIImage(data: data) {
-                setArtwork(image: image, key: key)
-            } else if let urlStr = state.artworkURL, let url = URL(string: urlStr) {
-                self.lastArtworkKey = key
-                Task { [weak self] in
-                    guard let (data, _) = try? await URLSession.shared.data(from: url),
-                          let image = UIImage(data: data) else { return }
-                    await MainActor.run {
-                        guard let self, self.lastArtworkKey == key else { return }
-                        self.setArtwork(image: image, key: key)
-                    }
-                }
-            } else {
-                clearArtwork(key: key)
-            }
-
-            let signature = TrackSignature(
-                title: state.title, artist: state.artist,
-                album: state.album, durationMs: state.durationMs
-            )
-            lyricsFetchTask = Task { [weak self] in
-                guard let self else { return }
-                guard let track = try? await self.provider.lyrics(for: signature) else {
-                    if !Task.isCancelled {
-                        self.lyricState = .noLyrics
-                    }
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                self.lastTrack = track
-                self.engine.setLyrics(
-                    track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation) }
-                )
-                self.armRelay(track: track)
-                self.lyricState = .playing
-                self.render(self.engine.positionSubject.value)
+        }
+        engine.apply(state)
+        guard isNewTrack else {
+            // Same track: re-register only if a seek or play/pause flip moved the
+            // relay's timeline (the 1 s poll makes this near-instant).
+            if lastTrack != nil {
+                rearmRelayIfNeeded()
             }
             return
         }
-        // Same track: re-register only if a seek or play/pause flip moved the
-        // relay's timeline (the 1 s poll makes this near-instant).
-        guard lastTrack != nil else { return }
-        rearmRelayIfNeeded()
+
+        // Extract artwork: Apple Music supplies raw Data; Spotify provides URL
+        if let data = state.artworkData, let image = UIImage(data: data) {
+            setArtwork(image: image, key: key)
+        } else if let urlStr = state.artworkURL, let url = URL(string: urlStr) {
+            self.lastArtworkKey = key
+            Task { [weak self] in
+                guard let (data, _) = try? await URLSession.shared.data(from: url),
+                      let image = UIImage(data: data) else { return }
+                await MainActor.run {
+                    guard let self, self.lastArtworkKey == key else { return }
+                    self.setArtwork(image: image, key: key)
+                }
+            }
+        } else {
+            clearArtwork(key: key)
+        }
+
+        let signature = TrackSignature(
+            title: state.title, artist: state.artist,
+            album: state.album, durationMs: state.durationMs
+        )
+        lyricsFetchTask = Task { [weak self] in
+            guard let self else { return }
+            guard let track = try? await self.provider.lyrics(for: signature) else {
+                if !Task.isCancelled {
+                    self.lyricState = .noLyrics
+                }
+                return
+            }
+            guard !Task.isCancelled else { return }
+            self.lastTrack = track
+            self.engine.setLyrics(
+                track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation) }
+            )
+            self.armRelay(track: track)
+            self.lyricState = .playing
+            self.render(self.engine.positionSubject.value)
+        }
     }
 
     /// Arms the background relay with the lyric schedule + the track's

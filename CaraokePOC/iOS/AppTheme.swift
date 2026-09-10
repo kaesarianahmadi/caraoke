@@ -38,10 +38,64 @@ enum AppTheme {
     static func background(_ scheme: ColorScheme) -> some View {
         bg(scheme).ignoresSafeArea()
     }
+}
 
-    /// Cover-following wash — the same recipe the widgets paint, reused by the
-    /// lyrics page so a song's colour follows the user everywhere.
-    static func coverWash(_ hex: String?) -> LinearGradient? {
+/// One cover treatment for the in-app surfaces (floating mini player, the
+/// Widget section's preview). The real artwork when there is one, otherwise the
+/// same vinyl fallback the Home Screen widget paints — so the app never shows a
+/// hand-painted stand-in for the song that is actually playing (build 40's
+/// preview hardcoded a blue gradient and a fixed brown disc).
+struct CoverArtworkView: View {
+    let artworkData: Data?
+    var cornerRadius: CGFloat = 12
+    /// Circular vinyl fallback instead of the artwork square (the Widget
+    /// preview's default cover style).
+    var showsVinylFallback: Bool = false
+    /// Cover average colour (`RRGGBB`), used to tint the artwork placeholder so
+    /// even the empty state follows the song.
+    var artworkColorHex: String?
+
+    var body: some View {
+        Group {
+            if let data = artworkData, let image = UIImage(data: data) {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else if showsVinylFallback {
+                vinyl
+            } else {
+                placeholder
+            }
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            (artworkColorHex.flatMap(Color.init(hexString:)) ?? AppTheme.darkSurface)
+            Image(systemName: "music.note")
+                .font(.system(size: cornerRadius * 1.1, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
+    private var vinyl: some View {
+        ZStack {
+            Circle().fill(RadialGradient(colors: [.black, Color(white: 0.16), .black],
+                                         center: .center, startRadius: 6, endRadius: 60))
+            ForEach(0..<6, id: \.self) { index in
+                Circle().stroke(.white.opacity(0.07), lineWidth: 0.5)
+                    .padding(CGFloat(index * 8 + 6))
+            }
+            (artworkColorHex.flatMap(Color.init(hexString:)) ?? Color(white: 0.45))
+                .frame(width: 83, height: 83)
+                .clipShape(Circle())
+            Circle().fill(.white.opacity(0.5)).frame(width: 7, height: 7)
+        }
+    }
+}
+
+/// Cover-following wash — the same recipe the widgets paint, reused by the
+/// lyrics page so a song's colour follows the user everywhere.
+extension CoverArtworkView {
+    static func wash(_ hex: String?) -> LinearGradient? {
         guard let hex, let color = Color(hexString: hex) else { return nil }
         return LinearGradient(
             colors: [color.opacity(0.92), color.opacity(0.5), .black.opacity(0.94)],

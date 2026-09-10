@@ -15,7 +15,7 @@ struct LyricsPageView: View {
     @State private var coverHex: String?
 
     /// Cover wash when the song has artwork, flat app background otherwise.
-    private var wash: LinearGradient? { AppTheme.coverWash(coverHex) }
+    private var wash: LinearGradient? { CoverArtworkView.wash(coverHex) }
     private var fg: Color { wash == nil ? AppTheme.fg(scheme) : .white }
     private var muted: Color { wash == nil ? AppTheme.muted(scheme) : .white.opacity(0.55) }
     private var surface: Color { wash == nil ? AppTheme.surface(scheme) : .white.opacity(0.12) }
@@ -98,41 +98,66 @@ struct LyricsPageView: View {
 
     // MARK: - Lyric stage
 
-    /// Every previous and upcoming line is rendered; `ViewThatFits` picks the
-    /// largest step that still fits the window, so the free space is spent on
-    /// more lyrics instead of on emptiness.
+    /// One size for the whole page — `LyricType.pageLyric` (28 pt), the
+    /// Spotify / Apple Music scale, up from build 40's 18 pt.
+    ///
+    /// Build 40 used a six-step `ViewThatFits` ladder (30 → 15), so the page
+    /// rendered at a different size on every song depending on which step fit.
+    /// Now the SIZE is fixed and the WINDOW of visible lines adapts instead:
+    /// the active line sits centred in the viewport and older lines scroll off
+    /// the top, exactly like the players we are matching.
     private var lyricStage: some View {
-        ViewThatFits(in: .vertical) {
-            stageRows(size: 30)
-            stageRows(size: 27)
-            stageRows(size: 24)
-            stageRows(size: 21)
-            stageRows(size: 18)
-            stageRows(size: 15)
+        GeometryReader { geo in
+            let rows = visibleRows(viewportHeight: geo.size.height)
+            VStack(alignment: .leading, spacing: LyricType.pageLyric * 0.34) {
+                ForEach(rows) { row in
+                    Text(row.text)
+                        .font(.system(size: LyricType.pageLyric,
+                                      weight: row.isHero ? LyricType.lyricWeight : LyricType.lyricNeighborWeight))
+                        .foregroundColor(row.isHero ? fg : muted.opacity(row.opacity))
+                        .multilineTextAlignment(.leading)
+                        .lineSpacing(LyricType.lyricLineSpacing)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        ))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .animation(.easeInOut(duration: 0.32), value: rows.map(\.id))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 12)
+        .onAppear {
+            // Let the first layout use the full history, then centre.
+            DispatchQueue.main.async { centresWindow = true }
+        }
     }
 
-    private func stageRows(size: CGFloat) -> some View {
-        let items = rows
-        return VStack(alignment: .leading, spacing: size * 0.3) {
-            ForEach(items) { row in
-                Text(row.text)
-                    // One size everywhere; the active line is the bold one.
-                    .font(.system(size: size, weight: row.isHero ? .bold : .regular))
-                    .foregroundColor(row.isHero ? fg : muted.opacity(row.opacity))
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.easeInOut(duration: 0.32), value: items.map(\.id))
+    /// How many already-sung lines to keep on screen above the active one.
+    /// Starts at the whole history (so opening the page fills the window) and
+    /// converges on the middle as the song advances, which keeps the active
+    /// line centred instead of walking down to the bottom edge.
+    @State private var centresWindow = false
+
+    private func visibleRows(viewportHeight: CGFloat) -> [PageRow] {
+        let all = rows
+        guard let heroIndex = all.firstIndex(where: \.isHero) else { return all }
+        guard viewportHeight > 0 else { return all }
+
+        let capacity = max(3, Int(viewportHeight / (LyricType.pageLyric * 1.34)))
+        let history = heroIndex
+        // On the first layout the window is everything the song has already
+        // sung (the page fills immediately instead of opening half empty).
+        // `centresWindow` flips true in `onAppear`, after which the window
+        // centres on the active line.
+        let showAbove = centresWindow ? max(0, capacity / 2) : history
+        let showBelow = max(1, capacity - showAbove - 1)
+        let start = max(0, heroIndex - showAbove)
+        let end = min(all.count, heroIndex + showBelow + 1)
+        return Array(all[start..<end])
     }
 
     private struct PageRow: Identifiable {

@@ -9,24 +9,33 @@ import WidgetKit
 /// the persistent Home Screen widgets, and the in-app player card.
 /// Renders the dark karaoke lyric block with static anti-flicker container.
 
-/// Layout capacity knobs per surface. `lyricFont` is the user-mandated 18 pt
-/// everywhere lyrics render (widgets + in-app + Live Activity).
+/// Layout capacity per surface. Every lyric row renders at `LyricType.lyric`
+/// (18 pt) on every surface — there is no per-surface font override, because
+/// that is exactly what made build 40's widgets inconsistent.
+///
+/// The row budgets come from `LyricSurface` in CaraokeCore (one table, also
+/// asserted by `Tests/main.swift`). The tile tries them richest-first and
+/// renders the most generous set that fits, so a cramped surface shows fewer
+/// lines instead of smaller ones.
 struct LyricTileLayout {
-    var lyricFont: CGFloat = 18
-    var heroLines: Int = 2          // wrapping budget of the active line
-    var previousShown: Int = 1      // dimmed karaoke context above the hero
-    var upcomingShown: Int = 1      // dimmed follow-on line below the hero
-    var upcomingLines: Int = 1      // each dimmed line may re-wrap to 2 visual rows
-    /// nil = size to content instead of a fixed anti-flicker box.
+    /// Fixed anti-flicker box height for surfaces that cannot reflow (Lock
+    /// Screen banner, CarPlay, the in-app card). nil = size to content.
     var boxHeight: CGFloat? = 108
+    /// Ceiling for content-sized surfaces (the large widget).
     var maxBoxHeight: CGFloat? = nil
+
     var headerCompact: Bool = false // one identity row instead of title+artist stack
     var showsHeader: Bool = true
     var showsBottomBar: Bool = false // large-widget cover/title/transport row
-    /// Centres the whole stack in the surface (large widget: lifts the player
-    /// bar off the bottom edge).
-    var centersVertically: Bool = false
+    /// Centres the lyric block and the whole stack in the surface. Every
+    /// surface sets this now: build 40 pinned lyrics to the top for all but
+    /// the large widget, which is the "placement is too high / not using the
+    /// space" defect.
+    var centersVertically: Bool = true
     var padding: CGFloat = 16
+    /// Height the surface reserves for everything that is not the lyric block:
+    /// padding, the header row, the progress bar, the large widget's player bar.
+    var chromeHeight: CGFloat = 0
 }
 
 struct LyricTilePalette {
@@ -105,6 +114,18 @@ struct LyricTileView: View {
         case home             // in-app player card (own card, theme palette)
 
         var isWidget: Bool { self == .widgetSmall || self == .widgetMedium || self == .widgetLarge }
+
+        /// Which entry of the shared budget table drives this surface.
+        var profile: LyricSurface {
+            switch self {
+            case .lockBanner: return .lockBanner
+            case .carPlaySmall: return .carPlaySmall
+            case .widgetSmall: return .widgetSmall
+            case .widgetMedium: return .widgetMedium
+            case .widgetLarge: return .widgetLarge
+            case .home: return .home
+            }
+        }
     }
     let surface: Surface
     var palette: LyricTilePalette?
@@ -119,41 +140,60 @@ struct LyricTileView: View {
     private var colors: LyricTilePalette { palette ?? .activity }
 
     private var layout: LyricTileLayout {
+        // Row budgets and heights come from `LyricSurface` in CaraokeCore, so
+        // the numbers this view renders and the numbers `Tests/main.swift`
+        // asserts are literally the same values.
         switch surface {
         case .lockBanner:
-            // Apple's banner lands at ~160 pt. A two-row identity stack plus
-            // the 108 pt box ran ~30 pt over that, so the banner gets one
-            // identity row and a 100 pt box: 12 + 20 + 100 + 9 + 12 ≈ 153 pt.
-            return LyricTileLayout(heroLines: 2, previousShown: 1, upcomingShown: 1,
-                                   boxHeight: 100, headerCompact: true, padding: 12)
+            // Apple's Lock Screen banner is ~160 pt and the content sits in the
+            // system's own gloss card inset, so the tile gets ~145 pt. Build 40
+            // asked for a 100 pt block and pinned it to the top: two lines high
+            // with dead space underneath.
+            return LyricTileLayout(boxHeight: LyricSurface.lockBanner.blockHeight,
+                                   headerCompact: true, padding: 12,
+                                   chromeHeight: LyricSurface.lockBanner.chromeHeight)
         case .carPlaySmall:
-            return LyricTileLayout(heroLines: 2, previousShown: 1, upcomingShown: 1,
-                                   boxHeight: 92, headerCompact: true, padding: 12)
+            return LyricTileLayout(boxHeight: LyricSurface.carPlaySmall.blockHeight,
+                                   headerCompact: true, padding: 12,
+                                   chromeHeight: LyricSurface.carPlaySmall.chromeHeight)
         case .widgetSmall:
-            // Apple's 158×158 grid: one identity row + hero + next line.
-            // Also the StandBy/CarPlay tile: the system scales this up, so it
-            // carries larger type and no dimmed past line.
-            return LyricTileLayout(lyricFont: 20, heroLines: 3, previousShown: 0, upcomingShown: 1,
-                                   upcomingLines: 1, boxHeight: 96, headerCompact: true, padding: 14)
+            // Apple's 158×158 grid, also the StandBy/CarPlay tile (the system
+            // scales this up). One identity row, then hero (2 wrapped rows) plus
+            // two following lines — the "three or four lines" the user asked
+            // for. Build 40 gave this surface 96 pt for a 3-row hero + 2 lines
+            // and clipped the overflow.
+            return LyricTileLayout(boxHeight: LyricSurface.widgetSmall.blockHeight,
+                                   headerCompact: true, padding: 14,
+                                   chromeHeight: LyricSurface.widgetSmall.chromeHeight)
         case .widgetMedium:
-            return LyricTileLayout(previousShown: 1, upcomingShown: 2, upcomingLines: 1,
-                                   boxHeight: 104, headerCompact: true, padding: 16)
+            // 338×158: the vinyl/cover takes the right half, lyrics the left.
+            return LyricTileLayout(boxHeight: LyricSurface.widgetMedium.blockHeight,
+                                   headerCompact: true, padding: 14,
+                                   chromeHeight: LyricSurface.widgetMedium.chromeHeight)
         case .widgetLarge:
-            // Competitor blueprint: lyrics own the top, identity + transport
-            // live in the bottom row — no header. The lyric block sizes to its
-            // content (more lines fill the 4x4 grid instead of leaving dead
-            // space above and below a fixed box) and the whole stack centres,
-            // which lifts the player bar off the bottom edge.
-            return LyricTileLayout(lyricFont: 21, heroLines: 3, previousShown: 2, upcomingShown: 4,
-                                   upcomingLines: 1, boxHeight: nil, maxBoxHeight: 250,
-                                   showsHeader: false, showsBottomBar: true,
-                                   centersVertically: true, padding: 16)
+            // 4x4 grid. Lyrics own the top, identity + transport move to the
+            // bottom row, so there is no header here. Build 40 asked for a
+            // 3-row hero plus 6 neighbours (≈450 pt) against a 250 pt ceiling,
+            // then clipped whatever did not fit.
+            return LyricTileLayout(
+                boxHeight: nil, maxBoxHeight: 262,
+                showsHeader: false, showsBottomBar: true,
+                centersVertically: true, padding: 16,
+                chromeHeight: LyricSurface.widgetLarge.chromeHeight)
         case .home:
-            // The in-app player card keeps the taller two-row identity stack
-            // and 108 pt box — it is a card, not a Lock Screen banner.
-            return LyricTileLayout()
+            // The in-app player card. Same 18 pt type as everything else; the
+            // block is wide enough for 4 rows of lyrics.
+            return LyricTileLayout(
+                boxHeight: LyricSurface.home.blockHeight,
+                centersVertically: true, padding: 16,
+                chromeHeight: LyricSurface.home.chromeHeight)
         }
     }
+
+    /// The tile always shows a progress bar except in the terminal stale
+    /// state. `LyricTileLayout.chromeHeight` is measured with it included, so
+    /// a surface that hides it simply gains headroom.
+    private var showsProgress: Bool { status != .stale }
 
     init(title: String, artist: String, currentLine: String,
          previousLines: [String] = [],
@@ -188,13 +228,17 @@ struct LyricTileView: View {
                 header(compact: spec.headerCompact)
             }
             lyricBody(spec: spec)
-            if status != .stale {
+            if showsProgress {
                 progressRow
             }
             if spec.showsBottomBar {
                 bottomBar
             }
         }
+        // Vertical centring is the fix for build 40's "placement is too high,
+        // not using the space": every surface centres its lyric block now, so
+        // three or four lines sit in the middle of the tile instead of clinging
+        // to the top edge above dead space.
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: spec.centersVertically ? .center : .topLeading)
         .padding(spec.padding)
@@ -287,53 +331,63 @@ struct LyricTileView: View {
     private func lyricBody(spec: LyricTileLayout) -> some View {
         switch status {
         case .loading:
-            boxed(VStack(alignment: .leading, spacing: 8) {
+            boxed(VStack(alignment: .center, spacing: 8) {
                 skeleton(widthFraction: 0.90)
                 skeleton(widthFraction: 0.70)
                 skeleton(widthFraction: 0.50)
-            }, spec: spec, alignment: .topLeading)
-            .padding(.top, 6)
+            }, spec: spec, alignment: .center)
         case .noLyrics:
-            boxed(VStack(alignment: .leading, spacing: 6) {
+            // Every text row in the tile is 18 pt, including these stand-ins —
+            // build 40 shrank them to 13, which is the same inconsistency the
+            // lyric rows had.
+            boxed(VStack(alignment: .center, spacing: LyricType.lyricRowSpacing) {
                 HStack(spacing: 6) {
-                    musicNoteGlyph(size: spec.lyricFont - 2)
+                    musicNoteGlyph(size: LyricType.lyric)
                     Text(currentLine.isEmpty ? title : currentLine)
-                        .font(.system(size: spec.lyricFont, weight: .bold))
+                        .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
                         .foregroundColor(colors.heroText)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Text("No lyrics found for this song")
-                    .font(.system(size: 13))
+                    .font(.system(size: LyricType.lyric))
                     .foregroundColor(colors.metaText)
-            }, spec: spec, alignment: .topLeading)
-            .padding(.top, 6)
+                    .multilineTextAlignment(.center)
+            }, spec: spec, alignment: .center)
         case .stale:
-            boxed(VStack(alignment: .leading, spacing: 6) {
+            boxed(VStack(alignment: .center, spacing: LyricType.lyricRowSpacing) {
                 Text(currentLine.isEmpty ? "Ride ended" : currentLine)
-                    .font(.system(size: spec.lyricFont, weight: .bold))
+                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
                     .foregroundColor(colors.heroText)
                     .opacity(0.32)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Lyrics return when a song plays")
-                    .font(.system(size: 13))
+                    .font(.system(size: LyricType.lyric))
                     .foregroundColor(colors.metaText)
-            }, spec: spec, alignment: .topLeading)
-            .padding(.top, 6)
+                    .multilineTextAlignment(.center)
+            }, spec: spec, alignment: .center)
         default:
             boxed(lyricRows(spec: spec), spec: spec,
                   alignment: spec.centersVertically ? .center : .top)
-                .padding(.top, 4)
         }
     }
 
     /// Fixed anti-flicker box where the surface cannot reflow (Lock Screen
-    /// banner, in-app card); content-sized where it can (the large widget).
+    /// banner, CarPlay, the in-app card); content-sized where it can (the large
+    /// widget).
+    ///
+    /// Deliberately NOT `.clipped()`: clipping is what hid build 40's overflow
+    /// behind a cut-off line. The `ViewThatFits` ladder inside `lyricRows`
+    /// picks a row set that fits, so anything reaching here already has room;
+    /// a non-lyric state that still overruns is allowed to scale its own
+    /// container rather than be silently amputated.
     @ViewBuilder
     private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
         if let height = spec.boxHeight {
-            content.frame(height: height, alignment: alignment).clipped()
+            content.frame(maxWidth: .infinity, height: height, alignment: alignment)
         } else {
-            content.frame(maxHeight: spec.maxBoxHeight, alignment: alignment).clipped()
+            content.frame(maxWidth: .infinity, maxHeight: spec.maxBoxHeight, alignment: alignment)
         }
     }
 
@@ -349,7 +403,7 @@ struct LyricTileView: View {
         let opacity: Double
     }
 
-    private func rows(spec: LyricTileLayout) -> [LyricRow] {
+    private func rows(spec: LyricTileLayout, budget: LyricRowBudget) -> [LyricRow] {
         var seen: [String: Int] = [:]
         func uniqueID(_ kind: String, _ text: String) -> String {
             let key = kind + "\u{1}" + text
@@ -359,7 +413,7 @@ struct LyricTileView: View {
         }
         var rows: [LyricRow] = []
         if status != .idle {
-            for (idx, line) in previousLines.suffix(spec.previousShown).enumerated() {
+            for (idx, line) in previousLines.suffix(budget.previousShown).enumerated() {
                 rows.append(LyricRow(id: uniqueID("p", line), text: line,
                                      kind: .previous, opacity: fade(previousIndex: idx)))
             }
@@ -367,7 +421,7 @@ struct LyricTileView: View {
         let hero = currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine
         rows.append(LyricRow(id: uniqueID("h", hero), text: hero, kind: .hero, opacity: 1))
         if status != .idle {
-            for (idx, line) in displayUpcomingLines.prefix(spec.upcomingShown).enumerated() {
+            for (idx, line) in displayUpcomingLines.prefix(budget.upcomingShown).enumerated() {
                 rows.append(LyricRow(id: uniqueID("u", line), text: line,
                                      kind: .upcoming, opacity: upcomingOpacity(index: idx)))
             }
@@ -375,12 +429,26 @@ struct LyricTileView: View {
         return rows
     }
 
+    /// The fit ladder. Richest row set first; `ViewThatFits` walks down to the
+    /// first one that actually fits the surface. This is what replaced
+    /// `minimumScaleFactor`: when space runs out the tile shows fewer lines at
+    /// the SAME 18 pt, instead of squeezing four lines into a smaller font.
     @ViewBuilder
     private func lyricRows(spec: LyricTileLayout) -> some View {
-        let items = rows(spec: spec)
-        VStack(alignment: .center, spacing: 6) {
+        let budgets = surface.profile.budgets
+        ViewThatFits(in: .vertical) {
+            ForEach(Array(budgets.enumerated()), id: \.offset) { _, budget in
+                rowsStack(spec: spec, budget: budget)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rowsStack(spec: LyricTileLayout, budget: LyricRowBudget) -> some View {
+        let items = rows(spec: spec, budget: budget)
+        VStack(alignment: .center, spacing: budget.rowSpacing) {
             ForEach(items) { row in
-                rowView(row, spec: spec)
+                rowView(row, budget: budget)
                     .transition(.asymmetric(
                         insertion: .move(edge: .bottom).combined(with: .opacity),
                         removal: .move(edge: .top).combined(with: .opacity)
@@ -391,37 +459,22 @@ struct LyricTileView: View {
         .animation(.easeInOut(duration: 0.32), value: items.map(\.id))
     }
 
+    /// Active line: 18 pt `.semibold` — emphasis by weight only. Build 40 used
+    /// `.bold` and the user read it as too heavy. It still has to be visibly
+    /// bolder than the dimmed neighbours, which `.semibold` is.
     @ViewBuilder
-    private func rowView(_ row: LyricRow, spec: LyricTileLayout) -> some View {
-        switch row.kind {
-        case .hero:
-            Text(row.text)
-                .font(.system(size: spec.lyricFont, weight: .bold))
-                .foregroundColor(colors.heroText)
-                .multilineTextAlignment(.center)
-                .lineLimit(spec.heroLines)
-                .minimumScaleFactor(0.65)
-                .lineSpacing(2)
-                .frame(maxWidth: .infinity, alignment: .center)
-        case .previous:
-            Text(row.text)
-                .font(.system(size: spec.lyricFont, weight: .regular))
-                .foregroundColor(colors.nextText.opacity(row.opacity))
-                .multilineTextAlignment(.center)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .center)
-        case .upcoming:
-            Text(row.text)
-                .font(.system(size: spec.lyricFont, weight: .regular))
-                .foregroundColor(colors.nextText.opacity(row.opacity))
-                .multilineTextAlignment(.center)
-                .lineLimit(spec.upcomingLines)
-                .lineSpacing(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+    private func rowView(_ row: LyricRow, budget: LyricRowBudget) -> some View {
+        let weight: Font.Weight = row.kind == .hero ? LyricType.lyricWeight : LyricType.lyricNeighborWeight
+        let allowance = row.kind == .hero ? budget.heroRows : budget.neighborRows
+        Text(row.text)
+            .font(.system(size: budget.font, weight: weight))
+            .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
+            .multilineTextAlignment(.center)
+            // Wrap to the budget, then truncate. Never shrink.
+            .lineLimit(allowance)
+            .lineSpacing(budget.lineSpacing)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var displayUpcomingLines: [String] {

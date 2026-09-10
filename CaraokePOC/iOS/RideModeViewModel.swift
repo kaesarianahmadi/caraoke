@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import os
+import UIKit
 
 /// The ride controller: owns Ride Mode state and the Live Activity.
 ///
@@ -39,6 +40,13 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var lyricStatus: LyricStatus = .idle
     /// Cover art of the current track — the mini player and the lyrics page.
     @Published private(set) var artworkData: Data?
+
+    /// Average colour of the cover as `RRGGBB`. The same value the widget
+    /// payload carries, so the in-app surfaces can follow the song's colour
+    /// exactly like the Home Screen widget does.
+    var artworkColorHex: String? {
+        artworkData.flatMap(UIImage.init(data:))?.averageColorHex
+    }
 
     // Home screen bindings (design states A–D).
 

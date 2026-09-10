@@ -31,41 +31,20 @@ struct VinylWidgetView: View {
     }
 
     private var lyricsSection: some View {
+        // Identity pinned to the top, transport pinned to the bottom, lyrics
+        // centred in whatever is left. Build 40 stacked all three from the top
+        // with a fixed 80 pt clip, which is why the block sat high with dead
+        // space below it and lost its tail behind the clip.
         VStack(alignment: .leading, spacing: 0) {
             Text(identity)
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(theme.mutedTextColor)
                 .lineLimit(1)
 
             Spacer(minLength: 4)
 
-            // Same size for every line; only the playing line is bold. The
-            // block is bounded so a long line SCALES DOWN instead of being
-            // clipped — the 158 pt medium grid has no room to grow. Keyed
-            // by line index so WidgetKit pushes each new line in from the
-            // bottom.
-            VStack(alignment: .leading, spacing: 2) {
-                if let previous = entry.previousLines.last {
-                    Text(previous)
-                        .font(.system(size: 13))
-                        .foregroundStyle(theme.mutedTextColor.opacity(0.55))
-                        .lineLimit(1)
-                }
-                Text(entry.currentLine.isEmpty ? "Play a song to see lyrics" : entry.currentLine)
-                    .font(.system(size: 15, weight: .bold))
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.7)
-                if let next = entry.nextLine, !next.isEmpty {
-                    Text(next)
-                        .font(.system(size: 13))
-                        .foregroundStyle(theme.mutedTextColor.opacity(0.72))
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: 80, alignment: .topLeading)
-            .clipped()
-            .id(entry.lineIndex)
-            .transition(.push(from: .bottom))
+            lyricBlock
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 4)
 
@@ -75,6 +54,36 @@ struct VinylWidgetView: View {
                 intentButton("forward.fill", intent: NextTrackIntent(), label: "Next song", size: 13)
             }
         }
+    }
+
+    /// Every row at the SAME 18 pt (`LyricType.lyric`). Emphasis on the active
+    /// line is weight only — `.semibold`, not `.bold` (user direction: build
+    /// 40's active line was too heavy). No `minimumScaleFactor`: a long line
+    /// wraps into the two-row budget instead of shrinking. Keyed by line index
+    /// so WidgetKit pushes each new line in from the bottom.
+    private var lyricBlock: some View {
+        VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
+            if let previous = entry.previousLines.last, !previous.isEmpty {
+                Text(previous)
+                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                    .foregroundStyle(theme.mutedTextColor.opacity(0.42))
+                    .lineLimit(1)
+            }
+            Text(entry.currentLine.isEmpty ? "Play a song to see lyrics" : entry.currentLine)
+                .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                .foregroundStyle(theme.textColor)
+                .lineLimit(2)
+                .lineSpacing(LyricType.lyricLineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+            if let next = entry.nextLine, !next.isEmpty {
+                Text(next)
+                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                    .foregroundStyle(theme.mutedTextColor.opacity(0.62))
+                    .lineLimit(1)
+            }
+        }
+        .id(entry.lineIndex)
+        .transition(.push(from: .bottom))
     }
 
     /// The record/cover IS the resync button — tapping it refreshes the shared

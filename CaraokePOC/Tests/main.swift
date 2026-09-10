@@ -772,6 +772,75 @@ final class TestRunner {
             checkEqual("widgetCappedStart", capped.first?.lineIndex, 10)
         }
 
+        // MARK: Lyric layout budget (build 41)
+        //
+        // Build 40's regression, mechanically: every surface rendered lyrics at
+        // its own font size and shrank the text with `minimumScaleFactor` when a
+        // line overran, and the large widget asked for ~450 pt of lyrics inside
+        // a ~262 pt block, then clipped the overflow. These checks assert the
+        // opposite: ONE font size, and a row budget that provably fits.
+        do {
+            // One type scale for every surface. This is the "text consistency"
+            // requirement, expressed as a number.
+            let fonts = LyricSurface.allCases.flatMap { $0.budgets.map(\.font) }
+            check("layoutSingleFont", Set(fonts) == [LyricType.lyric])
+            checkEqual("layoutFontIs18", LyricType.lyric, 18)
+
+            // The active line is emphasis-by-weight only, and slimmer than
+            // build 40's `.bold` (user direction).
+            check("layoutHeroNotBold", LyricType.lyricWeight != .bold)
+            check("layoutHeroHeavierThanNeighbours", LyricType.lyricWeight != LyricType.lyricNeighborWeight)
+
+            // The budget exists in the first place — a surface must offer at
+            // least the active line.
+            check("layoutEverySurfaceHasBudget",
+                  LyricSurface.allCases.allSatisfy { !$0.budgets.isEmpty })
+
+            // The core assertion: the richest row set a surface offers must fit
+            // the space that surface grants, worst case.
+            for surface in LyricSurface.allCases {
+                guard let richest = surface.budgets.first else { continue }
+                check("layoutFits_\(surface.rawValue)",
+                      richest.worstCaseHeight <= surface.blockHeight)
+            }
+
+            // Not just fits — useful. The large widget must beat build 40's two
+            // visible lines; the small widget and the Lock Screen must reach
+            // three rows.
+            check("layoutLargeShowsFourRows",
+                  (LyricSurface.widgetLarge.budgets.first?.rowCount ?? 0) >= 4)
+            check("layoutSmallShowsThreeRows",
+                  (LyricSurface.widgetSmall.budgets.first?.rowCount ?? 0) >= 3)
+            check("layoutLockBannerShowsThreeRows",
+                  (LyricSurface.lockBanner.budgets.first?.rowCount ?? 0) >= 3)
+
+            // Regression guard. Build 40's large widget asked for 9 rows
+            // (1 hero + 2 past + 6 upcoming) with a 3-row hero allowance, inside
+            // a box that only fits 12 row-heights and was `.clipped()`. The new
+            // budget asks for 7 rows and wraps only into space that exists.
+            let large = LyricSurface.widgetLarge.budgets.first
+            check("layoutLargeBudgetShrank", (large?.rowCount ?? 99) < 9)
+
+            // A line longer than the tile is wide WRAPS instead of being
+            // truncated: every surface must allow the hero at least two rows.
+            for surface in LyricSurface.allCases {
+                check("layoutHeroWraps_\(surface.rawValue)",
+                      (surface.budgets.first?.heroRows ?? 0) >= 2)
+            }
+
+            // Degenerate input must not produce negative geometry.
+            let single = LyricRowBudget(heroRows: 1, previousShown: 0, upcomingShown: 0)
+            checkEqual("layoutZeroRowsHeight", single.height(rows: 0), 0)
+            checkEqual("layoutSingleRowHeight", single.height(rows: 1), LyricType.lyric)
+
+            // The ladder must be richest-first, never growing as it descends —
+            // `ViewThatFits` relies on the order.
+            for surface in LyricSurface.allCases {
+                let counts = surface.budgets.map(\.rowCount)
+                check("layoutLadderDescends_\(surface.rawValue)", counts == counts.sorted(by: >))
+            }
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {

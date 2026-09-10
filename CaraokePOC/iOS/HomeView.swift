@@ -179,6 +179,8 @@ struct HomeView: View {
                 HomeWidgetPreview(title: model.trackTitle, artist: model.trackArtist,
                                   currentLine: model.currentLine, nextLine: model.nextLine,
                                   previousLine: model.previousLines.last,
+                                  artworkData: model.artworkData,
+                                  artworkColorHex: model.artworkColorHex,
                                   isSpinning: model.isPlaybackActive)
             }
             .foregroundStyle(AppTheme.fg(scheme))
@@ -244,23 +246,16 @@ struct HomeView: View {
             // Tapping the identity opens the full lyrics page.
             Button { showLyricsPage = true } label: {
                 HStack(spacing: 12) {
-                    // Real cover art of the current song, with the vinyl fallback.
-                    Group {
-                        if let data = model.artworkData, let image = UIImage(data: data) {
-                            Image(uiImage: image).resizable().scaledToFill()
-                        } else {
-                            ZStack {
-                                Circle().fill(Color(hex: 0x18181B))
-                                Circle().stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                    .frame(width: 32, height: 32)
-                                Circle().fill(Color(hex: 0xFF9845))
-                                    .frame(width: 12, height: 12)
-                            }
-                        }
-                    }
-                    .frame(width: 44, height: 44)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1))
+                    // Real cover art of the current song. Rounded SQUARE, not a
+                    // circle — user direction, and it matches the rounded-square
+                    // mark the large widget already uses.
+                    CoverArtworkView(artworkData: model.artworkData,
+                                     cornerRadius: 11,
+                                     artworkColorHex: model.artworkColorHex)
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .stroke(Color.white.opacity(0.14), lineWidth: 1))
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(hasTrack ? model.trackTitle : "Caraoke")
@@ -482,12 +477,19 @@ struct HomeView: View {
 
 /// Static stand-in for the Home Screen widget, so the Widget section shows what
 /// the user gets before they add it.
+///
+/// Fed the REAL now-playing values — track, artist, lyric window, cover art and
+/// the cover's average colour — because build 40's preview hardcoded a blue
+/// gradient, a brown disc and a `music.note` glyph, so it never matched the
+/// widget it was advertising.
 struct HomeWidgetPreview: View {
     let title: String
     let artist: String
     let currentLine: String
     let nextLine: String?
     var previousLine: String?
+    var artworkData: Data?
+    var artworkColorHex: String?
     /// Spins the record while the active source is playing (app preview only).
     var isSpinning: Bool = false
 
@@ -496,28 +498,37 @@ struct HomeWidgetPreview: View {
         WidgetCoverStyle(rawValue: SharedWidgetStore.readSettings().coverStyle) ?? .vinyl
     }
 
+    private var theme: WidgetTheme {
+        // v1 previews the default theme; the Widget settings screen is where the
+        // user picks their own, and the real widget reads it from the payload.
+        WidgetTheme(rawValue: SharedWidgetStore.readSettings().theme) ?? .artwork
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(identity)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(1)
                 Spacer(minLength: 6)
-                VStack(alignment: .leading, spacing: 3) {
-                    if let previousLine {
+                // Same 18 pt rows and same weight rule as the real widget.
+                VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
+                    if let previousLine, !previousLine.isEmpty {
                         Text(previousLine)
-                            .font(.system(size: 15))
-                            .foregroundStyle(.white.opacity(0.38))
+                            .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                            .foregroundStyle(.white.opacity(0.34))
                             .lineLimit(1)
                     }
                     Text(currentLine.isEmpty ? "Play a song to see lyrics" : currentLine)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
                         .foregroundStyle(.white)
                         .lineLimit(2)
+                        .lineSpacing(LyricType.lyricLineSpacing)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let nextLine, !nextLine.isEmpty {
                         Text(nextLine)
-                            .font(.system(size: 15))
+                            .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                             .foregroundStyle(.white.opacity(0.55))
                             .lineLimit(1)
                     }
@@ -537,9 +548,10 @@ struct HomeWidgetPreview: View {
         }
         .padding(14)
         .frame(height: 158)
+        // The same recipe `WidgetArtworkBackground` paints on the real widget:
+        // the song's own average colour when the theme follows the cover.
         .background(
-            LinearGradient(colors: [Color(hex: 0x455B79), Color(hex: 0x192337), .black],
-                           startPoint: .topLeading, endPoint: .bottomTrailing),
+            WidgetArtworkBackground(theme: theme, artworkColorHex: artworkColorHex),
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.08)))
@@ -551,23 +563,18 @@ struct HomeWidgetPreview: View {
 
     @ViewBuilder private var cover: some View {
         if coverStyle == .vinyl {
-            ZStack {
-                Circle().fill(RadialGradient(colors: [.black, Color(white: 0.16), .black],
-                                             center: .center, startRadius: 6, endRadius: 60))
-                ForEach(0..<6, id: \.self) { index in
-                    Circle().stroke(.white.opacity(0.07), lineWidth: 0.5).padding(CGFloat(index * 8 + 6))
-                }
-                Circle().fill(Color(hex: 0x9E6752)).frame(width: 83, height: 83)
-                Circle().fill(.white.opacity(0.5)).frame(width: 7, height: 7)
-            }
-            .frame(width: 118, height: 118)
-            .vinylSpin(isSpinning)
+            CoverArtworkView(artworkData: artworkData, cornerRadius: 59,
+                             showsVinylFallback: true, artworkColorHex: artworkColorHex)
+                .frame(width: 118, height: 118)
+                .clipShape(Circle())
+                .vinylSpin(isSpinning)
         } else {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: 0x9E6752), Color(hex: 0x27304D)],
-                                     startPoint: .top, endPoint: .bottom))
+            CoverArtworkView(artworkData: artworkData, cornerRadius: 14,
+                             artworkColorHex: artworkColorHex)
                 .frame(width: 104, height: 104)
-                .overlay(Image(systemName: "music.note").font(.title2).foregroundStyle(.white.opacity(0.85)))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(.white.opacity(0.12)))
         }
     }
 }
