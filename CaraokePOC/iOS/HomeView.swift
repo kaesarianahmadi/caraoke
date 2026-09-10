@@ -550,10 +550,13 @@ struct HomeWidgetPreview: View {
         .frame(height: 158)
         // The same recipe `WidgetArtworkBackground` paints on the real widget:
         // the song's own average colour when the theme follows the cover.
-        .background(
-            WidgetArtworkBackground(theme: theme, artworkColorHex: artworkColorHex),
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
+        // It is a View, not a ShapeStyle, so it goes through the ViewBuilder
+        // `background(alignment:content:)` overload and is clipped to the card
+        // shape explicitly — `.background(_:in:)` only accepts shape styles.
+        .background {
+            WidgetArtworkBackground(theme: theme, artworkColorHex: artworkColorHex)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.08)))
     }
 
