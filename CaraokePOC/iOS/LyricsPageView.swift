@@ -147,7 +147,12 @@ struct LyricsPageView: View {
         guard let heroIndex = all.firstIndex(where: \.isHero) else { return all }
         guard viewportHeight > 0 else { return all }
 
-        let capacity = max(3, Int(viewportHeight / (LyricType.pageLyric * 1.34)))
+        // Floor of 7: at the 28 pt page scale a tall phone fits ~9, but a short
+        // one must still show a useful window rather than two lines. Wrapped
+        // lines take a second row-height that this does not model, so the page
+        // scrolls as a whole when a lyric runs long — the lyrics page is the
+        // one surface allowed to scroll, since it is read, not driven past.
+        let capacity = max(7, Int(viewportHeight / (LyricType.pageLyric * 1.34)))
         let history = heroIndex
         // On the first layout the window is everything the song has already
         // sung (the page fills immediately instead of opening half empty).

@@ -154,10 +154,16 @@ enum TransportControl {
         case .success:
             log("spotify \(action) ok device=\(deviceID)")
             return .performed("Spotify")
-        case .failure(let message):
-            log("spotify \(action) failed: \(message)")
-            return .failed(message)
+        case .failure(let failure):
+            log("spotify \(action) failed: \(failure.message)")
+            return .failed(failure.message)
         }
+    }
+
+    /// A Spotify transport failure with the message shown to the caller.
+    private struct TransportFailure: Error {
+        let message: String
+        init(_ message: String) { self.message = message }
     }
 
     private struct SpotifyPlayer {
@@ -182,20 +188,20 @@ enum TransportControl {
                              isPlaying: json["is_playing"] as? Bool ?? false)
     }
 
-    private static func send(_ request: URLRequest) async -> Result<Void, String> {
+    private static func send(_ request: URLRequest) async -> Result<Void, TransportFailure> {
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse else {
-            return .failure("Network error")
+            return .failure(.init("Network error"))
         }
         switch http.statusCode {
         case 200, 202, 204: return .success
-        case 401: return .failure("Spotify session expired")
-        case 403: return .failure("Spotify Premium required")
-        case 404: return .failure("No active Spotify device")
-        case 429: return .failure("Spotify rate limited")
+        case 401: return .failure(.init("Spotify session expired"))
+        case 403: return .failure(.init("Spotify Premium required"))
+        case 404: return .failure(.init("No active Spotify device"))
+        case 429: return .failure(.init("Spotify rate limited"))
         default:
             let body = String(data: data, encoding: .utf8) ?? ""
-            return .failure("Spotify \(http.statusCode) \(body.prefix(120))")
+            return .failure(.init("Spotify \(http.statusCode) \(body.prefix(120))"))
         }
     }
 
