@@ -63,6 +63,7 @@ targets:
       - iOS/TransportControl.swift
       - iOS/SharedWidgetStore.swift
       - iOS/WidgetResync.swift
+      - iOS/WidgetArtworkBackground.swift
       - Sources/CaraokeCore/LyricStatus.swift
       - Sources/CaraokeCore/LyricType.swift
       - Sources/CaraokeCore/WidgetShared.swift

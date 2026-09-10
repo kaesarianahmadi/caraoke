@@ -165,22 +165,3 @@ struct VinylWidgetView: View {
         .accessibilityLabel(label)
     }
 }
-
-/// Widget background: the artwork's average colour when the theme follows the
-/// cover, otherwise the flat theme colour.
-struct WidgetArtworkBackground: View {
-    let theme: WidgetTheme
-    let artworkColorHex: String?
-
-    var body: some View {
-        if theme == .artwork, let hex = artworkColorHex, let color = Color(hexString: hex) {
-            LinearGradient(
-                colors: [color.opacity(0.92), color.opacity(0.52), .black.opacity(0.9)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else {
-            theme.backgroundColor
-        }
-    }
-}
