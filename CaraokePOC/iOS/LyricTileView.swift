@@ -382,13 +382,16 @@ struct LyricTileView: View {
     /// picks a row set that fits, so anything reaching here already has room;
     /// a non-lyric state that still overruns is allowed to scale its own
     /// container rather than be silently amputated.
-    @ViewBuilder
+    /// Uses `maxHeight:` in BOTH cases rather than `height:`. The two-branch
+    /// `if let` version that build 40 shipped failed to type-check on the iOS
+    /// SDK once the branches diverged ("extra argument 'height'"), and the
+    /// `height:` overload is iOS-only so it cannot be verified off-device.
+    /// Passing nil means unbounded, which is exactly the large widget's
+    /// content-sized case.
     private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
-        if let height = spec.boxHeight {
-            content.frame(maxWidth: .infinity, height: height, alignment: alignment)
-        } else {
-            content.frame(maxWidth: .infinity, maxHeight: spec.maxBoxHeight, alignment: alignment)
-        }
+        content.frame(maxWidth: .infinity,
+                      maxHeight: spec.boxHeight ?? spec.maxBoxHeight ?? .infinity,
+                      alignment: alignment)
     }
 
     /// One lyric row with a stable identity. Rows that survive a line change
@@ -455,7 +458,10 @@ struct LyricTileView: View {
                     ))
             }
         }
-        .frame(maxWidth: .infinity)
+        // Fills the box and centres inside it: the box is now a ceiling rather
+        // than an exact height, so without this the stack would shrink to its
+        // content and the progress bar underneath would jump on every line.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.32), value: items.map(\.id))
     }
 

@@ -194,7 +194,7 @@ enum TransportControl {
             return .failure(.init("Network error"))
         }
         switch http.statusCode {
-        case 200, 202, 204: return .success
+        case 200, 202, 204: return .success(())
         case 401: return .failure(.init("Spotify session expired"))
         case 403: return .failure(.init("Spotify Premium required"))
         case 404: return .failure(.init("No active Spotify device"))
