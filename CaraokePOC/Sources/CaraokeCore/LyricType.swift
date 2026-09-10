@@ -139,10 +139,13 @@ enum LyricSurface: String, CaseIterable, Sendable {
     var budgets: [LyricRowBudget] {
         switch self {
         case .lockBanner, .carPlaySmall:
+            // Build 42: active lyric is always in the MIDDLE row.
+            // Best: 1 previous + 1 hero + 1 upcoming (active centered).
+            // Minimum: 0 previous + 1 hero + 1 upcoming (hero at top).
+            // NEVER show hero alone without at least one neighbor.
             return [
                 LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 1, neighborRows: 1),
-                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 0, neighborRows: 1),
-                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 1, neighborRows: 1),
             ]
         case .widgetSmall:
             // Hero (2 rows) + two following lines = the "three or four lines"

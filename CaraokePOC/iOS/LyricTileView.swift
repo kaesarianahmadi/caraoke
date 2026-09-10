@@ -382,16 +382,23 @@ struct LyricTileView: View {
     /// picks a row set that fits, so anything reaching here already has room;
     /// a non-lyric state that still overruns is allowed to scale its own
     /// container rather than be silently amputated.
-    /// Uses `maxHeight:` in BOTH cases rather than `height:`. The two-branch
-    /// `if let` version that build 40 shipped failed to type-check on the iOS
-    /// SDK once the branches diverged ("extra argument 'height'"), and the
-    /// `height:` overload is iOS-only so it cannot be verified off-device.
-    /// Passing nil means unbounded, which is exactly the large widget's
-    /// content-sized case.
+    ///
+    /// Build 42: lock banner uses `minHeight:` (floor = boxHeight) so the tile
+    /// never shrinks below its nominal size, fixing the "active line in first
+    /// row instead of middle" defect. `maxHeight:` is removed for the lock
+    /// banner too — the ceiling was letting the block collapse.
     private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
-        content.frame(maxWidth: .infinity,
-                      maxHeight: spec.boxHeight ?? spec.maxBoxHeight ?? .infinity,
-                      alignment: alignment)
+        if surface == .lockBanner || surface == .carPlaySmall, let h = spec.boxHeight {
+            // Fixed floor: guarantee at least boxHeight so ViewThatFits picks
+            // the middle-row budget instead of collapsing to hero-only.
+            content.frame(maxWidth: .infinity,
+                          minHeight: h,
+                          alignment: alignment)
+        } else {
+            content.frame(maxWidth: .infinity,
+                          maxHeight: spec.boxHeight ?? spec.maxBoxHeight ?? .infinity,
+                          alignment: alignment)
+        }
     }
 
     /// One lyric row with a stable identity. Rows that survive a line change
@@ -468,6 +475,11 @@ struct LyricTileView: View {
     /// Active line: 18 pt `.semibold` — emphasis by weight only. Build 40 used
     /// `.bold` and the user read it as too heavy. It still has to be visibly
     /// bolder than the dimmed neighbours, which `.semibold` is.
+    ///
+    /// Build 42: `.lineLimit(...)` removed for neighbor rows — long lyric lines
+    /// were truncated with "..." instead of wrapping to show the full text.
+    /// Hero still has a limit (2 rows) because it's the focal point; neighbors
+    /// flow naturally and ViewThatFits picks fewer rows if text is long.
     @ViewBuilder
     private func rowView(_ row: LyricRow, budget: LyricRowBudget) -> some View {
         let weight: Font.Weight = row.kind == .hero ? LyricType.lyricWeight : LyricType.lyricNeighborWeight
@@ -476,8 +488,9 @@ struct LyricTileView: View {
             .font(.system(size: budget.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
             .multilineTextAlignment(.center)
-            // Wrap to the budget, then truncate. Never shrink.
-            .lineLimit(allowance)
+            // Build 42: neighbors have NO line limit — let full text display.
+            // ViewThatFits already picks fewer neighbors when space runs low.
+            .lineLimit(row.kind == .hero ? allowance : nil)
             .lineSpacing(budget.lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .center)

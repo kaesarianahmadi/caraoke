@@ -148,7 +148,7 @@ struct HomeView: View {
                 Toggle("", isOn: Binding(get: { model.isOn }, set: { _ in model.toggle() }))
                     .labelsHidden().tint(AppTheme.ok)
             }
-            Text("Show lyrics on the Dynamic Island, Lock Screen, CarPlay, and Apple Watch.")
+            Text("Show lyrics on the Lock Screen, CarPlay, and Apple Watch.")
                 .font(.system(size: 14))
                 .foregroundStyle(AppTheme.muted(scheme))
             if model.liveActivityGateMessage != nil {
@@ -173,7 +173,7 @@ struct HomeView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(AppTheme.muted(scheme))
                 }
-                Text("Add live lyrics to the Home Screen, CarPlay, and StandBy.")
+                Text("Add live lyrics to the Home Screen and CarPlay.")
                     .font(.system(size: 14))
                     .foregroundStyle(AppTheme.muted(scheme))
                 HomeWidgetPreview(title: model.trackTitle, artist: model.trackArtist,

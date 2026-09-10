@@ -148,8 +148,18 @@ final class RideModeViewModel: ObservableObject {
         case .appleMusic: source = "appleMusic"
         case .auto: source = nil // let the running pipeline decide
         }
-        await TransportControl.perform(action, source: source, isPlaying: isPlaybackActive)
+        let outcome = await TransportControl.perform(action, source: source, isPlaying: isPlaybackActive)
+        switch outcome {
+        case .failed(let msg), .noActivePlayer(let msg):
+            transportError = msg
+        case .performed:
+            transportError = nil
+        }
     }
+
+    /// Last transport failure message, shown as a brief overlay on the
+    /// lyrics page so the user knows why nothing happened.
+    @Published var transportError: String?
 
     /// Ride length across all rides (for the Settings screen).
     var totalRideMs: Int { rideModel.totalRideMs }

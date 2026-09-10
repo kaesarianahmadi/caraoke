@@ -8,6 +8,9 @@ import UIKit
 /// Immersive by design: the background is the cover's average colour (the same
 /// wash the widgets paint), the lyrics are left-aligned at ONE size and fill
 /// the window, and every line slides up on its own as the song advances.
+///
+/// Build 42: transport + progress bar pinned to bottom, NEVER overlapped.
+/// Active lyric sits in vertical centre between header and controls.
 struct LyricsPageView: View {
     @ObservedObject var model: RideModeViewModel
     @Environment(\.dismiss) private var dismiss
@@ -22,20 +25,25 @@ struct LyricsPageView: View {
     private var border: Color { wash == nil ? AppTheme.border(scheme) : .white.opacity(0.16) }
 
     var body: some View {
-        ZStack {
-            (wash ?? LinearGradient(colors: [AppTheme.bg(scheme), AppTheme.bg(scheme)],
-                                    startPoint: .top, endPoint: .bottom))
-                .ignoresSafeArea()
+        GeometryReader { outerGeo in
+            ZStack {
+                (wash ?? LinearGradient(colors: [AppTheme.bg(scheme), AppTheme.bg(scheme)],
+                                        startPoint: .top, endPoint: .bottom))
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                header
-                lyricStage
-                transportRow
-                progressBar
+                VStack(spacing: 0) {
+                    header
+                    lyricStage(boundedBy: outerGeo.size.height)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .layoutPriority(0)
+                    transportRow.layoutPriority(1)
+                    progressBar.layoutPriority(1)
+                    transportFeedback
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            .padding(.bottom, 20)
         }
         .onAppear { coverHex = model.artworkData.flatMap(UIImage.init(data:))?.averageColorHex }
         .onChange(of: model.artworkData) { _, data in
@@ -96,19 +104,19 @@ struct LyricsPageView: View {
             .stroke(border, lineWidth: 1))
     }
 
-    // MARK: - Lyric stage
+    // MARK: - Lyric stage (Build 42: bounded height, no overlap, centred)
 
-    /// One size for the whole page — `LyricType.pageLyric` (28 pt), the
-    /// Spotify / Apple Music scale, up from build 40's 18 pt.
-    ///
-    /// Build 40 used a six-step `ViewThatFits` ladder (30 → 15), so the page
-    /// rendered at a different size on every song depending on which step fit.
-    /// Now the SIZE is fixed and the WINDOW of visible lines adapts instead:
-    /// the active line sits centred in the viewport and older lines scroll off
-    /// the top, exactly like the players we are matching.
-    private var lyricStage: some View {
-        GeometryReader { geo in
-            let rows = visibleRows(viewportHeight: geo.size.height)
+    /// Build 42: bounded lyric stage. Computes available lyric space as
+    /// totalHeight minus header, transport, progress bar and padding.
+    /// The active line stays vertically centred in this bounded area.
+    private func lyricStage(boundedBy totalHeight: CGFloat) -> some View {
+        let chrome: CGFloat = 52 + 8      // header
+            + 60 + 4 + 20                 // transport + progress + padding
+            + 20 + 24                     // outer VStack padding
+        let availableHeight = max(100, totalHeight - chrome)
+
+        return GeometryReader { geo in
+            let rows = visibleRows(viewportHeight: min(geo.size.height, availableHeight))
             VStack(alignment: .leading, spacing: LyricType.pageLyric * 0.34) {
                 ForEach(rows) { row in
                     Text(row.text)
@@ -125,13 +133,12 @@ struct LyricsPageView: View {
                         ))
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .animation(.easeInOut(duration: 0.32), value: rows.map(\.id))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: availableHeight)
         .padding(.vertical, 12)
         .onAppear {
-            // Let the first layout use the full history, then centre.
             DispatchQueue.main.async { centresWindow = true }
         }
     }
@@ -147,17 +154,8 @@ struct LyricsPageView: View {
         guard let heroIndex = all.firstIndex(where: \.isHero) else { return all }
         guard viewportHeight > 0 else { return all }
 
-        // Floor of 7: at the 28 pt page scale a tall phone fits ~9, but a short
-        // one must still show a useful window rather than two lines. Wrapped
-        // lines take a second row-height that this does not model, so the page
-        // scrolls as a whole when a lyric runs long — the lyrics page is the
-        // one surface allowed to scroll, since it is read, not driven past.
         let capacity = max(7, Int(viewportHeight / (LyricType.pageLyric * 1.34)))
         let history = heroIndex
-        // On the first layout the window is everything the song has already
-        // sung (the page fills immediately instead of opening half empty).
-        // `centresWindow` flips true in `onAppear`, after which the window
-        // centres on the active line.
         let showAbove = centresWindow ? max(0, capacity / 2) : history
         let showBelow = max(1, capacity - showAbove - 1)
         let start = max(0, heroIndex - showAbove)
@@ -182,7 +180,6 @@ struct LyricsPageView: View {
         let previous = model.previousLines
         var rows: [PageRow] = []
         for (index, line) in previous.enumerated() {
-            // 1 = the line right above the active one.
             let distance = Double(previous.count - index)
             rows.append(PageRow(id: uniqueID(line), text: line, isHero: false,
                                 opacity: max(0.22, 0.62 - distance * 0.1)))
@@ -222,7 +219,7 @@ struct LyricsPageView: View {
     }
 
     private func transportButton(_ name: String, size: CGFloat, label: String,
-                                 action: @escaping () -> Void) -> some View {
+                                  action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: name)
                 .font(.system(size: size, weight: .semibold))
@@ -242,5 +239,19 @@ struct LyricsPageView: View {
             }
         }
         .frame(height: 4)
+    }
+
+    /// Brief transport failure message shown below the progress bar.
+    /// Auto-clears when the next transport action succeeds.
+    @ViewBuilder
+    private var transportFeedback: some View {
+        if let err = model.transportError {
+            Text(err)
+                .font(.system(size: 11))
+                .foregroundColor(muted)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
+                .transition(.opacity)
+        }
     }
 }

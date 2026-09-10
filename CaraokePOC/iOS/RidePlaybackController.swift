@@ -65,6 +65,11 @@ final class RidePlaybackController: ObservableObject {
     /// last register, a startMoved-only re-registration waits. Play/pause
     /// flips bypass the window entirely.
     private let relaySeekCoalesceSeconds: TimeInterval = 5
+    /// Build 42: periodic sync heartbeat to re-anchor the widget when the
+    /// engine's extrapolation drifts too far from reality.
+    private var syncHeartbeatTask: Task<Void, Never>?
+    /// Drift beyond this triggers a widget payload rewrite + timeline reload.
+    private static let syncDriftThresholdMs = 2000
 
     init(activity: CaraokeActivityController,
          provider: any LyricsRepository = FallbackLyricsProvider(),
@@ -107,6 +112,7 @@ final class RidePlaybackController: ObservableObject {
             spotify.start()
         }
         engine.startTicking()
+        startSyncHeartbeat()
     }
 
     private var lastWidgetTitle: String?
@@ -125,6 +131,8 @@ final class RidePlaybackController: ObservableObject {
         apple.stop()
         spotify.stop()
         engine.stopTicking()
+        syncHeartbeatTask?.cancel()
+        syncHeartbeatTask = nil
         audioKeeper.stop()
         relay.end()
         lyricsFetchTask?.cancel()
@@ -177,8 +185,23 @@ final class RidePlaybackController: ObservableObject {
     /// On the same track it re-arms the relay when the player seeks or
     /// pauses/resumes (the relay otherwise holds a stale wall-clock schedule
     /// and overwrites the tile with out-of-sync lines).
+    ///
+    /// Build 42: when the coordinator emits nil (gap between tracks), the
+    /// engine anchor is reset immediately so the next track triggers a fresh
+    /// search instead of carrying over the old anchor.
     private func handle(_ state: NowPlayingState?) {
         guard let state else {
+            // Gap between tracks: clear anchor so the next track triggers a
+            // fresh fetch and relay registration.
+            if lastLyricsKey != nil {
+                lastLyricsKey = nil
+                lastTrack = nil
+                currentLine = ""
+                previousLines = []
+                nextLine = nil
+                upcomingLines = []
+                lyricState = .idle
+            }
             engine.apply(nil)
             return
         }
@@ -448,6 +471,33 @@ final class RidePlaybackController: ObservableObject {
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.jpegData(withCompressionQuality: 0.8) { _ in
             image.draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+
+    // MARK: - Sync heartbeat (Build 42)
+
+    /// Every 15 s while playing, check if the widget-extrapolated position
+    /// has drifted more than 2 s from the engine anchor. If so, force a
+    /// widget payload rewrite + timeline reload to re-sync.
+    private func startSyncHeartbeat() {
+        syncHeartbeatTask?.cancel()
+        syncHeartbeatTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard let self, let anchor = self.engine.anchor, anchor.isPlaying else { continue }
+                let extrapolatedMs = SyncEngine.extrapolatedPositionMs(
+                    anchor: anchor, at: Date()
+                )
+                let widgetMs = SharedWidgetStore.read().flatMap { payload in
+                    payload.trackStartEpochMs > 0
+                        ? max(0, Int(Date().timeIntervalSince1970 * 1000) - payload.trackStartEpochMs)
+                        : nil
+                } ?? 0
+                if widgetMs > 0, abs(extrapolatedMs - widgetMs) > Self.syncDriftThresholdMs {
+                    self.lastWidgetSignature = nil
+                    self.render(self.engine.positionSubject.value)
+                }
+            }
         }
     }
 }
