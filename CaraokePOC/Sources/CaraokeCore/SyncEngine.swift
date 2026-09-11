@@ -157,8 +157,8 @@ final class SyncEngine {
 
     static func position(atMs pos: Int, lines: [LRCLine], durationMs: Int?, isPlaying: Bool) -> LyricsPosition {
         let index = lineIndex(forPositionMs: pos, in: lines)
-        let currentLine = index.map { lines[$0].text }
-        let previous: [String]
+        var currentLine = index.map { lines[$0].text }
+        var previous: [String]
         if let index, index > 0 {
             // Six past lines: the lyrics page spends its free space on karaoke
             // context instead of leaving the top of the window empty.
@@ -167,14 +167,14 @@ final class SyncEngine {
         } else {
             previous = []
         }
-        let nextLine: String?
+        var nextLine: String?
         if let index {
             nextLine = index + 1 < lines.count ? lines[index + 1].text : nil
         } else {
             nextLine = lines.first?.text
         }
 
-        let upcoming: [String]
+        var upcoming: [String]
         if let index {
             let nextStart = index + 1
             if nextStart < lines.count {
@@ -185,6 +185,23 @@ final class SyncEngine {
             }
         } else {
             upcoming = lines.prefix(10).map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        }
+
+        // Outro handling: after the last line ends, roll it up into previous
+        // and then scroll it off completely ("disappear high above the roof").
+        if let index, index == lines.count - 1, !lines.isEmpty {
+            let lastStart = lines[index].timeMs
+            if pos >= lastStart + 10_000 {
+                currentLine = nil
+                previous = []
+                nextLine = nil
+                upcoming = []
+            } else if pos >= lastStart + 7_000 {
+                currentLine = nil
+                previous = [lines[index].text]
+                nextLine = nil
+                upcoming = []
+            }
         }
 
         var lineProgress = 0.0

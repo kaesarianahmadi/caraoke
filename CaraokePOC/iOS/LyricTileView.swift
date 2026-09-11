@@ -159,11 +159,9 @@ struct LyricTileView: View {
         case .widgetSmall:
             // Apple's 158×158 grid, also the StandBy/CarPlay tile (the system
             // scales this up). One identity row, then hero (2 wrapped rows) plus
-            // two following lines — the "three or four lines" the user asked
-            // for. Build 40 gave this surface 96 pt for a 3-row hero + 2 lines
-            // and clipped the overflow.
+            // two following lines. Padding reduced to 10 to give lyrics more width.
             return LyricTileLayout(boxHeight: LyricSurface.widgetSmall.blockHeight,
-                                   headerCompact: true, padding: 14,
+                                   headerCompact: true, padding: 10,
                                    chromeHeight: LyricSurface.widgetSmall.chromeHeight)
         case .widgetMedium:
             // 338×158: the vinyl/cover takes the right half, lyrics the left.
@@ -388,11 +386,12 @@ struct LyricTileView: View {
     /// row instead of middle" defect. `maxHeight:` is removed for the lock
     /// banner too — the ceiling was letting the block collapse.
     private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
-        if surface == .lockBanner || surface == .carPlaySmall, let h = spec.boxHeight {
-            // Fixed floor: guarantee at least boxHeight so ViewThatFits picks
-            // the middle-row budget instead of collapsing to hero-only.
+        if (surface == .lockBanner || surface == .carPlaySmall || surface == .home), let h = spec.boxHeight {
+            // Strict fixed height: never shrinks when lines drop to 2, never
+            // expands when lines wrap. Prevents container jump across all surfaces.
             content.frame(maxWidth: .infinity,
                           minHeight: h,
+                          maxHeight: h,
                           alignment: alignment)
         } else {
             content.frame(maxWidth: .infinity,
@@ -428,8 +427,20 @@ struct LyricTileView: View {
                                      kind: .previous, opacity: fade(previousIndex: idx)))
             }
         }
-        let hero = currentLine.isEmpty ? (title.isEmpty ? "Play a song to see lyrics" : title) : currentLine
-        rows.append(LyricRow(id: uniqueID("h", hero), text: hero, kind: .hero, opacity: 1))
+        let hero: String
+        if !currentLine.isEmpty {
+            hero = currentLine
+        } else if !previousLines.isEmpty && isPlaying {
+            // Outro transition: current line cleared so previous line rolls off
+            hero = ""
+        } else if !title.isEmpty {
+            hero = artist.isEmpty ? title : "\(title) — \(artist)"
+        } else {
+            hero = "Play a song to see lyrics"
+        }
+        if !hero.isEmpty {
+            rows.append(LyricRow(id: uniqueID("h", hero), text: hero, kind: .hero, opacity: 1))
+        }
         if status != .idle {
             for (idx, line) in displayUpcomingLines.prefix(budget.upcomingShown).enumerated() {
                 rows.append(LyricRow(id: uniqueID("u", line), text: line,
@@ -488,9 +499,9 @@ struct LyricTileView: View {
             .font(.system(size: budget.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
             .multilineTextAlignment(.center)
-            // Build 42: neighbors have NO line limit — let full text display.
-            // ViewThatFits already picks fewer neighbors when space runs low.
-            .lineLimit(row.kind == .hero ? allowance : nil)
+            .lineLimit(allowance)
+            .truncationMode(.tail)
+            .minimumScaleFactor(surface == .widgetSmall ? 0.85 : 0.9)
             .lineSpacing(budget.lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .center)

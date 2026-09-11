@@ -71,7 +71,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
         }
         let settings = SharedWidgetStore.readSettings()
         let now = Date()
-        let built = WidgetTimelineBuilder.entries(for: payload, now: now)
+        let built = WidgetTimelineBuilder.entries(for: payload, now: now, includeOutro: true)
         let entries = built.map { entry(from: $0, payload: payload, settings: settings) }
 
         // A whole song fits in one timeline, so no periodic reload is needed —

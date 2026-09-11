@@ -2,49 +2,52 @@ import SwiftUI
 import UIKit
 
 /// The full lyrics page. Opened by tapping the in-app player card, the
-/// floating mini player, or a widget (deep link `caraoke://lyrics`) — widgets
-/// used to point at a route the app never handled, so the tap did nothing.
+/// floating mini player, or a widget (deep link `caraoke://lyrics`).
 ///
-/// Immersive by design: the background is the cover's average colour (the same
-/// wash the widgets paint), the lyrics are left-aligned at ONE size and fill
-/// the window, and every line slides up on its own as the song advances.
-///
-/// Build 42: transport + progress bar pinned to bottom, NEVER overlapped.
-/// Active lyric sits in vertical centre between header and controls.
+/// Immersive by design: deep dark cover wash, full song lyrics in a smooth
+/// scrolling view with the active lyric pinned to vertical centre (45%),
+/// and transport controls pinned at the bottom.
 struct LyricsPageView: View {
     @ObservedObject var model: RideModeViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
     @State private var coverHex: String?
 
-    /// Cover wash when the song has artwork, flat app background otherwise.
+    /// Darkened cover wash for high contrast in all modes.
     private var wash: LinearGradient? { CoverArtworkView.wash(coverHex) }
-    private var fg: Color { wash == nil ? AppTheme.fg(scheme) : .white }
-    private var muted: Color { wash == nil ? AppTheme.muted(scheme) : .white.opacity(0.55) }
-    private var surface: Color { wash == nil ? AppTheme.surface(scheme) : .white.opacity(0.12) }
-    private var border: Color { wash == nil ? AppTheme.border(scheme) : .white.opacity(0.16) }
+    private var fg: Color { .white }
+    private var muted: Color { .white.opacity(0.60) }
+    private var surface: Color { .white.opacity(0.14) }
+    private var border: Color { .white.opacity(0.18) }
 
     var body: some View {
-        GeometryReader { outerGeo in
-            ZStack {
-                (wash ?? LinearGradient(colors: [AppTheme.bg(scheme), AppTheme.bg(scheme)],
-                                        startPoint: .top, endPoint: .bottom))
-                    .ignoresSafeArea()
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if let wash {
+                wash.ignoresSafeArea()
+            }
 
-                VStack(spacing: 0) {
-                    header
-                    lyricStage(boundedBy: outerGeo.size.height)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                        .layoutPriority(0)
-                    transportRow.layoutPriority(1)
-                    progressBar.layoutPriority(1)
+            VStack(spacing: 0) {
+                header
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+
+                lyricStage
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(0)
+
+                VStack(spacing: 8) {
+                    progressBar
+                    transportRow
                     transportFeedback
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 8)
                 .padding(.bottom, 20)
+                .layoutPriority(1)
             }
         }
+        .preferredColorScheme(.dark)
         .onAppear { coverHex = model.artworkData.flatMap(UIImage.init(data:))?.averageColorHex }
         .onChange(of: model.artworkData) { _, data in
             coverHex = data.flatMap(UIImage.init(data:))?.averageColorHex
@@ -104,100 +107,129 @@ struct LyricsPageView: View {
             .stroke(border, lineWidth: 1))
     }
 
-    // MARK: - Lyric stage (Build 42: bounded height, no overlap, centred)
+    // MARK: - Lyric Stage (Full window utilization & centered auto-scrolling)
 
-    /// Build 42: bounded lyric stage. Computes available lyric space as
-    /// totalHeight minus header, transport, progress bar and padding.
-    /// The active line stays vertically centred in this bounded area.
-    private func lyricStage(boundedBy totalHeight: CGFloat) -> some View {
-        let chrome: CGFloat = 52 + 8      // header
-            + 60 + 4 + 20                 // transport + progress + padding
-            + 20 + 24                     // outer VStack padding
-        let availableHeight = max(100, totalHeight - chrome)
+    private var lyricStage: some View {
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 22) {
+                    // Headroom so top lines can scroll to vertical center
+                    Color.clear.frame(height: 80)
 
-        return GeometryReader { geo in
-            let rows = visibleRows(viewportHeight: min(geo.size.height, availableHeight))
-            VStack(alignment: .leading, spacing: LyricType.pageLyric * 0.34) {
-                ForEach(rows) { row in
-                    Text(row.text)
-                        .font(.system(size: LyricType.pageLyric,
-                                      weight: row.isHero ? LyricType.lyricWeight : LyricType.lyricNeighborWeight))
-                        .foregroundColor(row.isHero ? fg : muted.opacity(row.opacity))
-                        .multilineTextAlignment(.leading)
-                        .lineSpacing(LyricType.lyricLineSpacing)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .top).combined(with: .opacity)
-                        ))
+                    // Song name and author at the top of the lyrics window
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(model.trackTitle.isEmpty ? "Caraoke" : model.trackTitle)
+                            .font(.system(size: 26, weight: .bold))
+                            .foregroundColor(fg)
+                        if !model.trackArtist.isEmpty {
+                            Text(model.trackArtist)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(muted)
+                        }
+                    }
+                    .id("lyric_header")
+                    .padding(.bottom, 16)
+
+                    if !model.allLines.isEmpty {
+                        ForEach(Array(model.allLines.enumerated()), id: \.offset) { index, line in
+                            let isHero = !model.currentLine.isEmpty && line.text == model.currentLine
+                            let isPast = isLineInPast(index: index)
+                            Text(line.text)
+                                .font(.system(size: LyricType.pageLyric, weight: isHero ? .bold : .semibold))
+                                .foregroundColor(isHero ? fg : (isPast ? muted.opacity(0.35) : muted.opacity(0.70)))
+                                .multilineTextAlignment(.leading)
+                                .lineSpacing(LyricType.lyricLineSpacing)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .id("line_\(index)")
+                        }
+                    } else if !model.currentLine.isEmpty || !model.upcomingLines.isEmpty {
+                        // Fallback when full track is still arriving
+                        ForEach(fallbackLines) { row in
+                            Text(row.text)
+                                .font(.system(size: LyricType.pageLyric, weight: row.isHero ? .bold : .semibold))
+                                .foregroundColor(row.isHero ? fg : muted.opacity(row.opacity))
+                                .multilineTextAlignment(.leading)
+                                .lineSpacing(LyricType.lyricLineSpacing)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .id(row.id)
+                        }
+                    } else {
+                        // Empty / loading state
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(emptyStatusText)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(muted)
+                        }
+                        .padding(.top, 20)
+                    }
+
+                    // Bottom padding so last lines scroll into center
+                    Color.clear.frame(height: 220)
                 }
+                .padding(.horizontal, 24)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .animation(.easeInOut(duration: 0.32), value: rows.map(\.id))
-        }
-        .frame(maxWidth: .infinity, maxHeight: availableHeight)
-        .padding(.vertical, 12)
-        .onAppear {
-            DispatchQueue.main.async { centresWindow = true }
+            .onChange(of: model.currentLine) { _, newLine in
+                scrollToActiveLine(proxy: proxy, lineText: newLine)
+            }
+            .onAppear {
+                scrollToActiveLine(proxy: proxy, lineText: model.currentLine)
+            }
         }
     }
 
-    /// How many already-sung lines to keep on screen above the active one.
-    /// Starts at the whole history (so opening the page fills the window) and
-    /// converges on the middle as the song advances, which keeps the active
-    /// line centred instead of walking down to the bottom edge.
-    @State private var centresWindow = false
-
-    private func visibleRows(viewportHeight: CGFloat) -> [PageRow] {
-        let all = rows
-        guard let heroIndex = all.firstIndex(where: \.isHero) else { return all }
-        guard viewportHeight > 0 else { return all }
-
-        let capacity = max(7, Int(viewportHeight / (LyricType.pageLyric * 1.34)))
-        let history = heroIndex
-        let showAbove = centresWindow ? max(0, capacity / 2) : history
-        let showBelow = max(1, capacity - showAbove - 1)
-        let start = max(0, heroIndex - showAbove)
-        let end = min(all.count, heroIndex + showBelow + 1)
-        return Array(all[start..<end])
+    private func isLineInPast(index: Int) -> Bool {
+        guard let heroIndex = model.allLines.firstIndex(where: { $0.text == model.currentLine }) else {
+            return false
+        }
+        return index < heroIndex
     }
 
-    private struct PageRow: Identifiable {
+    private func scrollToActiveLine(proxy: ScrollViewProxy, lineText: String) {
+        if let index = model.allLines.firstIndex(where: { $0.text == lineText }) {
+            withAnimation(.easeInOut(duration: 0.42)) {
+                proxy.scrollTo("line_\(index)", anchor: UnitPoint(x: 0.5, y: 0.45))
+            }
+        } else if lineText.isEmpty {
+            withAnimation(.easeInOut(duration: 0.42)) {
+                proxy.scrollTo("lyric_header", anchor: UnitPoint(x: 0.5, y: 0.45))
+            }
+        }
+    }
+
+    private var emptyStatusText: String {
+        switch model.lyricStatus {
+        case .loading: return "Finding lyrics…"
+        case .noLyrics: return "No lyrics found for this song"
+        case .idle: return model.isOn ? "Waiting for playback…" : "Turn switch on to stream lyrics"
+        case .stale: return "Ride ended"
+        default: return "Lyrics will appear when singing begins"
+        }
+    }
+
+    private struct FallbackRow: Identifiable {
         let id: String
         let text: String
         let isHero: Bool
         let opacity: Double
     }
 
-    private var rows: [PageRow] {
-        var seen: [String: Int] = [:]
-        func uniqueID(_ text: String) -> String {
-            let count = seen[text, default: 0]
-            seen[text] = count + 1
-            return count == 0 ? text : "\(text)#\(count)"
+    private var fallbackLines: [FallbackRow] {
+        var rows: [FallbackRow] = []
+        for (idx, line) in model.previousLines.enumerated() {
+            rows.append(FallbackRow(id: "prev_\(idx)", text: line, isHero: false, opacity: 0.35))
         }
-        let previous = model.previousLines
-        var rows: [PageRow] = []
-        for (index, line) in previous.enumerated() {
-            let distance = Double(previous.count - index)
-            rows.append(PageRow(id: uniqueID(line), text: line, isHero: false,
-                                opacity: max(0.22, 0.62 - distance * 0.1)))
+        if !model.currentLine.isEmpty {
+            rows.append(FallbackRow(id: "hero", text: model.currentLine, isHero: true, opacity: 1.0))
         }
-        rows.append(PageRow(id: uniqueID(heroText), text: heroText, isHero: true, opacity: 1))
-        for (index, line) in model.upcomingLines.enumerated() {
-            rows.append(PageRow(id: uniqueID(line), text: line, isHero: false,
-                                opacity: max(0.2, 0.66 - Double(index) * 0.08)))
+        for (idx, line) in model.upcomingLines.enumerated() {
+            rows.append(FallbackRow(id: "up_\(idx)", text: line, isHero: false, opacity: 0.70))
         }
         return rows
     }
 
-    private var heroText: String {
-        if !model.currentLine.isEmpty { return model.currentLine }
-        return model.isOn ? "Play a song to see lyrics" : "Switch on Live Lyrics to start"
-    }
-
-    // MARK: - Transport (drives whichever player is the active source)
+    // MARK: - Transport
 
     private var transportRow: some View {
         HStack(spacing: 40) {
@@ -215,7 +247,6 @@ struct LyricsPageView: View {
         }
         .foregroundColor(fg)
         .padding(.top, 4)
-        .padding(.bottom, 18)
     }
 
     private func transportButton(_ name: String, size: CGFloat, label: String,
@@ -233,7 +264,7 @@ struct LyricsPageView: View {
     private var progressBar: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(fg.opacity(0.14))
+                Capsule().fill(fg.opacity(0.18))
                 Capsule().fill(fg.opacity(0.92))
                     .frame(width: max(3, geo.size.width * CGFloat(min(max(model.progress, 0), 1))))
             }
@@ -242,15 +273,14 @@ struct LyricsPageView: View {
     }
 
     /// Brief transport failure message shown below the progress bar.
-    /// Auto-clears when the next transport action succeeds.
     @ViewBuilder
     private var transportFeedback: some View {
         if let err = model.transportError {
             Text(err)
-                .font(.system(size: 11))
-                .foregroundColor(muted)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(AppTheme.warn)
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 4)
+                .padding(.top, 2)
                 .transition(.opacity)
         }
     }

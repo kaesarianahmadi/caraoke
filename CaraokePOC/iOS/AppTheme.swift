@@ -92,13 +92,49 @@ struct CoverArtworkView: View {
     }
 }
 
+/// Realistic vinyl disc with authentic black record grooves and artwork label.
+/// Shared between the Home Screen medium widget and the in-app showcase.
+struct VinylRecordView: View {
+    var artworkData: Data? = nil
+    var artworkImage: UIImage? = nil
+    var diameter: CGFloat = 126
+    var labelDiameter: CGFloat = 88
+
+    private var image: UIImage? {
+        artworkImage ?? artworkData.flatMap(UIImage.init(data:))
+    }
+
+    var body: some View {
+        ZStack {
+            Circle().fill(RadialGradient(colors: [.black, Color(white: 0.16), .black], center: .center, startRadius: 8, endRadius: diameter / 2))
+            ForEach(0..<7, id: \.self) { index in
+                Circle().stroke(.white.opacity(0.07), lineWidth: 0.5)
+                    .padding(CGFloat(index * 7 + 5))
+            }
+            Group {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    Circle().fill(.gray.opacity(0.35)).overlay(Image(systemName: "music.note"))
+                }
+            }
+            .frame(width: labelDiameter, height: labelDiameter)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(.white.opacity(0.15)))
+            Circle().fill(.white.opacity(0.55)).frame(width: 7, height: 7)
+        }
+        .frame(width: diameter, height: diameter)
+        .shadow(color: .black.opacity(0.28), radius: 7, y: 4)
+    }
+}
+
 /// Cover-following wash — the same recipe the widgets paint, reused by the
 /// lyrics page so a song's colour follows the user everywhere.
 extension CoverArtworkView {
     static func wash(_ hex: String?) -> LinearGradient? {
         guard let hex, let color = Color(hexString: hex) else { return nil }
         return LinearGradient(
-            colors: [color.opacity(0.92), color.opacity(0.5), .black.opacity(0.94)],
+            colors: [color.opacity(0.48), color.opacity(0.22), Color(white: 0.04)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

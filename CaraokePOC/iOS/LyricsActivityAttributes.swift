@@ -11,6 +11,7 @@ struct LyricsActivityAttributes: ActivityAttributes {
         var title: String
         var artist: String
         var currentLine: String
+        var previousLines: [String]?
         var nextLine: String?
         var upcomingLines: [String]?
         var isPlaying: Bool

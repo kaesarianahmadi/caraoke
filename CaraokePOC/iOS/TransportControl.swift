@@ -109,25 +109,53 @@ enum TransportControl {
     // MARK: - Spotify (Web API player endpoints)
 
     private static func spotify(_ action: TransportAction, isPlaying: Bool) async -> TransportOutcome {
-        guard let token = await accessToken() else {
-            // Build 40 returned here with no signal, which is why the buttons
-            // looked broken rather than disconnected.
+        guard var token = await accessToken() ?? (await accessToken(forceRefresh: true)) else {
             log("spotify \(action) aborted: no token")
             return .noActivePlayer("Reconnect Spotify in Settings")
         }
 
-        // The device id is what makes these calls land. Without it the Web API
-        // answers 404 against a phone playing through the Spotify app.
-        let player = await fetchPlayerState(token: token)
-        guard let deviceID = player?.deviceID else {
+        var player = await fetchPlayerState(token: token)
+        var deviceID = player?.deviceID ?? (await fetchAvailableDevice(token: token))
+
+        if player == nil && deviceID == nil {
+            // Might have failed due to expired token; force refresh and retry device lookup
+            if let refreshed = await accessToken(forceRefresh: true) {
+                token = refreshed
+                player = await fetchPlayerState(token: token)
+                deviceID = player?.deviceID ?? (await fetchAvailableDevice(token: token))
+            }
+        }
+
+        guard let targetDevice = deviceID else {
             log("spotify \(action) aborted: no active device")
             return .noActivePlayer("Open Spotify on this phone first")
         }
 
+        var res = await sendAction(action, token: token, deviceID: targetDevice, isPlaying: player?.isPlaying ?? isPlaying)
+        if case .failure(let fail) = res, fail.statusCode == 401 {
+            // Token expired mid-session; refresh and retry player command once
+            log("spotify \(action) got 401, refreshing token and retrying...")
+            if let refreshed = await accessToken(forceRefresh: true) {
+                token = refreshed
+                res = await sendAction(action, token: token, deviceID: targetDevice, isPlaying: player?.isPlaying ?? isPlaying)
+            }
+        }
+
+        switch res {
+        case .success:
+            log("spotify \(action) ok device=\(targetDevice)")
+            return .performed("Spotify")
+        case .failure(let failure):
+            log("spotify \(action) failed: \(failure.message)")
+            return .failed(failure.message)
+        }
+    }
+
+    private static func sendAction(_ action: TransportAction, token: String, deviceID: String, isPlaying: Bool) async -> Result<Void, TransportFailure> {
         let method: String
         let path: String
         switch action {
-        case .playPause where player?.isPlaying == true:
+        case .playPause where isPlaying:
             method = "PUT"; path = "pause"
         case .playPause:
             method = "PUT"; path = "play"
@@ -139,31 +167,26 @@ enum TransportControl {
 
         var components = URLComponents(string: "https://api.spotify.com/v1/me/player/\(path)")
         components?.queryItems = [URLQueryItem(name: "device_id", value: deviceID)]
-        guard let url = components?.url else { return .failed("Bad player URL") }
+        guard let url = components?.url else { return .failure(.init("Bad player URL")) }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if method == "PUT", path == "play" {
-            // Resuming with no body and a device_id plays the current item.
             request.httpBody = Data()
         }
         request.timeoutInterval = 8
-
-        switch await send(request) {
-        case .success:
-            log("spotify \(action) ok device=\(deviceID)")
-            return .performed("Spotify")
-        case .failure(let failure):
-            log("spotify \(action) failed: \(failure.message)")
-            return .failed(failure.message)
-        }
+        return await send(request)
     }
 
-    /// A Spotify transport failure with the message shown to the caller.
+    /// A Spotify transport failure with HTTP status code.
     private struct TransportFailure: Error {
         let message: String
-        init(_ message: String) { self.message = message }
+        let statusCode: Int?
+        init(_ message: String, statusCode: Int? = nil) {
+            self.message = message
+            self.statusCode = statusCode
+        }
     }
 
     private struct SpotifyPlayer {
@@ -177,15 +200,28 @@ enum TransportControl {
         guard let url = URL(string: "https://api.spotify.com/v1/me/player") else { return nil }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 8
+        request.timeoutInterval = 6
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse else { return nil }
-        // 204 = nothing playing anywhere. 404/403 = Premium or scope problem.
         guard http.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         let device = json["device"] as? [String: Any]
         return SpotifyPlayer(deviceID: device?["id"] as? String,
                              isPlaying: json["is_playing"] as? Bool ?? false)
+    }
+
+    /// Fallback device lookup when player state is inactive or empty.
+    private static func fetchAvailableDevice(token: String) async -> String? {
+        guard let url = URL(string: "https://api.spotify.com/v1/me/player/devices") else { return nil }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 6
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let devices = json["devices"] as? [[String: Any]], !devices.isEmpty else { return nil }
+        let active = devices.first(where: { ($0["is_active"] as? Bool) == true })
+        return (active ?? devices.first)?["id"] as? String
     }
 
     private static func send(_ request: URLRequest) async -> Result<Void, TransportFailure> {
@@ -195,21 +231,22 @@ enum TransportControl {
         }
         switch http.statusCode {
         case 200, 202, 204: return .success(())
-        case 401: return .failure(.init("Spotify session expired"))
-        case 403: return .failure(.init("Spotify Premium required"))
-        case 404: return .failure(.init("No active Spotify device"))
-        case 429: return .failure(.init("Spotify rate limited"))
+        case 401: return .failure(.init("Spotify session expired", statusCode: 401))
+        case 403: return .failure(.init("Spotify Premium required", statusCode: 403))
+        case 404: return .failure(.init("No active Spotify device", statusCode: 404))
+        case 429: return .failure(.init("Spotify rate limited", statusCode: 429))
         default:
             let body = String(data: data, encoding: .utf8) ?? ""
-            return .failure(.init("Spotify \(http.statusCode) \(body.prefix(120))"))
+            return .failure(.init("Spotify \(http.statusCode) \(body.prefix(120))", statusCode: http.statusCode))
         }
     }
 
-    /// Refreshes the shared token when it is within the expiry margin; returns
+    /// Refreshes the shared token when near expiry or when forced; returns
     /// the current access token, or nil when the user must reconnect.
-    static func accessToken() async -> String? {
+    static func accessToken(forceRefresh: Bool = false) async -> String? {
         guard let token = SharedWidgetStore.readSpotifyToken() else { return nil }
-        switch SpotifyTokenPolicy.action(for: token, now: Date()) {
+        let action = forceRefresh ? TokenAction.refresh : SpotifyTokenPolicy.action(for: token, now: Date())
+        switch action {
         case .useCurrent:
             return token.accessToken
         case .reauthorize:
@@ -217,8 +254,6 @@ enum TransportControl {
         case .refresh:
             guard let clientID = SharedWidgetStore.readSpotifyClientID(),
                   let refreshed = try? await SpotifyTokenClient().refresh(token, clientID: clientID) else {
-                // Falling back to a token we know is stale only produces a 401
-                // two round trips later with no explanation.
                 return nil
             }
             SharedWidgetStore.writeSpotifyToken(refreshed)

@@ -20,11 +20,14 @@ struct WidgetArtworkBackground: View {
 
     var body: some View {
         if theme == .artwork, let hex = artworkColorHex, let color = Color(hexString: hex) {
-            LinearGradient(
-                colors: [color.opacity(0.92), color.opacity(0.52), .black.opacity(0.9)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            ZStack {
+                Color.black
+                LinearGradient(
+                    colors: [color.opacity(0.48), color.opacity(0.22), Color(white: 0.04)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
         } else {
             theme.backgroundColor
         }

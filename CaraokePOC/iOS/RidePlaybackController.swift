@@ -23,6 +23,7 @@ final class RidePlaybackController: ObservableObject {
     @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
     @Published private(set) var upcomingLines: [String] = []
+    @Published private(set) var allLines: [LyricLine] = []
     /// Track identity + playback clock the home screen's player card shows.
     @Published private(set) var trackTitle = ""
     @Published private(set) var trackArtist = ""
@@ -158,6 +159,7 @@ final class RidePlaybackController: ObservableObject {
         previousLines = []
         nextLine = nil
         upcomingLines = []
+        allLines = []
         trackTitle = ""
         trackArtist = ""
         positionMs = 0
@@ -200,6 +202,7 @@ final class RidePlaybackController: ObservableObject {
                 previousLines = []
                 nextLine = nil
                 upcomingLines = []
+                allLines = []
                 lyricState = .idle
             }
             engine.apply(nil)
@@ -219,6 +222,7 @@ final class RidePlaybackController: ObservableObject {
             previousLines = []
             nextLine = nil
             upcomingLines = []
+            allLines = []
             trackTitle = state.title
             trackArtist = state.artist
             lyricState = .loading
@@ -264,6 +268,7 @@ final class RidePlaybackController: ObservableObject {
             }
             guard !Task.isCancelled else { return }
             self.lastTrack = track
+            self.allLines = track.lines
             self.engine.setLyrics(
                 track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation) }
             )

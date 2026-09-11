@@ -31,6 +31,7 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
     @Published private(set) var upcomingLines: [String] = []
+    @Published private(set) var allLines: [LyricLine] = []
     /// Now-playing identity + clock, bridged from the real playback pipeline
     /// so the home screen's player card matches the Lock Screen tile.
     @Published private(set) var trackTitle = ""
@@ -219,6 +220,14 @@ final class RideModeViewModel: ObservableObject {
             }
             .store(in: &playbackCancellables)
 
+        realPlayback.$allLines
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.allLines = val
+            }
+            .store(in: &playbackCancellables)
+
         realPlayback.$trackTitle
             .receive(on: RunLoop.main)
             .sink { [weak self] val in
@@ -336,6 +345,7 @@ final class RideModeViewModel: ObservableObject {
         previousLines = []
         nextLine = nil
         upcomingLines = []
+        allLines = []
         positionMs = 0
         durationMs = nil
         lyricStatus = .idle

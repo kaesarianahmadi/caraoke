@@ -124,8 +124,8 @@ enum LyricSurface: String, CaseIterable, Sendable {
     /// padding the box sits inside.
     var blockHeight: CGFloat {
         switch self {
-        case .lockBanner: return 92
-        case .carPlaySmall: return 92
+        case .lockBanner: return 132
+        case .carPlaySmall: return 132
         case .widgetSmall: return 102
         case .widgetMedium: return 132
         // Content-sized: 16 pt ceiling padding either side of the 262 pt box.

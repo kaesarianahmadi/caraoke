@@ -75,7 +75,7 @@ enum SecretsLoader {
 final class SpotifyAuth: NSObject, ObservableObject {
     static let redirectURI = "caraoke://callback"
     static let callbackScheme = "caraoke"
-    static let scopes = "user-read-currently-playing user-read-playback-state"
+    static let scopes = "user-read-currently-playing user-read-playback-state user-modify-playback-state"
     /// A 401 arriving this soon after a successful refresh means the grant
     /// itself is dead — reconnect instead of refresh-looping.
     static let revokedWindow: TimeInterval = 30

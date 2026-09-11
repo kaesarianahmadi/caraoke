@@ -159,6 +159,14 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open lyrics page")
+            if let err = model.transportError {
+                Text(err)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(AppTheme.warn)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 4)
+                    .transition(.opacity)
+            }
         }
     }
 
@@ -233,6 +241,7 @@ struct HomeView: View {
             surface: .home,
             palette: .home(scheme)
         )
+        .frame(height: 217)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.08), radius: 12, y: 4)
         .accessibilityLabel("Now playing")
@@ -509,7 +518,7 @@ struct HomeWidgetPreview: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(identity)
                     .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.mutedTextColor)
                     .lineLimit(1)
                 Spacer(minLength: 6)
                 // Same 18 pt rows and same weight rule as the real widget.
@@ -517,30 +526,36 @@ struct HomeWidgetPreview: View {
                     if let previousLine, !previousLine.isEmpty {
                         Text(previousLine)
                             .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
-                            .foregroundStyle(.white.opacity(0.34))
+                            .foregroundStyle(theme.mutedTextColor.opacity(0.42))
                             .lineLimit(1)
+                            .truncationMode(.tail)
                     }
-                    Text(currentLine.isEmpty ? "Play a song to see lyrics" : currentLine)
-                        .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .lineSpacing(LyricType.lyricLineSpacing)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if !currentLyricText.isEmpty {
+                        Text(currentLyricText)
+                            .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                            .foregroundStyle(theme.textColor)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
+                            .lineSpacing(LyricType.lyricLineSpacing)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if let nextLine, !nextLine.isEmpty {
                         Text(nextLine)
                             .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
-                            .foregroundStyle(.white.opacity(0.55))
+                            .foregroundStyle(theme.mutedTextColor.opacity(0.62))
                             .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
                 Spacer(minLength: 6)
                 HStack(spacing: 18) {
                     Image(systemName: "backward.fill")
-                    Image(systemName: "pause.fill")
+                    Image(systemName: isSpinning ? "pause.fill" : "play.fill")
                     Image(systemName: "forward.fill")
                 }
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textColor)
+                .padding(.bottom, 6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -560,16 +575,26 @@ struct HomeWidgetPreview: View {
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.08)))
     }
 
+    private var currentLyricText: String {
+        if !currentLine.isEmpty {
+            return currentLine
+        }
+        if previousLine != nil && isSpinning {
+            return "" // outro transition
+        }
+        if !title.isEmpty {
+            return artist.isEmpty ? title : "\(title) — \(artist)"
+        }
+        return "Play a song to see lyrics"
+    }
+
     private var identity: String {
         artist.isEmpty ? (title.isEmpty ? "Caraoke" : title) : "\(title) — \(artist)"
     }
 
     @ViewBuilder private var cover: some View {
         if coverStyle == .vinyl {
-            CoverArtworkView(artworkData: artworkData, cornerRadius: 59,
-                             showsVinylFallback: true, artworkColorHex: artworkColorHex)
-                .frame(width: 118, height: 118)
-                .clipShape(Circle())
+            VinylRecordView(artworkData: artworkData, diameter: 120, labelDiameter: 84)
                 .vinylSpin(isSpinning)
         } else {
             CoverArtworkView(artworkData: artworkData, cornerRadius: 14,

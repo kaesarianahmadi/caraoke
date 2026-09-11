@@ -137,10 +137,11 @@ enum WidgetTimelineBuilder {
     /// lyric entries so the widget recovers without another reload.
     static func entries(for payload: SharedWidgetPayload,
                         now: Date,
-                        limit: Int = maxEntries) -> [WidgetTimelineEntry] {
+                        limit: Int = maxEntries,
+                        includeOutro: Bool = false) -> [WidgetTimelineEntry] {
         let nowMs = Int(now.timeIntervalSince1970 * 1000)
         guard payload.resyncingUntilMs > nowMs else {
-            return contentEntries(for: payload, now: now, limit: limit)
+            return contentEntries(for: payload, now: now, limit: limit, includeOutro: includeOutro)
         }
         let endMs = min(payload.resyncingUntilMs, nowMs + resyncPulseWindowMs)
         var pulse: [WidgetTimelineEntry] = []
@@ -155,14 +156,16 @@ enum WidgetTimelineBuilder {
         }
         let tail = contentEntries(for: payload,
                                   now: Date(timeIntervalSince1970: Double(endMs) / 1000),
-                                  limit: max(1, limit - pulse.count))
+                                  limit: max(1, limit - pulse.count),
+                                  includeOutro: includeOutro)
         return pulse + tail
     }
 
     /// The lyric timeline itself.
     static func contentEntries(for payload: SharedWidgetPayload,
                                now: Date,
-                               limit: Int = maxEntries) -> [WidgetTimelineEntry] {
+                               limit: Int = maxEntries,
+                               includeOutro: Bool = false) -> [WidgetTimelineEntry] {
         let lines = payload.lines
         guard payload.isPlaying,
               payload.status == LyricStatus.playing.rawValue,
@@ -210,6 +213,37 @@ enum WidgetTimelineBuilder {
                 upcomingLines: upcoming,
                 progress: progress
             ))
+        }
+
+        // Outro entries: after the final lyric line, shift it up into previous,
+        // then clear all lines so the widget smoothly scrolls off and disappears.
+        if includeOutro, end == lines.count, let lastLine = lines.last {
+            let stage1Date = Date(timeIntervalSince1970: startEpoch + Double(lastLine.timeMs + 7000) / 1000.0)
+            if stage1Date > now {
+                entries.append(WidgetTimelineEntry(
+                    date: stage1Date,
+                    lineIndex: lines.count,
+                    currentLine: "",
+                    currentTranslation: nil,
+                    previousLines: [lastLine.text],
+                    nextLine: nil,
+                    upcomingLines: [],
+                    progress: payload.durationMs > 0 ? min(1.0, Double(lastLine.timeMs + 7000) / Double(payload.durationMs)) : 1.0
+                ))
+            }
+            let stage2Date = Date(timeIntervalSince1970: startEpoch + Double(lastLine.timeMs + 10000) / 1000.0)
+            if stage2Date > now {
+                entries.append(WidgetTimelineEntry(
+                    date: stage2Date,
+                    lineIndex: lines.count + 1,
+                    currentLine: "",
+                    currentTranslation: nil,
+                    previousLines: [],
+                    nextLine: nil,
+                    upcomingLines: [],
+                    progress: 1.0
+                ))
+            }
         }
         return entries.isEmpty ? [staticEntry(payload: payload, now: now)] : entries
     }

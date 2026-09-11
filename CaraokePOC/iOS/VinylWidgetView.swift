@@ -17,7 +17,7 @@ struct VinylWidgetView: View {
         GeometryReader { geometry in
             HStack(spacing: 4) {
                 lyricsSection
-                    .frame(width: geometry.size.width * 0.56, alignment: .leading)
+                    .frame(width: geometry.size.width * 0.62, alignment: .leading)
                 cover
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -31,10 +31,8 @@ struct VinylWidgetView: View {
     }
 
     private var lyricsSection: some View {
-        // Identity pinned to the top, transport pinned to the bottom, lyrics
-        // centred in whatever is left. Build 40 stacked all three from the top
-        // with a fixed 80 pt clip, which is why the block sat high with dead
-        // space below it and lost its tail behind the clip.
+        // Identity pinned to the top, transport elevated from the bottom, lyrics
+        // centred in whatever is left.
         VStack(alignment: .leading, spacing: 0) {
             Text(identity)
                 .font(.system(size: 12.5, weight: .semibold))
@@ -53,14 +51,13 @@ struct VinylWidgetView: View {
                 intentButton(entry.isPlaying ? "pause.fill" : "play.fill", intent: PlayPauseIntent(), label: entry.isPlaying ? "Pause" : "Play", size: 16)
                 intentButton("forward.fill", intent: NextTrackIntent(), label: "Next song", size: 13)
             }
+            .padding(.bottom, 6)
         }
     }
 
     /// Every row at the SAME 18 pt (`LyricType.lyric`). Emphasis on the active
-    /// line is weight only — `.semibold`, not `.bold` (user direction: build
-    /// 40's active line was too heavy). No `minimumScaleFactor`: a long line
-    /// wraps into the two-row budget instead of shrinking. Keyed by line index
-    /// so WidgetKit pushes each new line in from the bottom.
+    /// line is weight only — `.semibold`, not `.bold`. Allows 2 wrapped rows with
+    /// subtle scale factor fallback to avoid word clipping.
     private var lyricBlock: some View {
         VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
             if let previous = entry.previousLines.last, !previous.isEmpty {
@@ -68,22 +65,40 @@ struct VinylWidgetView: View {
                     .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.42))
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            Text(entry.currentLine.isEmpty ? "Play a song to see lyrics" : entry.currentLine)
-                .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
-                .foregroundStyle(theme.textColor)
-                .lineLimit(2)
-                .lineSpacing(LyricType.lyricLineSpacing)
-                .fixedSize(horizontal: false, vertical: true)
+            if !currentLyricText.isEmpty {
+                Text(currentLyricText)
+                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                    .foregroundStyle(theme.textColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .lineSpacing(LyricType.lyricLineSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let next = entry.nextLine, !next.isEmpty {
                 Text(next)
                     .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.62))
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
         .id(entry.lineIndex)
         .transition(.push(from: .bottom))
+    }
+
+    private var currentLyricText: String {
+        if !entry.currentLine.isEmpty {
+            return entry.currentLine
+        }
+        if !entry.previousLines.isEmpty && entry.isPlaying {
+            return "" // outro transition
+        }
+        if !entry.title.isEmpty {
+            return entry.artist.isEmpty ? entry.title : "\(entry.title) — \(entry.artist)"
+        }
+        return "Play a song to see lyrics"
     }
 
     /// The record/cover IS the resync button — tapping it refreshes the shared
@@ -126,29 +141,9 @@ struct VinylWidgetView: View {
         entry.status != .playing || entry.resyncPulse < 1
     }
 
-    /// Record with the cover as its label. The label is 70 % of the disc
-    /// diameter (user direction) so the artwork is readable at widget size.
+    /// Record with the cover as its label. Uses shared VinylRecordView.
     private var vinyl: some View {
-        ZStack {
-            Circle().fill(RadialGradient(colors: [.black, Color(white: 0.16), .black], center: .center, startRadius: 8, endRadius: 65))
-            ForEach(0..<7, id: \.self) { index in
-                Circle().stroke(.white.opacity(0.07), lineWidth: 0.5)
-                    .padding(CGFloat(index * 7 + 5))
-            }
-            Group {
-                if let artwork {
-                    Image(uiImage: artwork).resizable().scaledToFill()
-                } else {
-                    Circle().fill(.gray.opacity(0.35)).overlay(Image(systemName: "music.note"))
-                }
-            }
-            .frame(width: 88, height: 88)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.15)))
-            Circle().fill(.white.opacity(0.55)).frame(width: 7, height: 7)
-        }
-        .frame(width: 126, height: 126)
-        .shadow(color: .black.opacity(0.28), radius: 7, y: 4)
+        VinylRecordView(artworkImage: artwork, diameter: 126, labelDiameter: 88)
     }
 
     private var identity: String {
