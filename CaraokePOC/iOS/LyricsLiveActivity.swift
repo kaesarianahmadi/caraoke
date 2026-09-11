@@ -8,7 +8,7 @@ import WidgetKit
 ///
 /// Design: design/screens/live-activity.html — 5 states × every family, one
 /// status driver. Always dark glass; the tile itself carries its own glass
-/// background, and `.activityBackgroundTint(.black.opacity(0.7))` supplies the
+/// background, and `.activityBackgroundTint(.black)` supplies the
 /// system-level tint the CarPlay mirror needs.
 struct LyricsLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -16,7 +16,7 @@ struct LyricsLiveActivity: Widget {
             // The CarPlay small family is exposed via the environment, not
             // on the context (ActivityFamily reads only work inside a View).
             FamilyAdaptiveTile(context: context)
-                .activityBackgroundTint(.black.opacity(0.7))
+                .activityBackgroundTint(.black)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {

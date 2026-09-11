@@ -239,9 +239,9 @@ struct HomeView: View {
             positionMs: isIdle ? 0 : model.positionMs,
             durationMs: isIdle ? nil : model.durationMs,
             surface: .home,
-            palette: .home(scheme)
+            palette: .activity
         )
-        .frame(height: 217)
+        .frame(height: 167)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.08), radius: 12, y: 4)
         .accessibilityLabel("Now playing")
@@ -502,6 +502,8 @@ struct HomeWidgetPreview: View {
     /// Spins the record while the active source is playing (app preview only).
     var isSpinning: Bool = false
 
+    @Environment(\.colorScheme) private var scheme
+
     /// Reads the same shared settings the widget itself uses.
     private var coverStyle: WidgetCoverStyle {
         WidgetCoverStyle(rawValue: SharedWidgetStore.readSettings().coverStyle) ?? .vinyl
@@ -520,6 +522,8 @@ struct HomeWidgetPreview: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(theme.mutedTextColor)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.75)
                 Spacer(minLength: 6)
                 // Same 18 pt rows and same weight rule as the real widget.
                 VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
@@ -529,6 +533,7 @@ struct HomeWidgetPreview: View {
                             .foregroundStyle(theme.mutedTextColor.opacity(0.42))
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .minimumScaleFactor(0.8)
                     }
                     if !currentLyricText.isEmpty {
                         Text(currentLyricText)
@@ -545,6 +550,7 @@ struct HomeWidgetPreview: View {
                             .foregroundStyle(theme.mutedTextColor.opacity(0.62))
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .minimumScaleFactor(0.8)
                     }
                 }
                 Spacer(minLength: 6)
@@ -570,9 +576,14 @@ struct HomeWidgetPreview: View {
         // shape explicitly — `.background(_:in:)` only accepts shape styles.
         .background {
             WidgetArtworkBackground(theme: theme, artworkColorHex: artworkColorHex)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.08)))
+        // Same outline + shadow recipe as the Live Activity card above, so the
+        // widget preview reads as the same family of surface.
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .stroke(.white.opacity(0.08), lineWidth: 1))
+        .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.08), radius: 12, y: 4)
     }
 
     private var currentLyricText: String {

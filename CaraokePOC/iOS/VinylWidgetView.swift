@@ -15,11 +15,21 @@ struct VinylWidgetView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 4) {
+            // The disc is sized from the space that is actually left after the
+            // lyrics column, so it can never run past the widget's right edge.
+            // Build 44 sized it from `maxHeight: .infinity` instead: a fixed
+            // 126 pt disc in a ~114 pt column, overflowing by ~12 pt.
+            let inner = CGSize(width: geometry.size.width - 28,
+                               height: geometry.size.height - 28)
+            let lyricsWidth = inner.width * 0.60
+            let disc = min(inner.height, inner.width - lyricsWidth - 8)
+
+            HStack(spacing: 8) {
                 lyricsSection
-                    .frame(width: geometry.size.width * 0.62, alignment: .leading)
-                cover
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: lyricsWidth, alignment: .leading)
+                cover(diameter: disc)
+                    .frame(width: disc, height: disc)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(14)
         }
@@ -38,6 +48,8 @@ struct VinylWidgetView: View {
                 .font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(theme.mutedTextColor)
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .minimumScaleFactor(0.75)
 
             Spacer(minLength: 4)
 
@@ -66,6 +78,7 @@ struct VinylWidgetView: View {
                     .foregroundStyle(theme.mutedTextColor.opacity(0.42))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .minimumScaleFactor(0.8)
             }
             if !currentLyricText.isEmpty {
                 Text(currentLyricText)
@@ -82,6 +95,7 @@ struct VinylWidgetView: View {
                     .foregroundStyle(theme.mutedTextColor.opacity(0.62))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .minimumScaleFactor(0.8)
             }
         }
         .id(entry.lineIndex)
@@ -105,11 +119,11 @@ struct VinylWidgetView: View {
     /// payload in place instead of opening the app. It pulses (timeline-driven,
     /// WidgetKit has no animation) while the resync is in flight, and shows a
     /// refresh glyph whenever the lyrics are out of sync so the tap is obvious.
-    @ViewBuilder private var cover: some View {
+    @ViewBuilder private func cover(diameter: CGFloat) -> some View {
         Button(intent: ResyncWidgetIntent()) {
             Group {
                 if coverStyle == .vinyl {
-                    vinyl
+                    vinyl(diameter: diameter)
                 } else {
                     Group {
                         if let artwork {
@@ -118,7 +132,7 @@ struct VinylWidgetView: View {
                             Rectangle().fill(.white.opacity(0.1)).overlay(Image(systemName: "music.note").font(.title2))
                         }
                     }
-                    .frame(width: 110, height: 110)
+                    .frame(width: diameter, height: diameter)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.12)))
                 }
@@ -142,8 +156,9 @@ struct VinylWidgetView: View {
     }
 
     /// Record with the cover as its label. Uses shared VinylRecordView.
-    private var vinyl: some View {
-        VinylRecordView(artworkImage: artwork, diameter: 126, labelDiameter: 88)
+    private func vinyl(diameter: CGFloat) -> some View {
+        VinylRecordView(artworkImage: artwork, diameter: diameter,
+                        labelDiameter: diameter * 0.7)
     }
 
     private var identity: String {

@@ -122,15 +122,20 @@ enum LyricSurface: String, CaseIterable, Sendable {
     /// Space granted to the block itself. For fixed-box surfaces this is the
     /// anti-flicker height; for the large widget it is `maxBoxHeight` plus the
     /// padding the box sits inside.
+    ///
+    /// Build 45: the Lock Screen banner and the in-app card use 119 pt, which
+    /// makes the whole tile measure 167 pt — the exact height of Spotify's
+    /// now-playing Live Activity on the same Lock Screen. Build 44's 132 pt
+    /// block made the tile 180 pt and the user read it as "too long".
     var blockHeight: CGFloat {
         switch self {
-        case .lockBanner: return 132
-        case .carPlaySmall: return 132
+        case .lockBanner: return 119
+        case .carPlaySmall: return 119
         case .widgetSmall: return 102
         case .widgetMedium: return 132
         // Content-sized: 16 pt ceiling padding either side of the 262 pt box.
         case .widgetLarge: return 262 + 32
-        case .home: return 126
+        case .home: return 119
         }
     }
 
@@ -170,10 +175,12 @@ enum LyricSurface: String, CaseIterable, Sendable {
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0),
             ]
         case .home:
+            // Same box as the Lock Screen banner this card mirrors, so the same
+            // budget: neighbours wrap to one row, not two.
             return [
-                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 1),
-                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 0),
-                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0),
+                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 1, neighborRows: 1),
+                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0, neighborRows: 1),
             ]
         }
     }

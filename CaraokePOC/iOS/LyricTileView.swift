@@ -56,7 +56,7 @@ struct LyricTilePalette {
     /// is what makes it look native next to Spotify's player — our own solid
     /// black rounded rect used to paint right over that glass.
     static let activity = LyricTilePalette(
-        cardBackground: Color(red: 14 / 255, green: 14 / 255, blue: 16 / 255).opacity(0.68),
+        cardBackground: .black,
         cardBorder: Color.white.opacity(0.07),
         titleText: Color.white.opacity(0.96),
         artistText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.48),
@@ -70,23 +70,6 @@ struct LyricTilePalette {
         trackFill: .white.opacity(0.92),
         glow: .white.opacity(0.7)
     )
-
-    /// Home player card — follows the app theme (AppTheme tokens).
-    static func home(_ scheme: ColorScheme) -> LyricTilePalette {
-        LyricTilePalette(
-            cardBackground: AppTheme.surface(scheme),
-            cardBorder: AppTheme.border(scheme),
-            titleText: AppTheme.fg(scheme),
-            artistText: AppTheme.muted(scheme),
-            badgeText: AppTheme.muted(scheme),
-            heroText: AppTheme.fg(scheme),
-            nextText: AppTheme.muted(scheme),
-            metaText: AppTheme.muted(scheme),
-            trackBackground: AppTheme.fg(scheme).opacity(0.16),
-            trackFill: AppTheme.fg(scheme).opacity(0.75),
-            glow: AppTheme.accent(scheme)
-        )
-    }
 }
 
 struct LyricTileView: View {
@@ -135,8 +118,6 @@ struct LyricTileView: View {
     /// Shows the refresh glyph over the cover when the lyrics are out of sync.
     var needsResync: Bool = false
 
-    @Environment(\.colorScheme) private var scheme
-
     private var colors: LyricTilePalette { palette ?? .activity }
 
     private var layout: LyricTileLayout {
@@ -179,11 +160,11 @@ struct LyricTileView: View {
                 centersVertically: true, padding: 16,
                 chromeHeight: LyricSurface.widgetLarge.chromeHeight)
         case .home:
-            // The in-app player card. Same 18 pt type as everything else; the
-            // block is wide enough for 4 rows of lyrics.
+            // The in-app player card — the Live Activity's in-app twin: same
+            // compact one-line identity, same fixed box, same 167 pt total.
             return LyricTileLayout(
                 boxHeight: LyricSurface.home.blockHeight,
-                centersVertically: true, padding: 16,
+                headerCompact: true, centersVertically: true, padding: 12,
                 chromeHeight: LyricSurface.home.chromeHeight)
         }
     }
