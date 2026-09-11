@@ -109,20 +109,30 @@ enum TransportControl {
     // MARK: - Spotify (Web API player endpoints)
 
     private static func spotify(_ action: TransportAction, isPlaying: Bool) async -> TransportOutcome {
-        guard var token = await accessToken() ?? (await accessToken(forceRefresh: true)) else {
+        var token = await accessToken()
+        if token == nil {
+            token = await accessToken(forceRefresh: true)
+        }
+        guard var activeToken = token else {
             log("spotify \(action) aborted: no token")
             return .noActivePlayer("Reconnect Spotify in Settings")
         }
 
-        var player = await fetchPlayerState(token: token)
-        var deviceID = player?.deviceID ?? (await fetchAvailableDevice(token: token))
+        var player = await fetchPlayerState(token: activeToken)
+        var deviceID = player?.deviceID
+        if deviceID == nil {
+            deviceID = await fetchAvailableDevice(token: activeToken)
+        }
 
         if player == nil && deviceID == nil {
             // Might have failed due to expired token; force refresh and retry device lookup
             if let refreshed = await accessToken(forceRefresh: true) {
-                token = refreshed
-                player = await fetchPlayerState(token: token)
-                deviceID = player?.deviceID ?? (await fetchAvailableDevice(token: token))
+                activeToken = refreshed
+                player = await fetchPlayerState(token: activeToken)
+                deviceID = player?.deviceID
+                if deviceID == nil {
+                    deviceID = await fetchAvailableDevice(token: activeToken)
+                }
             }
         }
 
@@ -131,13 +141,13 @@ enum TransportControl {
             return .noActivePlayer("Open Spotify on this phone first")
         }
 
-        var res = await sendAction(action, token: token, deviceID: targetDevice, isPlaying: player?.isPlaying ?? isPlaying)
+        var res = await sendAction(action, token: activeToken, deviceID: targetDevice, isPlaying: player?.isPlaying ?? isPlaying)
         if case .failure(let fail) = res, fail.statusCode == 401 {
             // Token expired mid-session; refresh and retry player command once
             log("spotify \(action) got 401, refreshing token and retrying...")
             if let refreshed = await accessToken(forceRefresh: true) {
-                token = refreshed
-                res = await sendAction(action, token: token, deviceID: targetDevice, isPlaying: player?.isPlaying ?? isPlaying)
+                activeToken = refreshed
+                res = await sendAction(action, token: activeToken, deviceID: targetDevice, isPlaying: player?.isPlaying ?? isPlaying)
             }
         }
 
