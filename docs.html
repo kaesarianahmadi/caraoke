@@ -1,182 +1,194 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Caraoke Documentation & FAQ</title>
-  <style>
-    :root {
-      --bg: #FFFFFF;
-      --card: #F5F5F7;
-      --border: #E5E5EA;
-      --fg: #1D1D1F;
-      --muted: #6E6E73;
-      --accent: #FF9845;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      padding: 0 20px;
-    }
-    header {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 36px 0 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    header a { color: var(--fg); text-decoration: none; font-weight: 700; font-size: 20px; }
-    .content {
-      max-width: 800px;
-      margin: 40px auto 80px;
-    }
-    h1 { font-size: 32px; font-weight: 800; margin-bottom: 24px; letter-spacing: -0.5px; color: var(--fg); }
-    h2 { font-size: 22px; font-weight: 700; margin-top: 40px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; color: var(--fg); }
-    h3 { font-size: 17px; font-weight: 600; margin-top: 20px; margin-bottom: 6px; color: var(--fg); }
-    p, li { color: var(--muted); font-size: 15px; margin-bottom: 12px; }
-    ul, ol { padding-left: 20px; margin-bottom: 16px; }
-    code { background: var(--card); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
-    .callout {
-      background: var(--card);
-      border-left: 4px solid var(--accent);
-      padding: 16px;
-      border-radius: 0 12px 12px 0;
-      margin: 20px 0;
-    }
-    .callout strong { color: var(--fg); }
-    img { max-width: 100%; border-radius: 12px; margin: 16px 0; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docs &amp; Support — Caraoke: Live Lyrics</title>
+<meta name="description" content="Setup guides, troubleshooting, and support for Caraoke: CarPlay, Lock Screen Live Activities, Dynamic Island, widgets, and StandBy.">
+<meta name="theme-color" content="#06080B">
+<link rel="icon" href="assets/icon.png">
+<style>
+  :root{
+    --bg:#06080B; --card:#101419; --line:#1E242C;
+    --fg:#F5F5F7; --muted:#8B939E; --accent:#FF9845; --ok:#34C759;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);line-height:1.65;padding:0 20px;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;padding:28px 0}
+  header a{text-decoration:none;font-weight:700;font-size:18px;display:flex;align-items:center;gap:10px}
+  header .logo-icon{width:28px;height:28px;border-radius:8px;background:var(--accent);
+    display:grid;place-items:center;color:#111;font-weight:800;font-size:14px}
+  header span{color:var(--muted);font-size:13px}
+  h1{font-size:clamp(28px,5vw,38px);font-weight:800;letter-spacing:-1.2px;margin:24px 0 8px}
+  .intro{color:var(--muted);margin-bottom:28px}
+  h2{font-size:21px;font-weight:750;margin:48px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;font-weight:650;margin:22px 0 6px}
+  p,li{color:var(--muted);font-size:15px;margin-bottom:10px}
+  ol,ul{padding-left:22px;margin-bottom:14px}
+  strong{color:var(--fg)}
+  a{color:var(--accent)}
+  code{background:var(--card);border:1px solid var(--line);padding:2px 6px;border-radius:6px;font-size:13px;color:var(--accent)}
+  .callout{background:var(--card);border-left:3px solid var(--accent);
+    padding:16px 18px;border-radius:0 12px 12px 0;margin:20px 0}
+  .callout p{margin:0;color:var(--fg);font-size:14.5px}
+  .contact{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:24px;margin:24px 0 60px}
+  .contact p{margin-bottom:6px}
+  .contact a{font-weight:600}
+
+  /* mini table of contents */
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 22px;margin:28px 0}
+  .toc ul{list-style:none;padding:0;margin:0;columns:2;column-gap:24px}
+  .toc li{margin:0 0 6px;font-size:14px}
+  @media(max-width:560px){.toc ul{columns:1}}
+  .toc a{text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  footer{border-top:1px solid var(--line);padding:28px 0 60px;color:var(--muted);font-size:13px;
+    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  footer a{text-decoration:none;margin-right:16px;color:var(--muted)}
+  footer a:hover{color:var(--fg)}
+</style>
 </head>
 <body>
+<div class="wrap">
+
   <header>
-    <a href="index.html">&larr; Caraoke</a>
-    <span style="color: var(--muted); font-size: 14px;">User Guide</span>
+    <a href="index.html"><img src="assets/icon.png" alt="" width="28" height="28" style="border-radius:7px;display:block">Caraoke</a>
+    <span>Documentation &amp; Support</span>
   </header>
 
-  <div class="content">
-    <h1>Documentation & User Guide</h1>
+  <h1>Documentation</h1>
+  <p class="intro">Setup guides and troubleshooting for CarPlay, Lock Screen, Dynamic Island, widgets, and StandBy.</p>
 
-    <div class="callout">
-      <strong>Quick Tip:</strong> Make sure <code>Live Activities</code> is enabled in <em>Settings &rarr; Caraoke</em> on your iPhone so lyrics can mirror to CarPlay and Lock Screen.
-    </div>
-
-    <h2 id="carplay">1. CarPlay on iOS 26 Setup</h2>
-    <p>Caraoke mirrors real-time synchronized lyrics to Apple CarPlay using ActivityKit and CarPlay widgets.</p>
-    <ol>
-      <li>Connect your iPhone to your car via wireless or wired CarPlay.</li>
-      <li>Open Caraoke on your iPhone and toggle <strong>Live Lyrics</strong> ON.</li>
-      <li>Start playing music on Spotify or Apple Music.</li>
-      <li>On your CarPlay screen, swipe to your dashboard widget view to view lyrics alongside maps.</li>
-    </ol>
-
-    <h2 id="dynamic-island">2. Dynamic Island & Lock Screen</h2>
-    <p>On iPhone 14 Pro and later, lyrics appear in the Dynamic Island while playing music.</p>
-    <h3>How to enable:</h3>
-    <ol>
-      <li>Toggle <strong>Live Lyrics</strong> ON in the Caraoke app.</li>
-      <li>Start playing music.</li>
-      <li>Lyrics will automatically appear in the Dynamic Island and Lock Screen.</li>
-    </ol>
-    <h3>Troubleshooting:</h3>
-    <p>If lyrics don't appear, try:</p>
-    <ul>
-      <li>Toggle Live Lyrics OFF and ON again.</li>
-      <li>Restart the Caraoke app.</li>
-      <li>Make sure Live Activities are enabled in iOS Settings &rarr; Caraoke.</li>
-    </ul>
-
-    <h2 id="widgets">3. Home Screen Widgets</h2>
-    <p>Caraoke offers three widget sizes: Small, Medium, and Large.</p>
-    <h3>How to add widgets:</h3>
-    <ol>
-      <li>Long-press on your Home Screen.</li>
-      <li>Tap the <strong>+</strong> button in the top-left corner.</li>
-      <li>Search for <strong>Caraoke</strong>.</li>
-      <li>Choose your preferred widget size and tap <strong>Add Widget</strong>.</li>
-    </ol>
-    <h3>Widget Features:</h3>
-    <ul>
-      <li><strong>Vinyl Animation:</strong> The vinyl disc rotates while music plays.</li>
-      <li><strong>Tap to Refresh:</strong> Tap the vinyl or album art to manually refresh lyrics.</li>
-      <li><strong>Themes:</strong> Choose from Pitch Black, Slate, or Ivory White in Widget Settings.</li>
-      <li><strong>StandBy Mode:</strong> Place your iPhone horizontally on a charger for full-screen lyrics.</li>
-    </ul>
-
-    <h2 id="common-problems">4. Troubleshooting & Common Problems</h2>
-    <h3>Lyrics not updating or showing "Paused"</h3>
-    <p>Ensure that either Apple Music or Spotify is actively selected as the source. If using Spotify, ensure the app has completed Spotify authorization.</p>
-
-    <h3>Widget not updating automatically</h3>
-    <p>iOS limits widget update frequency. To force an update:</p>
-    <ul>
-      <li>Tap the vinyl disc or album artwork in the widget.</li>
-      <li>Enable Live Activities for real-time updates.</li>
-    </ul>
-
-    <h3>Missing lyrics for some songs</h3>
-    <p>Caraoke uses multiple lyrics providers with automatic fallback. If a song doesn't have lyrics:</p>
-    <ul>
-      <li>We search LRCLIB first (primary source).</li>
-      <li>If not found, we search NetEase (secondary source).</li>
-      <li>If still not found, the song may not have synced lyrics available.</li>
-    </ul>
-
-    <h3>Spotify connection issues</h3>
-    <p>If Spotify disconnects frequently:</p>
-    <ol>
-      <li>Go to Settings &rarr; Music Sources &rarr; Spotify Setup.</li>
-      <li>Try re-authorizing Spotify.</li>
-      <li>Consider using a Custom Client ID (see section 5).</li>
-    </ol>
-
-    <h2 id="client-id">5. Configuring a Custom Spotify Client ID</h2>
-    <p>Power users who wish to use their own Spotify developer credentials can enter their Custom Client ID:</p>
-    <ol>
-      <li>Go to <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a>.</li>
-      <li>Create a new app and copy the Client ID.</li>
-      <li>In Caraoke, go to Settings &rarr; Music Sources &rarr; Spotify Setup &rarr; Advanced.</li>
-      <li>Enter your Custom Client ID and save.</li>
-    </ol>
-
-    <h2 id="standby">6. StandBy Mode</h2>
-    <p>Place your iPhone horizontally on a MagSafe charger to enjoy full-screen lyrics on your nightstand or desk.</p>
-    <h3>How to use:</h3>
-    <ol>
-      <li>Add the Caraoke widget to your StandBy screen.</li>
-      <li>Place your iPhone horizontally on a charger.</li>
-      <li>Start playing music.</li>
-      <li>Lyrics will appear full-screen.</li>
-    </ol>
-    <p>The widget supports Pitch Black, Simple Slate, and Ivory White themes. Change themes in Widget Settings.</p>
-
-    <h2 id="premium">7. Premium Membership</h2>
-    <p>Caraoke Premium unlocks:</p>
-    <ul>
-      <li>Lock Screen Live Activities</li>
-      <li>Dynamic Island lyrics</li>
-      <li>Home Screen widgets</li>
-      <li>CarPlay dashboard lyrics</li>
-      <li>All future updates</li>
-    </ul>
-    <h3>Pricing:</h3>
-    <ul>
-      <li><strong>Monthly:</strong> $1.99/month with 3-day free trial</li>
-      <li><strong>Yearly:</strong> $9.99/year (save 58%)</li>
-      <li><strong>Lifetime:</strong> $14.99 one-time (limited-time offer, normally $27)</li>
-    </ul>
-
-    <h2 id="support">8. Support & Feedback</h2>
-    <p>Need help? Have a feature request?</p>
-    <ul>
-      <li>Email: <a href="mailto:support@caraoke.live">support@caraoke.live</a></li>
-      <li>TestFlight Beta: Join via the link in the app</li>
-    </ul>
+  <div class="callout">
+    <p><strong>Start here:</strong> enable <strong>Live Lyrics</strong> inside Caraoke, and make sure Live Activities are allowed in <em>iOS Settings → Caraoke</em>. Lyrics can only mirror to CarPlay, the Lock Screen, and the Dynamic Island when Live Activities are on.</p>
   </div>
+
+  <nav class="toc">
+    <ul>
+      <li><a href="#carplay">CarPlay setup</a></li>
+      <li><a href="#dynamic-island">Lock Screen &amp; Dynamic Island</a></li>
+      <li><a href="#widgets">Home Screen widgets</a></li>
+      <li><a href="#standby">StandBy mode</a></li>
+      <li><a href="#problems">Troubleshooting</a></li>
+      <li><a href="#client-id">Custom Spotify Client ID</a></li>
+      <li><a href="#premium">Subscription &amp; billing</a></li>
+      <li><a href="#support">Contact support</a></li>
+    </ul>
+  </nav>
+
+  <h2 id="carplay">1. CarPlay setup</h2>
+  <p>Caraoke mirrors real-time synchronized lyrics to CarPlay using ActivityKit and CarPlay widgets.</p>
+  <ol>
+    <li>Connect your iPhone to your car via wireless or wired CarPlay.</li>
+    <li>Open Caraoke on your iPhone and toggle <strong>Live Lyrics</strong> on.</li>
+    <li>Start playing music in Spotify or Apple Music.</li>
+    <li>On the CarPlay screen, switch to the dashboard view to see lyrics alongside maps.</li>
+  </ol>
+  <p>CarPlay interaction is read-only by design — no tapping required, and nothing to configure while driving.</p>
+
+  <h2 id="dynamic-island">2. Lock Screen &amp; Dynamic Island</h2>
+  <p>On iPhone 14 Pro and later, lyrics also appear in the Dynamic Island while music plays.</p>
+  <h3>Enable</h3>
+  <ol>
+    <li>Toggle <strong>Live Lyrics</strong> on in Caraoke.</li>
+    <li>Start playing music.</li>
+    <li>Lyrics appear automatically on the Lock Screen and in the Dynamic Island.</li>
+  </ol>
+  <h3>If lyrics don't appear</h3>
+  <ul>
+    <li>Toggle Live Lyrics off and on again.</li>
+    <li>Restart Caraoke.</li>
+    <li>Confirm Live Activities are enabled in <em>iOS Settings → Caraoke</em>.</li>
+  </ul>
+
+  <h2 id="widgets">3. Home Screen widgets</h2>
+  <p>Caraoke offers Small, Medium, and Large widgets.</p>
+  <h3>Add a widget</h3>
+  <ol>
+    <li>Long-press the Home Screen.</li>
+    <li>Tap <strong>+</strong> in the top-left corner.</li>
+    <li>Search for <strong>Caraoke</strong>.</li>
+    <li>Pick a size and tap <strong>Add Widget</strong>.</li>
+  </ol>
+  <h3>Widget features</h3>
+  <ul>
+    <li><strong>Vinyl animation:</strong> the disc rotates while music plays.</li>
+    <li><strong>Tap to refresh:</strong> tap the vinyl or album art to fetch lyrics immediately.</li>
+    <li><strong>Themes:</strong> Pitch Black, Slate, or Ivory White in widget settings.</li>
+    <li><strong>StandBy:</strong> place the iPhone horizontally on a charger for full-screen lyrics.</li>
+  </ul>
+
+  <h2 id="standby">4. StandBy mode</h2>
+  <p>Place your iPhone horizontally on a MagSafe charger for full-screen lyrics on a nightstand or desk.</p>
+  <ol>
+    <li>Add the Caraoke widget to your StandBy screen.</li>
+    <li>Place the iPhone horizontally on a charger.</li>
+    <li>Start playing music — lyrics appear full-screen.</li>
+  </ol>
+
+  <h2 id="problems">5. Troubleshooting</h2>
+
+  <h3>Lyrics not updating, or stuck on "Paused"</h3>
+  <p>Make sure either Apple Music or Spotify is selected as the active source. If you use Spotify, confirm the authorization completed (Settings → Music Sources).</p>
+
+  <h3>Widget not updating automatically</h3>
+  <p>iOS limits how often widgets may refresh. To force an update, tap the vinyl disc or album art in the widget, or enable Live Lyrics for real-time updates.</p>
+
+  <h3>Missing lyrics for some songs</h3>
+  <p>Caraoke queries multiple lyrics providers with automatic fallback:</p>
+  <ul>
+    <li>LRCLIB first (primary source).</li>
+    <li>NetEase second (fallback source).</li>
+    <li>If neither has the track, synced lyrics simply may not exist for it.</li>
+  </ul>
+
+  <h3>Spotify keeps disconnecting</h3>
+  <ol>
+    <li>Open Settings → Music Sources → Spotify Setup.</li>
+    <li>Re-authorize Spotify.</li>
+    <li>If it persists, use your own Custom Client ID (section 6).</li>
+  </ol>
+
+  <h3>Lyrics feel out of sync</h3>
+  <p>Seek within the track once; Caraoke re-aligns to the playback position reported by the music source. Bluetooth latency in some cars can shift the perceived timing by a fraction of a second.</p>
+
+  <h2 id="client-id">6. Custom Spotify Client ID</h2>
+  <p>Power users can supply their own Spotify developer credentials instead of the shared default.</p>
+  <ol>
+    <li>Open the <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a>.</li>
+    <li>Create an app and copy the Client ID.</li>
+    <li>In Caraoke: Settings → Music Sources → Spotify Setup → Advanced.</li>
+    <li>Paste the Client ID and save.</li>
+  </ol>
+
+  <h2 id="premium">7. Subscription &amp; billing</h2>
+  <p>Every plan starts with a <strong>3-day free trial</strong>, and all plans unlock the same full feature set — Live Lyrics, CarPlay, Lock Screen, Dynamic Island, widgets, and future updates.</p>
+  <ul>
+    <li><strong>Lifetime:</strong> $14.99 one-time (launch offer, normally $27)</li>
+    <li><strong>Yearly:</strong> $9.99/year</li>
+    <li><strong>Monthly:</strong> $1.99/month</li>
+  </ul>
+  <p>Subscriptions renew automatically unless cancelled at least 24 hours before the period ends. Manage or cancel in your Apple ID settings (Settings → [your name] → Subscriptions). Use <strong>Restore purchases</strong> in the app to recover an existing purchase on a new device.</p>
+
+  <h2 id="support">8. Contact support</h2>
+  <div class="contact">
+    <p><strong>Email:</strong> <a href="mailto:support@caraoke.app">support@caraoke.app</a></p>
+    <p>Include your iPhone model, iOS version, and music source (Spotify or Apple Music) so we can reproduce the issue quickly.</p>
+  </div>
+
+  <footer>
+    <div>&copy; 2026 Caraoke.</div>
+    <div>
+      <a href="index.html">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </div>
+  </footer>
+
+</div>
 </body>
 </html>

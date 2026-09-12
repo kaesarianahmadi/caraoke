@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Caraoke: Live Lyrics</title>
+<meta name="description" content="Caraoke has no server and no accounts. We do not collect, store, or share your personal data.">
+<meta name="theme-color" content="#06080B">
+<link rel="icon" href="assets/icon.png">
+<style>
+  :root{--bg:#06080B;--card:#101419;--line:#1E242C;--fg:#F5F5F7;--muted:#8B939E;--accent:#FF9845}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);line-height:1.65;padding:0 20px;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:center;padding:28px 0}
+  header a{text-decoration:none;font-weight:700;font-size:18px;display:flex;align-items:center;gap:10px}
+  header .logo-icon{width:28px;height:28px;border-radius:8px;background:var(--accent);
+    display:grid;place-items:center;color:#111;font-weight:800;font-size:14px}
+  header span{color:var(--muted);font-size:13px}
+  h1{font-size:clamp(28px,5vw,38px);font-weight:800;letter-spacing:-1.2px;margin:24px 0 6px}
+  .eff{color:var(--muted);font-size:14px;margin-bottom:28px}
+  h2{font-size:20px;font-weight:750;margin:40px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  p,li{color:var(--muted);font-size:15px;margin-bottom:10px}
+  ul{padding-left:22px;margin-bottom:14px}
+  strong{color:var(--fg)}
+  a{color:var(--accent)}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top}
+  th{color:var(--fg);font-weight:650}
+  .summary{background:var(--card);border-left:3px solid var(--accent);padding:16px 18px;
+    border-radius:0 12px 12px 0;margin:20px 0}
+  .summary p{color:var(--fg);margin:0}
+  footer{border-top:1px solid var(--line);padding:28px 0 60px;color:var(--muted);font-size:13px;
+    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  footer a{text-decoration:none;margin-right:16px;color:var(--muted)}
+  footer a:hover{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <a href="index.html"><img src="assets/icon.png" alt="" width="28" height="28" style="border-radius:7px;display:block">Caraoke</a>
+    <span>Privacy Policy</span>
+  </header>
+
+  <h1>Privacy Policy</h1>
+  <p class="eff">Effective date: launch date. Contact: <a href="mailto:support@caraoke.app">support@caraoke.app</a></p>
+
+  <div class="summary">
+    <p><strong>The short version:</strong> Caraoke has no server and no accounts. We do not collect, store, or share your personal data. Trading personal data is antithetical to a utility product, so the entire product is designed to function on-device.</p>
+  </div>
+
+  <h2>What the app processes, and where it stays</h2>
+  <table>
+    <tr><th>Data</th><th>Where it lives</th><th>Purpose</th></tr>
+    <tr>
+      <td>Spotify OAuth tokens</td>
+      <td>Your device's Keychain only</td>
+      <td>Read what song is playing (official Spotify Web API)</td>
+    </tr>
+    <tr>
+      <td>Currently-playing track (title / artist / position)</td>
+      <td>On-device, in memory</td>
+      <td>Keep lyrics synchronized; sent as part of HTTPS requests to LRCLIB and Spotify</td>
+    </tr>
+    <tr>
+      <td>Cached lyrics</td>
+      <td>Your device's Caches folder (clearable in Settings)</td>
+      <td>Offline rides and respectful use of LRCLIB</td>
+    </tr>
+    <tr>
+      <td>Purchase / subscription state</td>
+      <td>Processed by Apple via StoreKit</td>
+      <td>Entitlements; Apple's privacy policy governs this</td>
+    </tr>
+  </table>
+
+  <h2>Third parties</h2>
+  <ul>
+    <li><strong>LRCLIB (lrclib.net):</strong> when a song plays, Caraoke requests matching lyrics over HTTPS. Requests include the track's title, artist, and duration. LRCLIB is a free community lyrics database; its own terms apply. No account, no identifier beyond standard connection metadata.</li>
+    <li><strong>Apple (Apple Music via MediaPlayer, StoreKit):</strong> playback is read with Apple's public framework; purchases are processed by Apple.</li>
+    <li><strong>Spotify (Web API):</strong> only if you connect Spotify yourself. Read-only scopes. Disconnect in Settings at any time, which removes the Keychain token.</li>
+  </ul>
+
+  <h2>What we never do</h2>
+  <ul>
+    <li>No analytics SDKs, no advertising, no tracking, no third-party SDKs at all</li>
+    <li>No listening history, no user profiles, no server-side storage</li>
+    <li>No data sales or sharing</li>
+  </ul>
+
+  <h2>Your controls</h2>
+  <p>Settings → “Clear downloaded lyrics cache” removes all cached lyrics. Disconnecting Spotify removes the stored token. Deleting the app removes everything.</p>
+  <p><strong>Children:</strong> the app is rated 4+ and collects nothing.</p>
+  <p>Changes to this policy will be posted on this page with a new effective date.</p>
+
+  <footer>
+    <div>&copy; 2026 Caraoke.</div>
+    <div>
+      <a href="index.html">Home</a>
+      <a href="docs.html">Documentation</a>
+      <a href="terms.html">Terms of Use</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

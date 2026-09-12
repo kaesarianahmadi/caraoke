@@ -1,284 +1,204 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Caraoke — Live Lyrics for CarPlay, Lock Screen & Widgets</title>
-  <meta name="description" content="Sing along with real-time synchronized lyrics on CarPlay, Lock Screen Live Activities, Dynamic Island, and Home Screen widgets.">
-  <style>
-    :root {
-      --bg: #FFFFFF;
-      --card: #F5F5F7;
-      --border: #E5E5EA;
-      --fg: #1D1D1F;
-      --muted: #6E6E73;
-      --accent: #FF9845;
-      --ok: #34C759;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-      padding: 0 20px;
-    }
-    header {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 40px 0 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-    }
-    .logo-icon {
-      width: 32px;
-      height: 32px;
-      background: var(--accent);
-      border-radius: 8px;
-      display: grid;
-      place-items: center;
-      font-size: 16px;
-      font-weight: 800;
-      color: #FFF;
-    }
-    nav a {
-      color: var(--muted);
-      text-decoration: none;
-      font-size: 15px;
-      font-weight: 500;
-      padding: 8px 16px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      transition: color 0.2s, border-color 0.2s;
-    }
-    nav a:hover {
-      color: var(--fg);
-      border-color: var(--fg);
-    }
-    .hero {
-      max-width: 760px;
-      margin: 80px auto 60px;
-      text-align: center;
-    }
-    .hero h1 {
-      font-size: clamp(36px, 6vw, 56px);
-      font-weight: 800;
-      letter-spacing: -1.5px;
-      line-height: 1.1;
-      margin-bottom: 20px;
-      color: var(--fg);
-    }
-    .hero p {
-      font-size: clamp(17px, 2.5vw, 20px);
-      color: var(--muted);
-      max-width: 620px;
-      margin: 0 auto 36px;
-      line-height: 1.5;
-    }
-    .cta-group {
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-    }
-    .btn-primary {
-      background: var(--fg);
-      color: #FFF;
-      font-weight: 600;
-      font-size: 16px;
-      padding: 14px 28px;
-      border-radius: 12px;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: transform 0.2s;
-    }
-    .btn-primary:hover {
-      transform: translateY(-2px);
-    }
-    .btn-appstore {
-      background: #000;
-      color: #FFF;
-      font-weight: 600;
-      font-size: 16px;
-      padding: 14px 28px;
-      border-radius: 12px;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      transition: transform 0.2s;
-    }
-    .btn-appstore:hover {
-      transform: translateY(-2px);
-    }
-    .btn-appstore svg {
-      width: 20px;
-      height: 20px;
-    }
-    .btn-secondary {
-      background: var(--card);
-      color: var(--fg);
-      font-weight: 600;
-      font-size: 16px;
-      padding: 14px 28px;
-      border-radius: 12px;
-      text-decoration: none;
-      border: 1px solid var(--border);
-      transition: background 0.2s;
-    }
-    .btn-secondary:hover {
-      background: var(--border);
-    }
-    .preview-card {
-      max-width: 680px;
-      margin: 40px auto 80px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 32px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-      text-align: center;
-    }
-    .karaoke-lead {
-      color: var(--muted);
-      font-size: 15px;
-      margin-bottom: 8px;
-    }
-    .karaoke-active {
-      font-size: clamp(22px, 3.5vw, 28px);
-      font-weight: 700;
-      color: var(--fg);
-      margin-bottom: 8px;
-    }
-    .karaoke-next {
-      color: var(--muted);
-      font-size: 16px;
-    }
-    .features {
-      max-width: 900px;
-      margin: 0 auto 100px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px;
-    }
-    .feature-item {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 24px;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .feature-item:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-    }
-    .feature-item h3 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--fg);
-    }
-    .feature-item p {
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-    footer {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 40px 0;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      color: var(--muted);
-      font-size: 13px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    footer a { color: var(--muted); text-decoration: none; }
-    footer a:hover { color: var(--fg); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caraoke: Live Lyrics</title>
+<meta name="description" content="Real-time synced lyrics on CarPlay, Lock Screen, and Dynamic Island for Spotify and Apple Music. 3-day free trial.">
+<meta name="theme-color" content="#06080B">
+<meta property="og:title" content="Caraoke: Live Lyrics">
+<meta property="og:description" content="Real-time synced lyrics on CarPlay, Lock Screen, and Dynamic Island.">
+<meta property="og:image" content="assets/carplay_mockup.png">
+<link rel="icon" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<style>
+  :root{
+    --bg:#06080B; --card:#101419; --line:#1E242C;
+    --fg:#F5F5F7; --muted:#8B939E; --accent:#FF9845; --ok:#34C759;
+    --pad:20px; --maxw:600px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--fg);line-height:1.6;padding:0 var(--pad);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .wrap{max-width:var(--maxw);margin:0 auto}
+  a{color:inherit;-webkit-tap-highlight-color:transparent}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;letter-spacing:-.3px}
+  .brand img{width:28px;height:28px;border-radius:7px}
+  header nav a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;margin-left:18px}
+  header nav a:active{color:var(--fg)}
+
+  .hero{text-align:center;padding-top:26px}
+  .hero-icon{width:84px;height:84px;border-radius:20px;display:block;margin:0 auto 22px;
+    box-shadow:0 12px 40px rgba(255,152,69,.22)}
+  h1{font-size:clamp(30px,8.5vw,44px);font-weight:800;letter-spacing:-1.4px;line-height:1.1;margin-bottom:14px}
+  h1 .app{color:var(--accent)}
+  .sub{font-size:clamp(16px,4.3vw,18px);color:var(--muted);margin:0 auto 28px;max-width:440px}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;max-width:330px;
+    background:#000;color:#fff;border:1px solid #2A2F36;font-weight:600;font-size:16px;
+    padding:15px 24px;border-radius:15px;text-decoration:none;transition:transform .15s}
+  .btn:active{transform:scale(.97)}
+  .btn svg{width:21px;height:21px;flex:0 0 auto}
+  .trial{color:var(--ok);font-size:14px;font-weight:600;margin-top:13px}
+
+  figure{margin:34px -20px 0}
+  figure img{width:100%;height:auto;display:block;border-radius:14px;
+    box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  figcaption{color:var(--muted);font-size:13px;text-align:center;margin-top:14px}
+  @media(min-width:680px){figure{margin-left:0;margin-right:0}figure img{border-radius:16px}}
+
+  .safety{display:flex;background:var(--card);border:1px solid var(--line);
+    border-left:3px solid var(--accent);border-radius:0 12px 12px 0;padding:14px 16px;margin-top:20px}
+  .safety b{color:var(--fg);display:block;font-size:14px;margin-bottom:2px}
+  .safety span{color:var(--muted);font-size:13.5px;line-height:1.5}
+
+  section{margin-top:64px}
+  h2{font-size:clamp(22px,6vw,28px);font-weight:800;letter-spacing:-.9px;margin-bottom:6px}
+  .lead{color:var(--muted);font-size:15px;margin-bottom:26px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:14px}
+  .card .kicker{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;margin-bottom:7px}
+  .card h3{font-size:17.5px;font-weight:650;margin-bottom:7px;letter-spacing:-.3px}
+  .card p{color:var(--muted);font-size:14.5px}
+
+  .price{display:flex;align-items:center;justify-content:space-between;gap:14px;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;padding:19px 20px;margin-bottom:12px}
+  .price.best{border-color:var(--accent);background:linear-gradient(180deg,rgba(255,152,69,.07),transparent)}
+  .price .name{font-size:16.5px;font-weight:700}
+  .price .note{color:var(--muted);font-size:13px}
+  .price .amt{font-size:19px;font-weight:800;white-space:nowrap;text-align:right}
+  .price .amt s{color:var(--muted);font-weight:500;font-size:14px;margin-right:7px}
+  .price .amt em{font-style:normal;font-size:13px;font-weight:400;color:var(--muted)}
+  .badge{background:var(--accent);color:#111;font-size:10.5px;font-weight:800;
+    padding:3px 8px;border-radius:20px;margin-left:7px;vertical-align:1px}
+
+  footer{margin-top:44px;padding:30px 0 calc(44px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
+    color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  footer a{text-decoration:none;margin-right:15px}
+  footer a:active{color:var(--fg)}
+
+  .cta{margin-top:72px;text-align:center;border-top:1px solid var(--line);padding-top:52px}
+  .cta h2{margin-bottom:8px}
+</style>
 </head>
 <body>
+<div class="wrap">
+
   <header>
-    <div class="logo">
-      <div class="logo-icon">C</div>
-      <span>Caraoke</span>
-    </div>
+    <div class="brand"><img src="assets/icon.png" alt="Caraoke app icon">Caraoke</div>
     <nav>
-      <a href="docs.html">Documentation & FAQ</a>
+      <a href="#pricing">Pricing</a>
+      <a href="docs.html">Docs</a>
     </nav>
   </header>
 
   <main>
-    <section class="hero">
-      <h1>Live lyrics everywhere.<br>CarPlay, Lock Screen, Dynamic Island.</h1>
-      <p>Real-time synchronized lyrics for Spotify and Apple Music. Works on CarPlay, Lock Screen Live Activities, Dynamic Island, and Home Screen widgets.</p>
-      <div class="cta-group">
-        <a href="https://apps.apple.com/app/caraoke" class="btn-appstore">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-          </svg>
-          Download on App Store
-        </a>
-        <a href="docs.html" class="btn-secondary">Read Documentation</a>
+    <div class="hero">
+      <img class="hero-icon" src="assets/icon.png" alt="Caraoke app icon">
+      <h1><span class="app">Caraoke:</span> Live Lyrics</h1>
+      <p class="sub">Real-time synced lyrics on CarPlay, Lock Screen, and Dynamic Island — for Spotify and Apple Music.</p>
+      <a class="btn" href="https://apps.apple.com/app/caraoke">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        Download on App Store
+      </a>
+      <p class="trial">3-day free trial · Cancel anytime</p>
+    </div>
+
+    <figure>
+      <img src="assets/carplay_mockup.png" alt="Caraoke showing synced lyrics on a CarPlay dashboard">
+      <figcaption>Caraoke running on CarPlay.</figcaption>
+    </figure>
+
+    <div class="safety">
+      <div>
+        <b>For passengers</b>
+        <span>Keep your eyes on the road. Caraoke is built to be read, and CarPlay interaction is read-only — set it up before you drive.</span>
+      </div>
+    </div>
+
+    <section>
+      <h2>Where the lyrics show up</h2>
+      <p class="lead">Four surfaces, one toggle.</p>
+
+      <div class="card">
+        <div class="kicker">CarPlay</div>
+        <h3>Dashboard lyrics</h3>
+        <p>Synced lyrics mirrored to your car display, alongside maps and music controls. Works with CarPlay widgets on iOS 26.</p>
+      </div>
+
+      <div class="card">
+        <div class="kicker">Lock Screen</div>
+        <h3>Live Activities &amp; Dynamic Island</h3>
+        <p>Lyrics on the Lock Screen without unlocking. On iPhone 14 Pro and later they ride in the Dynamic Island too.</p>
+      </div>
+
+      <div class="card">
+        <div class="kicker">Home Screen</div>
+        <h3>Vinyl widgets</h3>
+        <p>Small, Medium, and Large widgets with a spinning vinyl disc. Tap the disc to pull fresh lyrics. Pitch Black, Slate, or Ivory White.</p>
+      </div>
+
+      <div class="card">
+        <div class="kicker">StandBy</div>
+        <h3>Nightstand lyrics</h3>
+        <p>Drop your iPhone sideways on a charger for full-screen lyrics — nightstand, desk, or dashboard mount.</p>
       </div>
     </section>
 
-    <div class="preview-card">
-      <div class="karaoke-lead">Fever dream high in the quiet of the night</div>
-      <div class="karaoke-active">You know that I caught it</div>
-      <div class="karaoke-next">Bad, bad boy, shiny toy with a price</div>
-    </div>
+    <section id="pricing">
+      <h2>Simple pricing</h2>
+      <p class="lead">Every plan starts with a 3-day free trial. All plans unlock everything.</p>
 
-    <section class="features">
-      <div class="feature-item">
-        <h3>🚗 CarPlay Dashboard</h3>
-        <p>Real-time synchronized lyrics mirrored on your CarPlay screen. Works with iOS 26 CarPlay widgets and dashboard view.</p>
+      <div class="price best">
+        <div>
+          <div class="name">Lifetime<span class="badge">BEST VALUE</span></div>
+          <div class="note">One payment, yours forever</div>
+        </div>
+        <div class="amt"><s>$27</s>$14.99</div>
       </div>
-      <div class="feature-item">
-        <h3>🔒 Lock Screen Live Activities</h3>
-        <p>See lyrics on your Lock Screen without unlocking your phone. Dynamic Island support for iPhone 14 Pro and later.</p>
+
+      <div class="price">
+        <div>
+          <div class="name">Yearly</div>
+          <div class="note">Renews annually</div>
+        </div>
+        <div class="amt">$9.99<em>/yr</em></div>
       </div>
-      <div class="feature-item">
-        <h3>📱 Home Screen Widgets</h3>
-        <p>Beautiful widgets with vinyl animation. Tap the vinyl to refresh lyrics. Multiple themes: Pitch Black, Slate, Ivory White.</p>
+
+      <div class="price">
+        <div>
+          <div class="name">Monthly</div>
+          <div class="note">Renews monthly</div>
+        </div>
+        <div class="amt">$1.99<em>/mo</em></div>
       </div>
-      <div class="feature-item">
-        <h3>🎵 Multi-Source Lyrics</h3>
-        <p>Automatic fallback across multiple lyrics providers. If one source doesn't have the lyrics, we try another.</p>
-      </div>
-      <div class="feature-item">
-        <h3>🎤 Spotify & Apple Music</h3>
-        <p>Works seamlessly with both Spotify and Apple Music. Switch between sources with one tap.</p>
-      </div>
-      <div class="feature-item">
-        <h3>⏱️ StandBy Mode</h3>
-        <p>Place your iPhone horizontally on a charger for full-screen lyrics. Perfect for your nightstand or desk.</p>
-      </div>
+    </section>
+
+    <section class="cta">
+      <h2>Road trips shouldn't be boring.</h2>
+      <p class="lead" style="margin-bottom:22px">Turn every drive into a singalong. Free for 3 days.</p>
+      <a class="btn" href="https://apps.apple.com/app/caraoke">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        Download on App Store
+      </a>
+      <p class="trial">3-day free trial · Cancel anytime</p>
     </section>
   </main>
 
   <footer>
-    <div>&copy; 2026 Caraoke. Made for music lovers.</div>
+    <div>&copy; 2026 Caraoke.</div>
     <div>
-      <a href="docs.html">Documentation</a> &middot;
-      <a href="docs.html#common-problems">Troubleshooting</a> &middot;
-      <a href="docs.html#carplay">CarPlay Setup</a>
+      <a href="docs.html">Documentation</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="mailto:support@caraoke.app">Support</a>
     </div>
   </footer>
+
+</div>
 </body>
 </html>
