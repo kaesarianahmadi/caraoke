@@ -21,11 +21,8 @@ enum LyricType {
     /// per-surface override and no minimumScaleFactor anywhere.
     static let lyric: CGFloat = 18
 
-    /// The active line. Emphasis is WEIGHT ONLY — the size is identical to the
-    /// dimmed neighbours, and `.semibold` rather than `.bold` (user direction:
-    /// build 40's active line read as too heavy, but must stay clearly bolder
-    /// than the rest).
-    static let lyricWeight: Font.Weight = .semibold
+    /// The active line renders at `.regular` across all surfaces.
+    static let lyricWeight: Font.Weight = .regular
     static let lyricNeighborWeight: Font.Weight = .regular
 
     /// Line spacing inside one wrapped lyric line.
@@ -38,11 +35,9 @@ enum LyricType {
     /// lyrics, so it uses the Spotify/Apple Music scale instead of 18 pt.
     static let pageLyric: CGFloat = 28
 
-    /// CarPlay's mirrored Live Activity tile. Smaller than every other surface
-    /// (user direction, build 46): the dashboard tile is read from ~1 m in a
-    /// moving car and the font must come down, or the active line overruns the
-    /// tile and gets cut.
-    static let carPlayLyric: CGFloat = 12
+    /// CarPlay's mirrored Live Activity tile. Scaled for dashboard readability
+    /// from ~1 m in a moving car (14 pt).
+    static let carPlayLyric: CGFloat = 14
 }
 
 /// How much vertical room a surface gives its lyric block, and how many rows
@@ -118,7 +113,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
         switch self {
         case .lockBanner: return 53
         case .carPlaySmall: return 53
-        case .widgetSmall: return 45
+        case .widgetSmall: return 37
         case .widgetMedium: return 45
         case .widgetLarge: return 140.5
         case .home: return 91
@@ -148,7 +143,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
         switch self {
         case .lockBanner: return 119
         case .carPlaySmall: return 119
-        case .widgetSmall: return 102
+        case .widgetSmall: return 115
         case .widgetMedium: return 132
         // Content-sized: 16 pt ceiling padding either side of the 262 pt box.
         case .widgetLarge: return 262 + 32
@@ -170,30 +165,21 @@ enum LyricSurface: String, CaseIterable, Sendable {
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 1, neighborRows: 1),
             ]
         case .carPlaySmall:
-            // Build 46. Same three-row shape (active line always centred, with
-            // a neighbour above OR below it) but at `carPlayLyric` — 12 pt and
-            // no scaling, so the active line always fits instead of being cut.
-            //
-            // The hero gets three rows: the user's rule is that text which does
-            // not fit is carried to the next row rather than truncated. The
-            // worst case (3 + 1 + 1 rows) measures 81 pt inside the 119 pt box,
-            // so it still lands with room to spare.
             let font = LyricType.carPlayLyric
             return [
                 LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 1,
                                neighborRows: 1, font: font),
-                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 1,
+                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 0,
                                neighborRows: 1, font: font),
                 LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0,
                                neighborRows: 1, font: font),
             ]
         case .widgetSmall:
-            // Hero (2 rows) + two following lines = the "three or four lines"
-            // the user asked for. Build 40 clipped the third.
+            // Centred active line (1 previous + 1 hero + 1 upcoming) with 3-line wrap allowance.
             return [
-                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 2, neighborRows: 1),
-                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 1, neighborRows: 1),
-                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 1, neighborRows: 1),
+                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0, neighborRows: 1),
             ]
         case .widgetMedium:
             return [

@@ -18,6 +18,8 @@ AuthKey_*.p8
 # macOS
 .DS_Store
 *.swp
+.tmpgh/
+.dsh-vision-router/
 
 # Xcode
 xcuserdata/

@@ -65,7 +65,7 @@ struct LyricTilePalette {
         artistText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.48),
         badgeText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.62),
         heroText: .white,
-        nextText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.55),
+        nextText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.75),
         metaText: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.4),
         trackBackground: Color(red: 235 / 255, green: 235 / 255, blue: 245 / 255).opacity(0.18),
         // White, not the brand orange: the progress fill belongs to the lyric
@@ -120,6 +120,10 @@ struct LyricTileView: View {
     var resyncPulse: Double = 1
     /// Shows the refresh glyph over the cover when the lyrics are out of sync.
     var needsResync: Bool = false
+    /// Whether the progress bar should be shown (CarPlay Stack 2 / Stack 3 can disable).
+    var showsProgressBar: Bool = true
+    /// Custom container height override (e.g. for hybrid widget embedded tiles).
+    var customBoxHeight: CGFloat? = nil
 
     private var colors: LyricTilePalette { palette ?? .activity }
 
@@ -137,21 +141,16 @@ struct LyricTileView: View {
                                    headerCompact: true, padding: 12,
                                    chromeHeight: LyricSurface.lockBanner.chromeHeight)
         case .carPlaySmall:
-            // Build 46. The CarPlay mirror reads at 12 pt, not the Lock Screen's
-            // 18 pt: the dashboard tile is the smallest surface we render and
-            // the user's report was "fonts too big, still truncating". The
-            // identity row is conditional (`showsCarPlayIntroHeader`) — it is
-            // only there before the first line of the song arrives.
+            // CarPlay Stack / Dashboard mirror. Renders at 14 pt with compact 6 pt
+            // padding to maximize horizontal lyric width and prevent premature wrap.
             return LyricTileLayout(boxHeight: LyricSurface.carPlaySmall.blockHeight,
-                                   headerCompact: true, padding: 12,
+                                   headerCompact: true, padding: 6,
                                    chromeHeight: LyricSurface.carPlaySmall.chromeHeight,
                                    font: LyricSurface.carPlaySmall.lyricFont)
         case .widgetSmall:
-            // Apple's 158×158 grid, also the StandBy/CarPlay tile (the system
-            // scales this up). One identity row, then hero (2 wrapped rows) plus
-            // two following lines. Padding reduced to 10 to give lyrics more width.
+            // Apple's 158×158 grid. Compact 6 pt padding gives lyrics max width.
             return LyricTileLayout(boxHeight: LyricSurface.widgetSmall.blockHeight,
-                                   headerCompact: true, padding: 10,
+                                   headerCompact: true, padding: 6,
                                    chromeHeight: LyricSurface.widgetSmall.chromeHeight)
         case .widgetMedium:
             // 338×158: the vinyl/cover takes the right half, lyrics the left.
@@ -178,10 +177,8 @@ struct LyricTileView: View {
         }
     }
 
-    /// The tile always shows a progress bar except in the terminal stale
-    /// state. `LyricTileLayout.chromeHeight` is measured with it included, so
-    /// a surface that hides it simply gains headroom.
-    private var showsProgress: Bool { status != .stale }
+    /// The tile shows a progress bar unless disabled or in the terminal stale state.
+    private var showsProgress: Bool { showsProgressBar && status != .stale }
 
     init(title: String, artist: String, currentLine: String,
          previousLines: [String] = [],
@@ -190,7 +187,8 @@ struct LyricTileView: View {
          isPlaying: Bool, progress: Double, status: LyricStatus = .playing,
          positionMs: Int = 0, durationMs: Int? = nil,
          surface: Surface, palette: LyricTilePalette? = nil, artworkData: Data? = nil,
-         resyncPulse: Double = 1, needsResync: Bool = false) {
+         resyncPulse: Double = 1, needsResync: Bool = false,
+         showsProgressBar: Bool = true, customBoxHeight: CGFloat? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -207,6 +205,8 @@ struct LyricTileView: View {
         self.artworkData = artworkData
         self.resyncPulse = resyncPulse
         self.needsResync = needsResync
+        self.showsProgressBar = showsProgressBar
+        self.customBoxHeight = customBoxHeight
     }
 
     var body: some View {
@@ -386,7 +386,8 @@ struct LyricTileView: View {
     /// row instead of middle" defect. `maxHeight:` is removed for the lock
     /// banner too — the ceiling was letting the block collapse.
     private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
-        if (surface == .lockBanner || surface == .carPlaySmall || surface == .home), let h = spec.boxHeight {
+        let boxH = customBoxHeight ?? spec.boxHeight
+        if (surface == .lockBanner || surface == .carPlaySmall || surface == .home), let h = boxH {
             // Strict fixed height: never shrinks when lines drop to 2, never
             // expands when lines wrap. Prevents container jump across all surfaces.
             content.frame(maxWidth: .infinity,
@@ -395,7 +396,7 @@ struct LyricTileView: View {
                           alignment: alignment)
         } else {
             content.frame(maxWidth: .infinity,
-                          maxHeight: spec.boxHeight ?? spec.maxBoxHeight ?? .infinity,
+                          maxHeight: boxH ?? spec.maxBoxHeight ?? .infinity,
                           alignment: alignment)
         }
     }
@@ -420,13 +421,6 @@ struct LyricTileView: View {
             seen[key] = count + 1
             return count == 0 ? "\(kind):\(text)" : "\(kind):\(text)#\(count)"
         }
-        var rows: [LyricRow] = []
-        if status != .idle {
-            for (idx, line) in previousLines.suffix(budget.previousShown).enumerated() {
-                rows.append(LyricRow(id: uniqueID("p", line), text: line,
-                                     kind: .previous, opacity: fade(previousIndex: idx)))
-            }
-        }
         let hero: String
         if !currentLine.isEmpty {
             hero = currentLine
@@ -444,10 +438,26 @@ struct LyricTileView: View {
         } else {
             hero = "Play a song to see lyrics"
         }
+
+        // Dynamic eviction for constrained surfaces (small widget, CarPlay tile, medium widget):
+        // If active hero line wraps to 2 lines, evict upcoming lines to preserve line 2 active anchor.
+        // If active hero line wraps to 3 lines, evict both neighbors so hero gets full height without truncation.
+        let isConstrained = (surface == .widgetSmall || surface == .carPlaySmall || surface == .widgetMedium)
+        let heroLength = hero.count
+        let evictUpcoming = isConstrained && heroLength > (surface == .carPlaySmall ? 38 : 26)
+        let evictPrevious = isConstrained && heroLength > (surface == .carPlaySmall ? 68 : 52)
+
+        var rows: [LyricRow] = []
+        if status != .idle && !evictPrevious {
+            for (idx, line) in previousLines.suffix(budget.previousShown).enumerated() {
+                rows.append(LyricRow(id: uniqueID("p", line), text: line,
+                                     kind: .previous, opacity: fade(previousIndex: idx)))
+            }
+        }
         if !hero.isEmpty {
             rows.append(LyricRow(id: uniqueID("h", hero), text: hero, kind: .hero, opacity: 1))
         }
-        if status != .idle {
+        if status != .idle && !evictUpcoming {
             for (idx, line) in displayUpcomingLines.prefix(budget.upcomingShown).enumerated() {
                 rows.append(LyricRow(id: uniqueID("u", line), text: line,
                                      kind: .upcoming, opacity: upcomingOpacity(index: idx)))
@@ -524,18 +534,18 @@ struct LyricTileView: View {
     }
 
     private func fade(previousIndex: Int) -> Double {
-        max(0.18, 0.5 - Double(previousIndex) * 0.16)
+        max(0.38, 0.70 - Double(previousIndex) * 0.16)
     }
 
     private func upcomingOpacity(index: Int) -> Double {
         let isPaused = (status == .paused)
         let base: Double
         switch index {
-        case 0: base = 0.62
-        case 1: base = 0.42
-        case 2: base = 0.30
-        case 3: base = 0.22
-        default: base = 0.16
+        case 0: base = 0.82
+        case 1: base = 0.62
+        case 2: base = 0.50
+        case 3: base = 0.42
+        default: base = 0.36
         }
         return isPaused ? base * 0.7 : base
     }

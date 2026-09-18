@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caraoke — Command Center</title>
+<meta name="description" content="Caraoke project oversight: build status, tech stack, capital, ROI and margin calculators, market intelligence, and AI operations.">
+<style>
+  :root {
+    /* ── paper & ink ─────────────────────────────────────────── */
+    --paper:      #FFFFFF;
+    --paper-2:    #FBFAF8;
+    --paper-3:    #F5F3EF;
+    --ink:        #17140F;
+    --ink-2:      #4A443C;
+    --muted:      #7A736A;
+    --line:       #E9E4DC;
+    --line-2:     #F2EEE8;
+
+    /* ── brand orange ────────────────────────────────────────── */
+    --orange:      #FF9845;   /* fills, buttons, bars            */
+    --orange-deep: #B4571A;   /* orange text on white (4.8:1)    */
+    --orange-tint: #FFF4E9;
+    --orange-line: #FFE0C2;
+
+    /* ── semantic ────────────────────────────────────────────── */
+    --ok:   #1F7A44;
+    --ok-t: #EAF6EE;
+    --warn: #9A6A00;
+    --warn-t:#FFF7E3;
+    --bad:  #B3261E;
+    --bad-t:#FDECEA;
+
+    --radius: 14px;
+    --radius-lg: 20px;
+    --shadow: 0 1px 2px rgba(23,20,15,.05), 0 8px 24px -12px rgba(23,20,15,.12);
+    --shadow-lg: 0 1px 2px rgba(23,20,15,.05), 0 20px 48px -20px rgba(23,20,15,.18);
+
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    --maxw: 1160px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+
+  body {
+    margin: 0;
+    background: var(--paper-2);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 { line-height: 1.22; letter-spacing: -0.02em; margin: 0; }
+  h2 { font-size: clamp(22px, 3.2vw, 30px); font-weight: 700; }
+  h3 { font-size: 17px; font-weight: 650; }
+  h4 { font-size: 14px; font-weight: 650; }
+  p { margin: 0 0 12px; }
+  a { color: var(--orange-deep); }
+
+  .num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ── layout ───────────────────────────────────────────────── */
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: 0; }
+
+  .eyebrow {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--orange-deep); margin-bottom: 10px;
+  }
+  .sec-head { margin-bottom: 28px; max-width: 720px; }
+  .sec-head p { color: var(--muted); margin: 10px 0 0; font-size: 15px; }
+
+  /* ── top bar ──────────────────────────────────────────────── */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(251,250,248,.86);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-in {
+    max-width: var(--maxw); margin: 0 auto; padding: 10px 24px;
+    display: flex; align-items: center; gap: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+  .brand svg { width: 26px; height: 26px; color: var(--orange); flex: none; }
+  nav { display: flex; gap: 2px; overflow-x: auto; margin-left: auto; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  nav a {
+    color: var(--ink-2); text-decoration: none; font-size: 13.5px; font-weight: 550;
+    padding: 7px 11px; border-radius: 9px; white-space: nowrap;
+  }
+  nav a:hover { background: var(--orange-tint); color: var(--orange-deep); }
+  nav a:focus-visible { outline: 2px solid var(--orange); outline-offset: 1px; }
+
+  /* ── hero ─────────────────────────────────────────────────── */
+  .hero { padding: 52px 0 44px; }
+  .hero h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 750; max-width: 20ch; }
+  .hero .lede { color: var(--ink-2); font-size: 17.5px; max-width: 62ch; margin-top: 14px; }
+
+  .statusbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; font-weight: 650; padding: 6px 12px;
+    border-radius: 999px; border: 1px solid var(--line); background: var(--paper);
+    color: var(--ink-2);
+  }
+  .pill.brandpill { background: var(--orange-tint); border-color: var(--orange-line); color: var(--orange-deep); }
+  .pill.ok { background: var(--ok-t); border-color: #CDE7D7; color: var(--ok); }
+  .pill.warn { background: var(--warn-t); border-color: #F0E0B0; color: var(--warn); }
+  .pill.bad { background: var(--bad-t); border-color: #F3CFCB; color: var(--bad); }
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+  .dot.pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .45; transform: scale(.82);} }
+
+  /* ── KPI strip ────────────────────────────────────────────── */
+  .kpis {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+    gap: 1px; background: var(--line); border: 1px solid var(--line);
+    border-radius: var(--radius-lg); overflow: hidden; margin-top: 34px;
+  }
+  .kpi { background: var(--paper); padding: 18px 18px 16px; }
+  .kpi .k { font-size: 11.5px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  .kpi .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600; letter-spacing: -0.03em; margin-top: 6px; }
+  .kpi .s { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .kpi .v.accent { color: var(--orange-deep); }
+
+  /* ── cards ────────────────────────────────────────────────── */
+  .card {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow);
+  }
+  .card.flush { padding: 0; overflow: hidden; }
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .g4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+  .card h3 { margin-bottom: 6px; }
+  .card .hint { color: var(--muted); font-size: 13.5px; }
+
+  /* ── tables ───────────────────────────────────────────────── */
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--paper); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+  th {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); background: var(--paper-3); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--paper-2); }
+  td.r, th.r { text-align: right; }
+  td .mono { font-size: 13.5px; }
+  .tfoot td { background: var(--paper-3); font-weight: 700; border-top: 1px solid var(--line); }
+
+  .tag {
+    display: inline-block; font-size: 11.5px; font-weight: 650; padding: 2px 8px;
+    border-radius: 6px; background: var(--paper-3); color: var(--ink-2); border: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .tag.ok { background: var(--ok-t); border-color: #CDE7D7; color: var(--ok); }
+  .tag.warn { background: var(--warn-t); border-color: #F0E0B0; color: var(--warn); }
+  .tag.bad { background: var(--bad-t); border-color: #F3CFCB; color: var(--bad); }
+  .tag.acc { background: var(--orange-tint); border-color: var(--orange-line); color: var(--orange-deep); }
+
+  /* ── build rail ───────────────────────────────────────────── */
+  .rail { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 14px; }
+  .build {
+    flex: none; width: 132px; padding: 13px 14px; border-radius: var(--radius);
+    background: var(--paper); border: 1px solid var(--line); position: relative;
+  }
+  .build .b { font-family: var(--mono); font-size: 19px; font-weight: 650; letter-spacing: -0.03em; }
+  .build .d { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  .build .n { font-size: 11.5px; color: var(--ink-2); margin-top: 8px; line-height: 1.4; height: 3.9em; overflow: hidden; }
+  .build.current { border-color: var(--orange); background: var(--orange-tint); box-shadow: 0 0 0 3px rgba(255,152,69,.16); }
+  .build.current .b { color: var(--orange-deep); }
+  .build.fail { border-color: #F3CFCB; background: var(--bad-t); }
+  .build.fail .b { color: var(--bad); }
+
+  /* ── progress bars ────────────────────────────────────────── */
+  .bar { height: 9px; border-radius: 999px; background: var(--paper-3); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 999px; background: var(--orange); }
+  .bar > i.soft { background: var(--orange-line); }
+  .bar > i.ok { background: var(--ok); }
+
+  .barrow { display: grid; grid-template-columns: 150px 1fr 76px; gap: 12px; align-items: center; padding: 7px 0; font-size: 13.5px; }
+  .barrow .lab { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barrow .val { text-align: right; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  @media (max-width: 620px) {
+    .barrow { grid-template-columns: 104px 1fr 68px; font-size: 12.5px; }
+  }
+
+  /* ── calculator ───────────────────────────────────────────── */
+  .calc { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 24px; }
+  @media (max-width: 880px) { .calc { grid-template-columns: 1fr; } }
+
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line-2); }
+  .field:last-child { border-bottom: 0; }
+  .field label { font-size: 13.5px; color: var(--ink-2); }
+  .field label small { display: block; color: var(--muted); font-size: 11.5px; }
+  .field input {
+    width: 116px; flex: none; padding: 8px 10px; font-size: 14px;
+    font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right;
+    color: var(--ink); background: var(--paper-2);
+    border: 1px solid var(--line); border-radius: 9px;
+  }
+  .field input:focus { outline: 2px solid var(--orange); outline-offset: 0; border-color: var(--orange); background: var(--paper); }
+  .field.inline2 input { width: 74px; }
+
+  .out { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .out .o { background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 14px; }
+  .out .o .k { font-size: 11.5px; color: var(--muted); font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+  .out .o .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 600; letter-spacing: -0.03em; margin-top: 4px; }
+  .out .o .v.pos { color: var(--ok); }
+  .out .o .v.neg { color: var(--bad); }
+  .out .o .v.acc { color: var(--orange-deep); }
+
+  .spark { display: flex; align-items: flex-end; gap: 3px; height: 92px; margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--line-2); }
+  .spark > span { flex: 1; background: var(--orange-line); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+  .spark > span.hi { background: var(--orange); }
+  .spark-x { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 6px; font-family: var(--mono); }
+
+  .note {
+    font-size: 12.5px; color: var(--muted); margin-top: 16px;
+    padding-top: 14px; border-top: 1px solid var(--line-2);
+  }
+
+  /* ── gap matrix ───────────────────────────────────────────── */
+  .gapgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); gap: 14px; }
+  .gapcard { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); padding: 16px; }
+  .gapcard .rank { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--orange-deep); }
+  .gapcard h4 { margin: 6px 0 6px; font-size: 15px; }
+  .gapcard p { font-size: 13.5px; color: var(--ink-2); margin: 0; }
+  .gapcard .meta { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+  blockquote {
+    margin: 0 0 10px; padding: 10px 14px; border-left: 3px solid var(--orange);
+    background: var(--orange-tint); border-radius: 0 10px 10px 0;
+    font-size: 13.5px; color: var(--ink-2); font-style: italic;
+  }
+  blockquote cite { display: block; font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+
+  /* ── pricing cards ────────────────────────────────────────── */
+  .plan { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--paper); padding: 20px; position: relative; }
+  .plan.best { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(255,152,69,.14); }
+  .plan .badge {
+    position: absolute; top: -10px; left: 20px; font-size: 11px; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase; background: var(--orange); color: #2A1503;
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .plan .price { font-family: var(--mono); font-size: 30px; font-weight: 650; letter-spacing: -0.04em; margin: 8px 0 2px; }
+  .plan .price s { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .plan .per { font-size: 13px; color: var(--muted); }
+  .plan ul { margin: 14px 0 0; padding: 0; list-style: none; font-size: 13.5px; }
+  .plan li { padding: 5px 0; border-top: 1px solid var(--line-2); display: flex; gap: 8px; }
+  .plan li b { color: var(--muted); font-weight: 600; flex: none; min-width: 84px; }
+
+  /* ── playbook shortcut ────────────────────────────────────── */
+  .playbook {
+    display: block; text-decoration: none; color: inherit;
+    background: linear-gradient(135deg, var(--orange-tint) 0%, var(--paper) 62%);
+    border: 1px solid var(--orange-line); border-radius: var(--radius-lg);
+    padding: 26px; box-shadow: var(--shadow);
+    transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+  }
+  .playbook:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); border-color: var(--orange); }
+  .playbook:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+  .playbook .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .playbook h3 { font-size: 20px; }
+  .playbook .arrow { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--orange-deep); font-weight: 650; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .chips span { font-size: 12px; padding: 4px 9px; border-radius: 7px; background: rgba(255,255,255,.75); border: 1px solid var(--orange-line); color: var(--ink-2); }
+
+  /* ── misc ─────────────────────────────────────────────────── */
+  .cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; }
+  ul.clean { margin: 0; padding: 0; list-style: none; }
+  ul.clean li { padding: 9px 0; border-top: 1px solid var(--line-2); font-size: 14px; color: var(--ink-2); display: flex; gap: 10px; }
+  ul.clean li:first-child { border-top: 0; }
+  ul.clean li b { color: var(--ink); font-weight: 620; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-2); font-size: 14px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv span:first-child { color: var(--ink-2); }
+  .kv span:last-child { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 56px; color: var(--muted); font-size: 13px; }
+  footer a { color: var(--ink-2); }
+  .warnbox {
+    border: 1px solid #F0E0B0; background: var(--warn-t); border-radius: var(--radius);
+    padding: 14px 16px; font-size: 13.5px; color: #6B4A00;
+  }
+  .warnbox b { color: #533900; }
+
+  @media print {
+    .topbar { position: static; }
+    .card, .tbl-wrap, .plan, .playbook { box-shadow: none; }
+    section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ TOP BAR ═══════════════════ -->
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M53.3 17.1A26 26 0 1 0 53.3 46.9" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+        <ellipse cx="20.2" cy="41.3" rx="4.5" ry="3.4" transform="rotate(-16 20.2 41.3)" fill="currentColor"/>
+        <ellipse cx="32.5" cy="39.2" rx="4.5" ry="3.4" transform="rotate(-16 32.5 39.2)" fill="currentColor"/>
+        <path d="M22.2 23.2h3.2v18.1h-3.2z" fill="currentColor"/>
+        <path d="M34.5 20.1h3.2v19.1h-3.2z" fill="currentColor"/>
+        <path d="M22.2 19.8 37.7 15.4v4.9L22.2 24.7z" fill="currentColor"/>
+        <path d="M42.5 25v10l8.4-5z" fill="currentColor"/>
+      </svg>
+      Caraoke
+    </div>
+    <nav>
+      <a href="#overview">Overview</a>
+      <a href="#builds">Builds</a>
+      <a href="#stack">Stack</a>
+      <a href="#capital">Capital</a>
+      <a href="#roi">ROI</a>
+      <a href="#margin">Margin</a>
+      <a href="#market">Market</a>
+      <a href="#gaps">Gaps</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#aiops">AI Ops</a>
+      <a href="#playbook">Playbook</a>
+    </nav>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ═══════════════════ HERO ═══════════════════ -->
+  <section class="hero" id="overview">
+    <div class="eyebrow">Command Center · last synced 2026-09-09</div>
+    <h1>Live lyrics for the car. Built solo, shipped weekly.</h1>
+    <p class="lede">
+      Single-page oversight for Caraoke: where the build stands, what the stack costs,
+      what the unit economics look like at any scale, and where the category is
+      structurally broken — which is exactly where we play.
+    </p>
+
+    <div class="statusbar">
+      <span class="pill brandpill"><span class="dot pulse"></span>Build 39 · committed, CI running</span>
+      <span class="pill ok"><span class="dot"></span>Build 38 · CI green</span>
+      <span class="pill"><span class="dot"></span>iOS 26 · SwiftUI + ActivityKit</span>
+      <span class="pill"><span class="dot"></span>Repo: <span class="mono">kaesarianahmadi/caraoke</span></span>
+      <span class="pill warn"><span class="dot"></span>Not yet submitted to App Review</span>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi">
+        <div class="k">Current build</div>
+        <div class="v accent">39</div>
+        <div class="s">CI in progress</div>
+      </div>
+      <div class="kpi">
+        <div class="k">Last green</div>
+        <div class="v">38</div>
+        <div class="s">2026-09-09 13:19</div>
+      </div>
+      <div class="kpi">
+        <div class="k">Swift</div>
+        <div class="v">8,838</div>
+        <div class="s">lines · 62 files</div>
+      </div>
+      <div class="kpi">
+        <div class="k">CI success</div>
+        <div class="v">60%</div>
+        <div class="s">36 / 60 runs · 8 days</div>
+      </div>
+      <div class="kpi">
+        <div class="k">Capital in</div>
+        <div class="v">$179</div>
+        <div class="s">year-1 budgeted</div>
+      </div>
+      <div class="kpi">
+        <div class="k">AI metered</div>
+        <div class="v">$209.98</div>
+        <div class="s">actual · over budget</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ BUILD RAIL ═══════════════════ -->
+  <section id="builds">
+    <div class="sec-head">
+      <div class="eyebrow">Build ledger</div>
+      <h2>Ten builds in three days</h2>
+      <p>
+        Build 30 → 39 all landed 2026-09-07 through 09. CI is honest: four of the last
+        twelve pushes broke and were fixed forward. That is the actual iteration loop,
+        not a launch-ready signal.
+      </p>
+    </div>
+
+    <div class="rail">
+      <div class="build">
+        <div class="b">30</div><div class="d">09-07</div>
+        <div class="n">Slide-up lyrics transition, unified CarPlay/widget box</div>
+      </div>
+      <div class="build">
+        <div class="b">31</div><div class="d">09-07</div>
+        <div class="n">Multi-entry widget timeline sync, skip latency</div>
+      </div>
+      <div class="build fail">
+        <div class="b">32</div><div class="d">09-08</div>
+        <div class="n">18pt lyrics, iOS 26 glass effect <em>— CI fail</em></div>
+      </div>
+      <div class="build">
+        <div class="b">33</div><div class="d">09-08</div>
+        <div class="n">AppIntents in LyricTileView for widget buttons</div>
+      </div>
+      <div class="build">
+        <div class="b">34</div><div class="d">09-08</div>
+        <div class="n">21pt lyrics, expanded upcoming lines</div>
+      </div>
+      <div class="build">
+        <div class="b">35</div><div class="d">09-09</div>
+        <div class="n">Version bump 0.1.0-35</div>
+      </div>
+      <div class="build fail">
+        <div class="b">36</div><div class="d">09-09</div>
+        <div class="n">Full competitor-inspired overhaul <em>— CI fail</em></div>
+      </div>
+      <div class="build fail">
+        <div class="b">37</div><div class="d">09-09</div>
+        <div class="n">White landing page, vinyl widget <em>— CI fail</em></div>
+      </div>
+      <div class="build">
+        <div class="b">38</div><div class="d">09-09</div>
+        <div class="n">Competitor-matching home, karaoke context rows</div>
+      </div>
+      <div class="build current">
+        <div class="b">39</div><div class="d">09-09</div>
+        <div class="n">Working widgets + Live Lyrics, source-aware transport</div>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:18px">
+      <div class="card">
+        <h3>Pipeline health</h3>
+        <p class="hint" style="margin-bottom:14px">Last 60 CI runs on <span class="mono">main</span>, 2026-09-02 → 09-09.</p>
+        <div class="barrow"><span class="lab">Green runs</span><span class="bar"><i class="ok" style="width:60%"></i></span><span class="val">36</span></div>
+        <div class="barrow"><span class="lab">Failed runs</span><span class="bar"><i style="width:40%;background:var(--bad)"></i></span><span class="val">24</span></div>
+        <div class="barrow"><span class="lab">Success rate</span><span class="bar"><i style="width:60%"></i></span><span class="val">60%</span></div>
+        <p class="note">
+          A 60% pass rate on a solo iOS project is normal for UI-heavy churn, but it is
+          also the single biggest drag on ship velocity. Every red run costs a full
+          fix-forward cycle.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>What Build 39 contains</h3>
+        <ul class="clean">
+          <li><b>Widgets</b> Working Home Screen + Lock Screen lyric widgets driven by a shared store.</li>
+          <li><b>Live Lyrics</b> Full lyrics page with the current/next line pair.</li>
+          <li><b>Transport</b> Source-aware play/pause/skip intents that survive source switching.</li>
+          <li><b>CarPlay</b> Live Activity mirrored into the CarPlay Dashboard via <span class="mono">supplementalActivityFamilies</span>.</li>
+        </ul>
+        <p class="note">
+          Still unverified on physical CarPlay hardware. That is the Phase C gate and the
+          only thing standing between Build 39 and an App Review submission.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ STACK ═══════════════════ -->
+  <section id="stack">
+    <div class="sec-head">
+      <div class="eyebrow">Architecture</div>
+      <h2>The whole stack is six things</h2>
+      <p>
+        No backend. No database. No auth server. The product is a client that reads
+        what your phone is already playing and paints lyrics on a system surface.
+        Every third-party line below is either free at our scale or already paid for.
+      </p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Choice</th>
+            <th>Why this and not the alternative</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>App</b></td>
+            <td>Swift 5.9 · SwiftUI · iOS 26 target</td>
+            <td>CarPlay Dashboard lyric mirroring requires the iOS 26 Live Activity family API. No cross-platform path exists for this surface.</td>
+            <td><span class="tag ok">$0</span></td>
+          </tr>
+          <tr>
+            <td><b>Build system</b></td>
+            <td>XcodeGen <span class="mono">project.yml</span> + Fastlane + GitHub Actions</td>
+            <td>Declarative project file diffs cleanly in git; cloud CI means no local Xcode dependency for signing or TestFlight.</td>
+            <td><span class="tag ok">$0</span></td>
+          </tr>
+          <tr>
+            <td><b>System surfaces</b></td>
+            <td>ActivityKit (Live Activities, Dynamic Island) + WidgetKit</td>
+            <td>The only Apple-sanctioned way to put live text on the CarPlay Dashboard, Lock Screen and Home Screen simultaneously.</td>
+            <td><span class="tag ok">$0</span></td>
+          </tr>
+          <tr>
+            <td><b>Lyrics</b></td>
+            <td>LRCLIB + local fallback cache</td>
+            <td>Open, zero-cost, LRC-native timing. The fallback cache is what keeps the app working when the API is slow or down — the #1 competitor complaint.</td>
+            <td><span class="tag ok">$0</span></td>
+          </tr>
+          <tr>
+            <td><b>Monetization</b></td>
+            <td>RevenueCat 5.88.0 (StoreKit wrapper)</td>
+            <td>Receipt validation, entitlement state and paywall experiments without writing a server. Apple still processes the payment.</td>
+            <td><span class="tag acc">$0 → 1%</span></td>
+          </tr>
+          <tr>
+            <td><b>Analytics</b></td>
+            <td>TelemetryDeck (planned) + MetricKit (built in)</td>
+            <td>Privacy-first, no ATT prompt, no IDFA. MetricKit covers crashes, hangs and battery with zero SDK.</td>
+            <td><span class="tag ok">$0</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid g3" style="margin-top:18px">
+      <div class="card">
+        <h3>Deliberately absent</h3>
+        <p class="hint">Each of these was considered and rejected.</p>
+        <ul class="clean" style="margin-top:10px">
+          <li><b>Supabase / Firebase</b> A DB to store event rows we do not need.</li>
+          <li><b>Sentry / Crashlytics</b> MetricKit already reports fatal crashes.</li>
+          <li><b>Remote config</b> TestFlight is the release cadence.</li>
+          <li><b>Support SDK</b> A <span class="mono">mailto:</span> link is enough pre-revenue.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Codebase shape</h3>
+        <div class="kv"><span>Swift files</span><span>62</span></div>
+        <div class="kv"><span>Total lines</span><span>8,838</span></div>
+        <div class="kv"><span>Core (platform-neutral)</span><span>25 files</span></div>
+        <div class="kv"><span>iOS + widget surface</span><span>32 files</span></div>
+        <div class="kv"><span>Test target</span><span>2 files</span></div>
+        <p class="note">
+          The timing core is platform-neutral and unit-tested on macOS; the SwiftUI and
+          ActivityKit layer is validated with <span class="mono">swiftc -parse</span> plus CI.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Distribution</h3>
+        <div class="kv"><span>Bundle ID</span><span>app.caraoke.ios</span></div>
+        <div class="kv"><span>Extension</span><span>…ios.widgets</span></div>
+        <div class="kv"><span>Marketing version</span><span>0.1.0</span></div>
+        <div class="kv"><span>Build number</span><span>39</span></div>
+        <div class="kv"><span>Channels</span><span>TestFlight</span></div>
+        <p class="note">
+          CI signs with an App Store Connect API key, so the machine that builds is never
+          the machine that holds the distribution certificate.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ CAPITAL ═══════════════════ -->
+  <section id="capital">
+    <div class="sec-head">
+      <div class="eyebrow">Capital &amp; operating cost</div>
+      <h2>Break-even is roughly 22 yearly subscribers</h2>
+      <p>
+        Year-1 cash out is small enough that the business either works almost
+        immediately or it never works at all. That is a feature, not a bug.
+      </p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Line item</th><th>Type</th><th class="r">Budgeted</th><th class="r">Actual / metered</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Apple Developer Program</b></td><td>Annual, mandatory</td>
+            <td class="r mono">$99.00</td><td class="r mono">$99.00</td>
+            <td>Individual account. Required for TestFlight and App Store.</td>
+          </tr>
+          <tr>
+            <td><b>Domain + support mailbox</b></td><td>Annual</td>
+            <td class="r mono">$20.00</td><td class="r mono">$20.00</td>
+            <td>Needed for the privacy-policy URL and a real support address.</td>
+          </tr>
+          <tr>
+            <td><b>AI / model API</b></td><td>Usage-based</td>
+            <td class="r mono">$60.00</td><td class="r mono">$209.98</td>
+            <td><span class="tag bad">3.5× over</span> See AI Ops for the breakdown.</td>
+          </tr>
+          <tr>
+            <td>RevenueCat</td><td>Free tier</td>
+            <td class="r mono">$0.00</td><td class="r mono">$0.00</td>
+            <td>Free below $2,500 monthly tracked revenue, then 1%.</td>
+          </tr>
+          <tr>
+            <td>TelemetryDeck</td><td>Free tier</td>
+            <td class="r mono">$0.00</td><td class="r mono">$0.00</td>
+            <td>50k events/month on new accounts (100k grandfathered).</td>
+          </tr>
+          <tr>
+            <td>Lyrics API (LRCLIB)</td><td>Free</td>
+            <td class="r mono">$0.00</td><td class="r mono">$0.00</td>
+            <td>Open community database, no key, no quota.</td>
+          </tr>
+          <tr>
+            <td>CI (GitHub Actions)</td><td>Free tier</td>
+            <td class="r mono">$0.00</td><td class="r mono">$0.00</td>
+            <td>Public repo — macOS runners included.</td>
+          </tr>
+          <tr>
+            <td>Hosting / backend</td><td>None</td>
+            <td class="r mono">$0.00</td><td class="r mono">$0.00</td>
+            <td>Client-only product.</td>
+          </tr>
+          <tr>
+            <td>Business entity <span class="tag warn">optional</span></td><td>One-time</td>
+            <td class="r mono">$0–100</td><td class="r mono">—</td>
+            <td>Only if a trade name on the listing matters enough to register one.</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr class="tfoot">
+            <td colspan="2">Total year-1 outlay</td>
+            <td class="r mono">$179.00</td>
+            <td class="r mono">$328.98</td>
+            <td>Budget vs metered reality.</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="grid g2" style="margin-top:18px">
+      <div class="card">
+        <h3>Net revenue per unit</h3>
+        <p class="hint" style="margin-bottom:12px">After Apple's 15% Small Business Program cut. RevenueCat is free at this volume.</p>
+        <div class="kv"><span>Monthly · $1.99</span><span>$1.69</span></div>
+        <div class="kv"><span>Yearly · $9.99</span><span>$8.49</span></div>
+        <div class="kv"><span>Lifetime · $14.99</span><span>$12.74</span></div>
+        <p class="note">
+          EU storefronts net less than this because listed prices include VAT, which Apple
+          deducts before its commission. Budget ~$7.00 net on a $9.99 EU sale.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Break-even at $179 budgeted</h3>
+        <div class="kv"><span>Yearly only</span><span>22 subs</span></div>
+        <div class="kv"><span>Lifetime only</span><span>15 buyers</span></div>
+        <div class="kv"><span>Monthly only (12 mo)</span><span>9 subs</span></div>
+        <div class="kv"><span>Blended 70/20/10</span><span>~18 payers</span></div>
+        <div class="kv"><span>At 12% trial→paid, 40% trial start</span><span>~375 downloads</span></div>
+        <p class="note">
+          At the <em>metered</em> $328.98 the blended bar rises to roughly 34 payers, or
+          about 700 downloads. AI spend is the only line that moved.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ ROI CALCULATOR ═══════════════════ -->
+  <section id="roi">
+    <div class="sec-head">
+      <div class="eyebrow">Calculator 01</div>
+      <h2>ROI &amp; acquisition model</h2>
+      <p>
+        Feed it a download rate and a conversion assumption. It simulates 24 months
+        of subscriber accumulation with churn, splits new payers across the three
+        plans, and reports cumulative net cash after Apple's cut.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="calc">
+        <div>
+          <h3 style="margin-bottom:12px">Inputs</h3>
+          <div class="field"><label for="r-dl">Downloads / month</label><input id="r-dl" type="number" value="1500" min="0" step="50"></div>
+          <div class="field"><label for="r-start">Trial start rate <small>% of downloads that start a trial</small></label><input id="r-start" type="number" value="40" min="0" max="100" step="1"></div>
+          <div class="field"><label for="r-conv">Trial → paid <small>%</small></label><input id="r-conv" type="number" value="12" min="0" max="100" step="0.5"></div>
+          <div class="field"><label for="r-mixm">Plan mix · monthly <small>%</small></label><input id="r-mixm" type="number" value="20" min="0" max="100" step="5"></div>
+          <div class="field"><label for="r-mixy">Plan mix · yearly <small>%</small></label><input id="r-mixy" type="number" value="70" min="0" max="100" step="5"></div>
+          <div class="field"><label for="r-mixl">Plan mix · lifetime <small>%</small></label><input id="r-mixl" type="number" value="10" min="0" max="100" step="5"></div>
+          <div class="field"><label for="r-churn">Monthly churn <small>% of active subscribers</small></label><input id="r-churn" type="number" value="8" min="0" max="100" step="0.5"></div>
+          <div class="field"><label for="r-apple">Apple commission <small>%</small></label><input id="r-apple" type="number" value="15" min="0" max="30" step="1"></div>
+          <div class="field"><label for="r-fixed">Year-1 fixed + opex <small>USD</small></label><input id="r-fixed" type="number" value="179" min="0" step="10"></div>
+          <p class="note" style="border-top:0;padding-top:0;margin-top:10px">
+            Plan mix is normalised to 100%. Prices are the US storefront: $1.99 / $9.99 / $14.99.
+            Yearly revenue is amortised to $0.83/month so the MRR figure is comparable.
+          </p>
+        </div>
+
+        <div>
+          <h3 style="margin-bottom:12px">Projection</h3>
+          <div class="out" aria-live="polite">
+            <div class="o"><div class="k">Trial starts / mo</div><div class="v" id="o-trials">—</div></div>
+            <div class="o"><div class="k">New payers / mo</div><div class="v accent" id="o-new">—</div></div>
+            <div class="o"><div class="k">Subs at month 12</div><div class="v" id="o-subs12">—</div></div>
+            <div class="o"><div class="k">Recurring MRR · mo 12</div><div class="v" id="o-mrr12">—</div></div>
+            <div class="o"><div class="k">Net cash · mo 12</div><div class="v" id="o-net12">—</div></div>
+            <div class="o"><div class="k">24-mo net cash</div><div class="v pos" id="o-cum">—</div></div>
+            <div class="o"><div class="k">Break-even</div><div class="v" id="o-be">—</div></div>
+            <div class="o"><div class="k">24-mo ROI</div><div class="v" id="o-roi">—</div></div>
+          </div>
+
+          <div class="spark" id="spark" role="img" aria-label="Net cash per month, months 1 to 24"></div>
+          <div class="spark-x"><span>M1</span><span>M12</span><span>M24</span></div>
+
+          <p class="note">
+            Lifetime purchases are treated as one-time cash with no churn. Subscribers churn
+            at the monthly rate you set. Break-even compares cumulative net cash against the
+            fixed cost input. This is a planning model, not a forecast.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ MARGIN CALCULATOR ═══════════════════ -->
+  <section id="margin">
+    <div class="sec-head">
+      <div class="eyebrow">Calculator 02</div>
+      <h2>Profit margin at a given revenue level</h2>
+      <p>
+        Work backwards from a gross monthly figure. Apple's cut and RevenueCat's 1%
+        are computed for you; the rest is your own input.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="calc">
+        <div>
+          <h3 style="margin-bottom:12px">Inputs</h3>
+          <div class="field"><label for="m-gross">Gross MRR <small>USD / month</small></label><input id="m-gross" type="number" value="1000" min="0" step="50"></div>
+          <div class="field"><label for="m-apple">Apple commission <small>%</small></label><input id="m-apple" type="number" value="15" min="0" max="30" step="1"></div>
+          <div class="field"><label for="m-td">TelemetryDeck <small>USD / month</small></label><input id="m-td" type="number" value="0" min="0" step="1"></div>
+          <div class="field"><label for="m-ai">AI / model API <small>USD / month</small></label><input id="m-ai" type="number" value="25" min="0" step="1"></div>
+          <div class="field"><label for="m-other">Other opex <small>USD / month</small></label><input id="m-other" type="number" value="5" min="0" step="1"></div>
+          <div class="field"><label for="m-fixed">Fixed, amortised <small>USD / month</small></label><input id="m-fixed" type="number" value="15" min="0" step="1"></div>
+          <p class="note" style="border-top:0;padding-top:0;margin-top:10px">
+            RevenueCat is derived: free up to $2,500 monthly tracked revenue, then 1% of
+            the excess. TelemetryDeck stays free until roughly 50k events/month.
+          </p>
+        </div>
+
+        <div>
+          <h3 style="margin-bottom:12px">Result</h3>
+          <div class="out" aria-live="polite">
+            <div class="o"><div class="k">Apple fee</div><div class="v neg" id="o-apple">—</div></div>
+            <div class="o"><div class="k">RevenueCat</div><div class="v" id="o-rc">—</div></div>
+            <div class="o"><div class="k">Total cost</div><div class="v" id="o-cost">—</div></div>
+            <div class="o"><div class="k">Net profit / mo</div><div class="v pos" id="o-profit">—</div></div>
+            <div class="o"><div class="k">Net margin</div><div class="v accent" id="o-margin">—</div></div>
+            <div class="o"><div class="k">Annualised</div><div class="v" id="o-annual">—</div></div>
+          </div>
+
+          <div style="margin-top:20px">
+            <div class="barrow"><span class="lab">Net profit</span><span class="bar"><i class="ok" id="bar-profit" style="width:0%"></i></span><span class="val" id="val-profit">—</span></div>
+            <div class="barrow"><span class="lab">Apple commission</span><span class="bar"><i style="width:0%" id="bar-apple"></i></span><span class="val" id="val-apple">—</span></div>
+            <div class="barrow"><span class="lab">RevenueCat</span><span class="bar"><i style="width:0%;background:var(--orange-line)" id="bar-rc"></i></span><span class="val" id="val-rc">—</span></div>
+            <div class="barrow"><span class="lab">AI / API</span><span class="bar"><i style="width:0%;background:var(--orange-line)" id="bar-ai"></i></span><span class="val" id="val-ai">—</span></div>
+            <div class="barrow"><span class="lab">Other + fixed</span><span class="bar"><i style="width:0%;background:var(--orange-line)" id="bar-oth"></i></span><span class="val" id="val-oth">—</span></div>
+          </div>
+
+          <p class="note">
+            Bars are shares of gross revenue. At scale the model stays healthy because the
+            only variable cost that grows with usage is analytics events — and those are
+            deliberately capped by a small event schema.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ MARKET ═══════════════════ -->
+  <section id="market">
+    <div class="sec-head">
+      <div class="eyebrow">Market intelligence</div>
+      <h2>The category is big, cheap and broken</h2>
+      <p>
+        Three direct competitors, all shipping the same product, all failing the same
+        way. Store telemetry for the category leader suggests a real market with
+        surprisingly thin revenue.
+      </p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>App</th><th class="r">Rating</th><th class="r">Ratings</th>
+            <th class="r">Installs</th><th class="r">Installs/mo</th><th class="r">MAU</th>
+            <th>US pricing</th><th>Est. monthly revenue</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Dynamic Lyrics</b><br><span class="hint">id6476125287 · category leader</span></td>
+            <td class="r mono">4.50</td><td class="r mono">37K</td>
+            <td class="r mono">1.85M</td><td class="r mono">20K–38K</td><td class="r mono">115K</td>
+            <td class="mono">$1.49 / $4.99 / $9.99</td>
+            <td class="mono">~$8K–$11.5K</td>
+          </tr>
+          <tr>
+            <td><b>Lyrix: Dynamic Lyrics</b><br><span class="hint">id6651860228 · high-price clone</span></td>
+            <td class="r mono">4.67</td><td class="r mono">9.4K</td>
+            <td class="r mono">468K</td><td class="r mono">11K</td><td class="r mono">37K</td>
+            <td class="mono">$3.99/wk · $39.99/yr · $19.99 life</td>
+            <td class="mono">~$6K–$9K</td>
+          </tr>
+          <tr>
+            <td><b>CARFACE My Car Widgets</b><br><span class="hint">id6776157131 · fast rising</span></td>
+            <td class="r mono">4.06</td><td class="r mono">239</td>
+            <td class="r mono">8.6K</td><td class="r mono">4.4K</td><td class="r mono">2.6K</td>
+            <td class="mono">$3.99/wk · $9.99/mo</td>
+            <td class="mono">~$1.5K–$3K</td>
+          </tr>
+          <tr>
+            <td><b>Dynamic Lyrics for Cars</b><br><span class="hint">id6752926854 · stalling indie</span></td>
+            <td class="r mono">4.44</td><td class="r mono">257</td>
+            <td class="r mono">13K</td><td class="r mono">132</td><td class="r mono">948</td>
+            <td class="mono">$3.99/wk · $9.99/mo</td>
+            <td class="mono">&lt; $1K (~$500)</td>
+          </tr>
+          <tr>
+            <td><b>Musixmatch Dynamic Lyrics</b><br><span class="hint">id448278467 · legacy giant</span></td>
+            <td class="r mono">4.35</td><td class="r mono">39K</td>
+            <td class="r mono">2.0M</td><td class="r mono">783</td><td class="r mono">94K</td>
+            <td class="mono">$35.99/yr</td>
+            <td class="mono">~$8K–$10K (IAP)</td>
+          </tr>
+          <tr>
+            <td><b>KaraFun: Karaoke Party</b><br><span class="hint">id431050674 · backing-track leader</span></td>
+            <td class="r mono">4.73</td><td class="r mono">44K</td>
+            <td class="r mono">2.2M</td><td class="r mono">28K</td><td class="r mono">119K</td>
+            <td class="mono">$9.99/mo · $59.99/yr</td>
+            <td class="mono">~$50K–$80K</td>
+          </tr>
+          <tr style="background:var(--orange-tint)">
+            <td><b>Caraoke</b><br><span class="hint">pre-launch · Build 39</span></td>
+            <td class="r mono">—</td><td class="r mono">—</td>
+            <td class="r mono">—</td><td class="r mono">—</td><td class="r mono">—</td>
+            <td class="mono">$1.99 / $9.99 / $14.99</td>
+            <td class="mono">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid g4" style="margin-top:18px">
+      <div class="card">
+        <h3>The demand signal</h3>
+        <p class="hint">
+          Dynamic Lyrics adds ~20K–38K installs/mo; newcomer CARFACE jumped to +4.4K/mo in 60 days. Demand for lyrics on car screens is surging.
+        </p>
+      </div>
+      <div class="card">
+        <h3>The pricing extremes</h3>
+        <p class="hint">
+          Market splits between underpriced utilities ($4.99/yr Dynamic Lyrics) and aggressive subscription traps ($39.99/yr Lyrix, $35.99/yr Musixmatch).
+        </p>
+      </div>
+      <div class="card">
+        <h3>The KaraFun validation</h3>
+        <p class="hint">
+          KaraFun pulls ~$50K–$80K/mo ($9.99/mo, $59.99/yr) by leaning purely into <em>karaoke and singing</em>. Users willingly pay $10/mo for singing, not plain text viewing.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Where Caraoke wins</h3>
+        <p class="hint">
+          A focused $9.99/yr car karaoke app that doesn't freeze on phone calls, doesn't lag on song skips, and starts in 1 tap without shortcuts.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ GAPS ═══════════════════ -->
+  <section id="gaps">
+    <div class="sec-head">
+      <div class="eyebrow">Competitive gap analysis</div>
+      <h2>Their one-star reviews are our product spec</h2>
+      <p>
+        Mined from the review text of all three competitors. The star averages are
+        inflated; the written complaints cluster into ten repeat failures.
+      </p>
+    </div>
+
+    <div class="grid g2" style="margin-bottom:22px">
+      <div class="card">
+        <h3>Failure taxonomy</h3>
+        <div class="tbl-wrap" style="margin-top:12px;border:0">
+          <table>
+            <thead><tr><th>#</th><th>Failure</th><th>Verbatim</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">F1</td><td><b>Sync dies after one song</b></td><td>“works first 10 seconds then quits syncing” · “playing last song's lyrics with your current song”</td></tr>
+              <tr><td class="mono">F2</td><td><b>Constant babysitting</b></td><td>“turn on live activities AND show lyrics every single time” · “after I get a phone call”</td></tr>
+              <tr><td class="mono">F3</td><td><b>Manual per-song delay</b></td><td>“always off timing, have to manually go into every song and change the delay”</td></tr>
+              <tr><td class="mono">F4</td><td><b>Wrong song's lyrics</b></td><td>“completely different lyrics from a different song”</td></tr>
+              <tr><td class="mono">F5</td><td><b>CarPlay tile too small</b></td><td>“small widget, about the size of the directions”</td></tr>
+              <tr><td class="mono">F6</td><td><b>Shortcut setup hell</b></td><td>“set up the shortcuts and it still doesn't load”</td></tr>
+              <tr><td class="mono">F7</td><td><b>Multi-minute load</b></td><td>“lock screen lyrics take several minutes to load”</td></tr>
+              <tr><td class="mono">F8</td><td><b>Pay before you try</b></td><td>“you do not get a trial”</td></tr>
+              <tr><td class="mono">F9</td><td><b>Price resentment</b></td><td>“$30 just to use the lyric feature” · “used to be free”</td></tr>
+              <tr><td class="mono">F10</td><td><b>No surface control</b></td><td>“no option to take away the lyrics off my lock screen”</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Positioning copy, lifted from their reviews</h3>
+        <p class="hint" style="margin-bottom:14px">These are the App Store screenshot lines the market has already written for us.</p>
+        <blockquote>“stops working after one song”<cite>competitor review</cite></blockquote>
+        <blockquote>“you have to pay money before you can even see what it looks like”<cite>competitor review</cite></blockquote>
+        <blockquote>“phone had to be open on the app for it to work”<cite>competitor review</cite></blockquote>
+        <p class="note" style="border-top:0">
+          Nobody in this category leads with reliability. Everyone leads with features.
+          Reliability is the open flank, and it is an engineering problem we have already
+          started solving.
+        </p>
+      </div>
+    </div>
+
+    <div class="gapgrid">
+      <div class="gapcard">
+        <div class="rank">GAP A · rank 1</div>
+        <h4>It just works on every skip</h4>
+        <p>
+          Deterministic re-sync on track change and seek. Every competitor's top complaint
+          is exactly this. Our <span class="mono">SyncEngine</span> and single
+          session-spanning Live Activity already target it.
+        </p>
+        <div class="meta"><span class="tag acc">reliability moat</span><span class="tag">no new code</span></div>
+      </div>
+      <div class="gapcard">
+        <div class="rank">GAP B · rank 2</div>
+        <h4>Zero setup, zero babysitting</h4>
+        <p>
+          Auto-engage on CarPlay connect. Survive phone calls, audio-route changes and
+          backgrounding. Kills F2 and F6 in one stroke.
+        </p>
+        <div class="meta"><span class="tag acc">reliability moat</span><span class="tag">engineering discipline</span></div>
+      </div>
+      <div class="gapcard">
+        <div class="rank">GAP C · rank 3</div>
+        <h4>A trial, honestly offered</h4>
+        <p>
+          Competitors force payment before the first impression, and their reviews call it
+          a scam. A free trial is the trust answer — and it is already the monetization
+          decision.
+        </p>
+        <div class="meta"><span class="tag">free</span><span class="tag">copy only</span></div>
+      </div>
+      <div class="gapcard">
+        <div class="rank">GAP D</div>
+        <h4>Karaoke, not a lyrics viewer</h4>
+        <p>
+          Every competitor is a display utility. None is a singing app. Word-by-word
+          highlight, duet and road-trip framing is unoccupied territory — and it is
+          already the product name.
+        </p>
+        <div class="meta"><span class="tag">category rename</span><span class="tag">copy only</span></div>
+      </div>
+      <div class="gapcard">
+        <div class="rank">GAP E</div>
+        <h4>Full-screen CarPlay lyrics</h4>
+        <p>
+          An explicit repeated request: “I'll give 5 stars when they add full screen.”
+          Cheap once the Live Activity surfaces are stable.
+        </p>
+        <div class="meta"><span class="tag warn">phase 2</span></div>
+      </div>
+      <div class="gapcard">
+        <div class="rank">GAP F</div>
+        <h4>Automatic per-song offset</h4>
+        <p>
+          Competitors make users drag a delay slider per track. Learn the offset from LRC
+          metadata and drift-correct silently.
+        </p>
+        <div class="meta"><span class="tag warn">only if users report drift</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ PRICING ═══════════════════ -->
+  <section id="pricing">
+    <div class="sec-head">
+      <div class="eyebrow">Monetization</div>
+      <h2>Hard paywall, three plans, one honest trial</h2>
+      <p>
+        No perpetual free tier. The trial carries the entire evaluation burden, which is
+        why its length is a product decision rather than a pricing one.
+      </p>
+    </div>
+
+    <div class="grid g3">
+      <div class="plan">
+        <h3>Monthly</h3>
+        <div class="price">$1.99</div>
+        <div class="per">per month</div>
+        <ul>
+          <li><b>Trial</b> 3 days free</li>
+          <li><b>Net / unit</b> $1.69</li>
+          <li><b>Role</b> Low-commitment entry</li>
+        </ul>
+      </div>
+      <div class="plan best">
+        <div class="badge">Best value</div>
+        <h3>Yearly</h3>
+        <div class="price">$9.99</div>
+        <div class="per">per year · $0.83/mo effective</div>
+        <ul>
+          <li><b>Trial</b> 7 days free</li>
+          <li><b>Net / unit</b> $8.49</li>
+          <li><b>Role</b> The plan we steer toward</li>
+        </ul>
+      </div>
+      <div class="plan">
+        <h3>Lifetime</h3>
+        <div class="price">$14.99<s>$27</s></div>
+        <div class="per">one-time</div>
+        <ul>
+          <li><b>Trial</b> not possible on a one-time purchase</li>
+          <li><b>Net / unit</b> $12.74</li>
+          <li><b>Role</b> Anchor + the review-bait option</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:18px">
+      <div class="card">
+        <h3>Why 7 days on annual, 3 on monthly</h3>
+        <ul class="clean">
+          <li><b>Weekend coverage</b> A Monday-start 3-day trial dies Thursday — the user never sees a weekend drive, which is the product's best moment.</li>
+          <li><b>Usage is driving-gated</b> ~2 sessions/day max. Seven days yields ~14 drive sessions plus a weekend: enough for habit and loss aversion.</li>
+          <li><b>Proportion</b> Seven days free on a $1.99/month plan is 23% of a month. Seven days on an annual plan is proportionate.</li>
+          <li><b>Data</b> 84% of 3-day cancellations happen on day 0–1, versus 64% for 7-day. Shorter trials trigger panic cancellation, not intent.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Storefront strategy</h3>
+        <div class="kv"><span>Tier 1</span><span>US · UK · CA · AU · NZ</span></div>
+        <div class="kv"><span>Tier 1.5</span><span>Nordics · NL · DE · CH</span></div>
+        <div class="kv"><span>Manual override</span><span>Indonesia</span></div>
+        <div class="kv"><span>Skip at launch</span><span>JP · KR</span></div>
+        <p class="note">
+          Apple auto-equalises all other storefronts from the USD base, adjusting for FX and
+          local tax. Indonesia gets a hand-pinned local price because the auto-converted
+          number overshoots the market's psychological ceiling. Japan and Korea are karaoke
+          capitals but need domestic lyric coverage and deep localisation — a v2 project.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ AI OPS ═══════════════════ -->
+  <section id="aiops">
+    <div class="sec-head">
+      <div class="eyebrow">AI operations</div>
+      <h2>The build crew, and what it cost</h2>
+      <p>
+        Caraoke is built by one human and a routed pool of models. Every request below is
+        metered from the local router's usage ledger — real numbers, not estimates.
+      </p>
+    </div>
+
+    <div class="kpis" style="margin-top:0;margin-bottom:22px">
+      <div class="kpi"><div class="k">Requests</div><div class="v">5,222</div><div class="s">5 days · Sep 5–9</div></div>
+      <div class="kpi"><div class="k">Tokens</div><div class="v accent">614.4M</div><div class="s">prompt + completion</div></div>
+      <div class="kpi"><div class="k">Metered cost</div><div class="v">$209.98</div><div class="s">vs $60 budgeted</div></div>
+      <div class="kpi"><div class="k">Cache hit</div><div class="v">85.5%</div><div class="s">522.2M cached tokens</div></div>
+      <div class="kpi"><div class="k">Models used</div><div class="v">20</div><div class="s">across 10 providers</div></div>
+      <div class="kpi"><div class="k">Cost / build</div><div class="v">$21</div><div class="s">10 builds shipped</div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3>Named crew</h3>
+        <p class="hint" style="margin-bottom:12px">Role-specialised agents from the ops roster, each pinned to a model tier.</p>
+        <div class="tbl-wrap" style="border:0">
+          <table>
+            <thead><tr><th>Agent</th><th>Role</th><th>Model</th></tr></thead>
+            <tbody>
+              <tr><td><b>Josh</b></td><td>Chief of staff &amp; orchestrator</td><td class="mono">gemini-3.8-flash-high</td></tr>
+              <tr><td><b>Axel</b></td><td>SwiftUI feature builder</td><td class="mono">gemini-3.8-flash-high<br><span class="hint">heavy: qwen-3.8-max</span></td></tr>
+              <tr><td><b>Vance</b></td><td>Silent failure hunter</td><td class="mono">deepseek-v4-pro<br><span class="hint">fast: deepseek-v4-flash</span></td></tr>
+              <tr><td><b>Ward</b></td><td>Store &amp; security gatekeeper</td><td class="mono">grok-4.6</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Token share by model</h3>
+        <p class="hint" style="margin-bottom:12px">Top eight by volume. One model does 72% of the work.</p>
+        <div class="barrow"><span class="lab">gemini-3.8-flash-high</span><span class="bar"><i style="width:100%"></i></span><span class="val">72.0%</span></div>
+        <div class="barrow"><span class="lab">deepseek-v4.1-flash</span><span class="bar"><i style="width:13.4%"></i></span><span class="val">9.7%</span></div>
+        <div class="barrow"><span class="lab">gemini-3.8-flash</span><span class="bar"><i style="width:10.2%"></i></span><span class="val">7.3%</span></div>
+        <div class="barrow"><span class="lab">gpt-5.6-terra</span><span class="bar"><i style="width:3.8%"></i></span><span class="val">2.7%</span></div>
+        <div class="barrow"><span class="lab">deepseek-v4-mod</span><span class="bar"><i style="width:2.4%"></i></span><span class="val">1.7%</span></div>
+        <div class="barrow"><span class="lab">qwen-3.8-max</span><span class="bar"><i style="width:2.2%"></i></span><span class="val">1.6%</span></div>
+        <div class="barrow"><span class="lab">kimi-k3</span><span class="bar"><i style="width:1.9%"></i></span><span class="val">1.3%</span></div>
+        <div class="barrow"><span class="lab">gemini-3.8-flash-med</span><span class="bar"><i style="width:1.2%"></i></span><span class="val">0.6%</span></div>
+        <p class="note">
+          Prompt tokens dominate by design: the crew re-reads large Swift files every
+          turn. The 85.5% cache hit rate is what keeps a 614M-token month at $210 instead
+          of several thousand.
+        </p>
+      </div>
+    </div>
+
+    <div class="tbl-wrap" style="margin-top:18px">
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th><th>Provider</th><th>Role in this project</th>
+            <th class="r">Reqs</th><th class="r">Prompt</th><th class="r">Completion</th>
+            <th class="r">Total tokens</th><th class="r">Cost</th><th class="r">Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><b>gemini-3.8-flash-high</b></td><td>antigravity</td><td>Primary builder + orchestrator (Josh, Axel)</td><td class="r mono">3,226</td><td class="r mono">440,934,248</td><td class="r mono">1,599,594</td><td class="r mono">442,533,842</td><td class="r mono">$152.56</td><td class="r mono">72.03%</td></tr>
+          <tr><td><b>deepseek-v4.1-flash</b></td><td>deepseek</td><td>Current session driver, cheap high-volume passes</td><td class="r mono">432</td><td class="r mono">58,981,445</td><td class="r mono">288,220</td><td class="r mono">59,269,665</td><td class="r mono">$0.54</td><td class="r mono">9.65%</td></tr>
+          <tr><td><b>gemini-3.8-flash</b></td><td>antigravity</td><td>Vision bridge, screenshot + design review</td><td class="r mono">546</td><td class="r mono">44,871,613</td><td class="r mono">193,666</td><td class="r mono">45,065,279</td><td class="r mono">$15.53</td><td class="r mono">7.34%</td></tr>
+          <tr><td><b>gpt-5.6-terra</b></td><td>codex</td><td>Long-context code audit</td><td class="r mono">129</td><td class="r mono">16,600,191</td><td class="r mono">24,709</td><td class="r mono">16,624,900</td><td class="r mono">$5.01</td><td class="r mono">2.71%</td></tr>
+          <tr><td><b>deepseek-v4-mod</b></td><td>deepseek</td><td>Mid-tier reasoning</td><td class="r mono">100</td><td class="r mono">10,442,413</td><td class="r mono">36,333</td><td class="r mono">10,478,746</td><td class="r mono">$0.10</td><td class="r mono">1.71%</td></tr>
+          <tr><td><b>qwen-3.8-max</b></td><td>holver-ai</td><td>Heavy reasoning tier (Axel)</td><td class="r mono">83</td><td class="r mono">9,632,761</td><td class="r mono">84,146</td><td class="r mono">9,716,907</td><td class="r mono">$4.98</td><td class="r mono">1.58%</td></tr>
+          <tr><td><b>kimi-k3</b></td><td>moonshot</td><td>Research and web synthesis</td><td class="r mono">146</td><td class="r mono">8,098,124</td><td class="r mono">108,607</td><td class="r mono">8,206,731</td><td class="r mono">$7.25</td><td class="r mono">1.34%</td></tr>
+          <tr><td><b>gemini-3.8-flash-medium</b></td><td>antigravity</td><td>Utility passes</td><td class="r mono">70</td><td class="r mono">3,653,502</td><td class="r mono">15,645</td><td class="r mono">3,669,147</td><td class="r mono">$1.18</td><td class="r mono">0.60%</td></tr>
+          <tr><td><b>gpt-5.6-sol</b></td><td>codex</td><td>Spec and copy drafting</td><td class="r mono">48</td><td class="r mono">3,771,740</td><td class="r mono">19,890</td><td class="r mono">3,791,630</td><td class="r mono">$8.30</td><td class="r mono">0.62%</td></tr>
+          <tr><td><b>qwen-3.8-max</b> <span class="tag">free</span></td><td>opencode</td><td>Free-tier experiments</td><td class="r mono">46</td><td class="r mono">3,339,637</td><td class="r mono">25,873</td><td class="r mono">3,365,510</td><td class="r mono">$1.11</td><td class="r mono">0.55%</td></tr>
+          <tr><td><b>grok-4.6</b></td><td>grok-cli</td><td>Security &amp; App Store gatekeeper (Ward)</td><td class="r mono">110</td><td class="r mono">2,805,489</td><td class="r mono">255,234</td><td class="r mono">3,060,723</td><td class="r mono">$1.86</td><td class="r mono">0.50%</td></tr>
+          <tr><td><b>minimax-m3</b></td><td>minimax</td><td>Drafting and refactors</td><td class="r mono">45</td><td class="r mono">2,233,420</td><td class="r mono">216,986</td><td class="r mono">2,450,406</td><td class="r mono">$1.46</td><td class="r mono">0.40%</td></tr>
+          <tr><td><b>gemini-3.8-flash-low</b></td><td>antigravity</td><td>Cheap utility passes</td><td class="r mono">105</td><td class="r mono">1,832,175</td><td class="r mono">9,149</td><td class="r mono">1,841,324</td><td class="r mono">$1.09</td><td class="r mono">0.30%</td></tr>
+          <tr><td><b>glm-5.3</b></td><td>zhipu</td><td>Alternative drafting</td><td class="r mono">53</td><td class="r mono">917,544</td><td class="r mono">673,935</td><td class="r mono">1,591,479</td><td class="r mono">$3.60</td><td class="r mono">0.26%</td></tr>
+          <tr><td><b>deepseek-v4-flash</b></td><td>deepseek</td><td>Fast checks (Vance)</td><td class="r mono">18</td><td class="r mono">1,532,597</td><td class="r mono">20,132</td><td class="r mono">1,552,729</td><td class="r mono">$0.19</td><td class="r mono">0.25%</td></tr>
+          <tr><td><b>muse-spark-1.3</b> <span class="tag">free</span></td><td>opencode</td><td>Free-tier experiments</td><td class="r mono">41</td><td class="r mono">496,467</td><td class="r mono">15,675</td><td class="r mono">512,142</td><td class="r mono">$0.00</td><td class="r mono">0.08%</td></tr>
+          <tr><td><b>claude-opus-4-6-thinking</b></td><td>anthropic</td><td>Deep architecture review</td><td class="r mono">12</td><td class="r mono">293,232</td><td class="r mono">156,555</td><td class="r mono">449,787</td><td class="r mono">$5.16</td><td class="r mono">0.07%</td></tr>
+          <tr><td colspan="3"><span class="hint">Remaining small models (deepseek-v4-pro, gpt-5.6-luna, kimi-k2.7-code, gemini-flash-image, grok-4.5, glm-5.2 …)</span></td><td class="r mono">25</td><td class="r mono">373,169</td><td class="r mono">11,196</td><td class="r mono">384,365</td><td class="r mono">$0.34</td><td class="r mono">0.06%</td></tr>
+        </tbody>
+        <tfoot>
+          <tr class="tfoot">
+            <td colspan="3">Total</td>
+            <td class="r mono">5,255</td><td class="r mono">610,377,706</td><td class="r mono">3,974,339</td>
+            <td class="r mono">614,352,045</td><td class="r mono">$209.98</td><td class="r mono">100%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="grid g2" style="margin-top:18px">
+      <div class="card">
+        <h3>Daily burn</h3>
+        <p class="hint" style="margin-bottom:14px">Token volume and metered cost per day.</p>
+        <div class="barrow"><span class="lab">Sep 5</span><span class="bar"><i style="width:0.001%"></i></span><span class="val">32</span></div>
+        <div class="barrow"><span class="lab">Sep 6</span><span class="bar"><i style="width:64.5%"></i></span><span class="val">112.5M</span></div>
+        <div class="barrow"><span class="lab">Sep 7</span><span class="bar"><i style="width:100%"></i></span><span class="val">195.6M</span></div>
+        <div class="barrow"><span class="lab">Sep 8</span><span class="bar"><i style="width:64.8%"></i></span><span class="val">126.8M</span></div>
+        <div class="barrow"><span class="lab">Sep 9</span><span class="bar"><i style="width:89.4%"></i></span><span class="val">174.8M</span></div>
+        <div class="kv" style="margin-top:12px"><span>Peak day cost</span><span>$70.85</span></div>
+        <div class="kv"><span>Mean day cost</span><span>$41.99</span></div>
+      </div>
+
+      <div class="card">
+        <h3>Provider mix</h3>
+        <p class="hint" style="margin-bottom:12px">Where the tokens actually came from.</p>
+        <div class="barrow"><span class="lab">antigravity</span><span class="bar"><i style="width:100%"></i></span><span class="val">$175.51</span></div>
+        <div class="barrow"><span class="lab">deepseek</span><span class="bar"><i style="width:0.3%"></i></span><span class="val">$0.51</span></div>
+        <div class="barrow"><span class="lab">openai-compat · A</span><span class="bar"><i style="width:6.7%"></i></span><span class="val">$11.82</span></div>
+        <div class="barrow"><span class="lab">codebuddy-intl</span><span class="bar"><i style="width:5.2%"></i></span><span class="val">$9.09</span></div>
+        <div class="barrow"><span class="lab">codex</span><span class="bar"><i style="width:2.9%"></i></span><span class="val">$5.01</span></div>
+        <div class="barrow"><span class="lab">openai-compat · B</span><span class="bar"><i style="width:2.8%"></i></span><span class="val">$4.98</span></div>
+        <div class="barrow"><span class="lab">grok-cli</span><span class="bar"><i style="width:1.1%"></i></span><span class="val">$1.86</span></div>
+        <div class="barrow"><span class="lab">openai-compat · C</span><span class="bar"><i style="width:0.6%"></i></span><span class="val">$1.11</span></div>
+        <div class="barrow"><span class="lab">opencode (free)</span><span class="bar"><i style="width:0.2%;background:var(--ok)"></i></span><span class="val">$0.00</span></div>
+        <p class="note">
+          antigravity carries 80% of token volume and 84% of cost. Trimming one heavy model
+          out of the default routing path is the single largest lever on AI spend.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ PLAYBOOK ═══════════════════ -->
+  <section id="playbook">
+    <div class="sec-head">
+      <div class="eyebrow">Shortcut</div>
+      <h2>Marketing strategy playbook</h2>
+      <p>
+        The go-to-market plan lives in its own document. Open it from here — it covers the
+        content engine, platform playbooks, ASO and the 13-week timeline.
+      </p>
+    </div>
+
+    <a class="playbook" href="marketing/caraoke-marketing-playbook.html">
+      <div class="row">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:var(--orange-deep)" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        <div>
+          <h3>Caraoke — Marketing Playbook</h3>
+          <div class="hint mono">marketing/caraoke-marketing-playbook.html</div>
+        </div>
+        <div class="arrow">OPEN →</div>
+      </div>
+      <div class="chips">
+        <span>The bet</span><span>Who this is for</span><span>Content engine</span>
+        <span>Hook library</span><span>AI video workflow</span><span>Platform playbooks</span>
+        <span>Upload strategy</span><span>13-week timeline</span><span>ASO &amp; earned distribution</span>
+        <span>Measurement</span><span>The $0 stack</span><span>Risks &amp; mitigations</span>
+        <span>30-day sprint checklist</span>
+      </div>
+    </a>
+
+    <div class="warnbox" style="margin-top:16px">
+      <b>Keep this file out of the public repo.</b> It exposes cost data, pricing strategy and
+      competitive analysis. The playbook itself is already untracked; treat this page the
+      same way before any push to <span class="mono">main</span>.
+    </div>
+  </section>
+
+  <!-- ═══════════════════ RISKS ═══════════════════ -->
+  <section id="risks">
+    <div class="sec-head">
+      <div class="eyebrow">Open decisions &amp; risk</div>
+      <h2>What could still stop this</h2>
+      <p>The four items that are genuinely unresolved, ranked by how much they matter.</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Risk</th><th>Impact</th><th>Current stance</th><th>Owner</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>CarPlay reliability unverified on hardware</b></td>
+            <td>Total. The entire product claim rests on this.</td>
+            <td>Build 39 is committed but only device-tested on the phone surface. Phase C gate.</td>
+            <td><span class="tag warn">open</span></td>
+          </tr>
+          <tr>
+            <td><b>Spotify platform policy</b></td>
+            <td>High. Losing Spotify removes roughly half the addressable use case.</td>
+            <td>OAuth PKCE is legitimate; the risk is policy interpretation, not auth. Quota request drafted.</td>
+            <td><span class="tag warn">open</span></td>
+          </tr>
+          <tr>
+            <td><b>iOS 26 floor</b></td>
+            <td>Medium. Excludes users who have not updated.</td>
+            <td>Accepted — the CarPlay Live Activity family API does not exist earlier. Competitors carry the same floor.</td>
+            <td><span class="tag ok">decided</span></td>
+          </tr>
+          <tr>
+            <td><b>Developer name on the listing</b></td>
+            <td>Low, cosmetic.</td>
+            <td>Individual account shows the legal name. A trade name needs an organization account (D-U-N-S). Decide before submission, not after.</td>
+            <td><span class="tag warn">open</span></td>
+          </tr>
+          <tr>
+            <td><b>AI spend 3.5× budget</b></td>
+            <td>Low at this scale, but it compounds per build.</td>
+            <td>antigravity accounts for 84% of cost. Route more passes to deepseek-v4.1-flash, which is 300× cheaper per token.</td>
+            <td><span class="tag acc">act</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid g2" style="margin-top:18px">
+      <div class="card">
+        <h3>The 30-second CEO read</h3>
+        <p class="hint" style="margin:0">
+          The product is real, the market is proven, the cost base is trivial and the
+          category leader is beatable on the one thing that matters — reliability. The
+          single highest-value action is not a feature. It is getting Build 39 onto a real
+          CarPlay head unit and proving sync survives skips. Everything else on this page
+          is arithmetic.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Next three moves</h3>
+        <ul class="clean">
+          <li><b>1</b> Verify Build 39 on physical CarPlay hardware — skip, seek, phone call, route change.</li>
+          <li><b>2</b> Re-route default model traffic off the 72%-share model to cut AI cost per build.</li>
+          <li><b>3</b> Decide the entity question before the App Review submission, not after.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <p style="margin-bottom:6px">
+      <b style="color:var(--ink-2)">Caraoke Command Center</b> ·
+      Build 39 · generated 2026-09-09 ·
+      <a href="https://github.com/kaesarianahmadi/caraoke">repo</a> ·
+      <a href="marketing/caraoke-marketing-playbook.html">marketing playbook</a>
+    </p>
+    <p>
+      Market figures from public App Store listings and third-party store telemetry.
+      Token and cost figures read from the local router usage ledger. Financial models
+      are planning tools, not forecasts. No secrets are stored on this page.
+    </p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── plan economics (US storefront) ─────────────────────── */
+  var PRICE = { m: 1.99, y: 9.99, l: 14.99 };
+  var MONTHS = 24;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var num = function (id, d) {
+    var v = parseFloat($(id).value);
+    return isFinite(v) ? v : d;
+  };
+  var money = function (n, dp) {
+    if (!isFinite(n)) n = 0;
+    var s = Math.abs(n).toLocaleString('en-US', {
+      minimumFractionDigits: dp == null ? 0 : dp,
+      maximumFractionDigits: dp == null ? 0 : dp
+    });
+    return (n < 0 ? '-$' : '$') + s;
+  };
+  var int = function (n) {
+    if (!isFinite(n)) n = 0;
+    return Math.round(n).toLocaleString('en-US');
+  };
+  var pct = function (n, dp) {
+    if (!isFinite(n)) n = 0;
+    return n.toFixed(dp == null ? 0 : dp) + '%';
+  };
+
+  /* ═══════════ ROI model ═══════════ */
+  function runROI() {
+    var dl     = Math.max(0, num('r-dl', 0));
+    var start  = Math.min(100, Math.max(0, num('r-start', 0))) / 100;
+    var conv   = Math.min(100, Math.max(0, num('r-conv', 0))) / 100;
+    var churn  = Math.min(99, Math.max(0, num('r-churn', 0))) / 100;
+    var apple  = Math.min(100, Math.max(0, num('r-apple', 15))) / 100;
+    var fixed  = Math.max(0, num('r-fixed', 0));
+
+    var mixM = Math.max(0, num('r-mixm', 0));
+    var mixY = Math.max(0, num('r-mixy', 0));
+    var mixL = Math.max(0, num('r-mixl', 0));
+    var mixSum = mixM + mixY + mixL;
+    if (mixSum <= 0) { mixM = 20; mixY = 70; mixL = 10; mixSum = 100; }
+    mixM /= mixSum; mixY /= mixSum; mixL /= mixSum;
+
+    var trials = dl * start;
+    var newPayers = trials * conv;
+
+    var subsM = 0, subsY = 0;
+    var cumNet = 0, cumGross = 0;
+    var net12 = 0, mrr12 = 0, subs12 = 0;
+    var beMonth = null;
+    var series = [];
+
+    for (var t = 1; t <= MONTHS; t++) {
+      subsM = subsM * (1 - churn) + newPayers * mixM;
+      subsY = subsY * (1 - churn) + newPayers * mixY;
+
+      var recurring = subsM * PRICE.m + subsY * (PRICE.y / 12);
+      var lifetimeCash = newPayers * mixL * PRICE.l;
+      var gross = recurring + lifetimeCash;
+      var net = gross * (1 - apple);
+
+      cumGross += gross;
+      cumNet += net;
+      series.push(net);
+
+      if (t === 12) {
+        net12 = net;
+        mrr12 = recurring;
+        subs12 = subsM + subsY;
+      }
+      if (beMonth === null && cumNet >= fixed && fixed > 0) beMonth = t;
+    }
+
+    var roi = fixed > 0 ? ((cumNet - fixed) / fixed) * 100 : Infinity;
+
+    $('o-trials').textContent = int(trials);
+    $('o-new').textContent = int(newPayers);
+    $('o-subs12').textContent = int(subs12);
+    $('o-mrr12').textContent = money(mrr12);
+    $('o-net12').textContent = money(net12);
+
+    var cumEl = $('o-cum');
+    cumEl.textContent = money(cumNet);
+    cumEl.className = 'v ' + (cumNet >= fixed ? 'pos' : 'neg');
+
+    $('o-be').textContent = fixed === 0 ? 'immediate'
+      : (beMonth === null ? '> 24 mo' : 'month ' + beMonth);
+
+    var roiEl = $('o-roi');
+    roiEl.textContent = isFinite(roi) ? (roi >= 0 ? '+' : '') + Math.round(roi).toLocaleString('en-US') + '%' : '—';
+    roiEl.className = 'v ' + (roi >= 0 ? 'pos' : 'neg');
+
+    /* sparkline */
+    var spark = $('spark');
+    var max = 0;
+    for (var i = 0; i < series.length; i++) if (series[i] > max) max = series[i];
+    spark.innerHTML = '';
+    for (var j = 0; j < series.length; j++) {
+      var b = document.createElement('span');
+      var h = max > 0 ? Math.max(2, (series[j] / max) * 100) : 2;
+      b.style.height = h + '%';
+      if (series[j] < 0) b.style.background = 'var(--bad)';
+      else if (j >= 11) b.className = 'hi';
+      b.title = 'Month ' + (j + 1) + ': ' + money(series[j]);
+      spark.appendChild(b);
+    }
+  }
+
+  /* ═══════════ margin model ═══════════ */
+  function runMargin() {
+    var gross = Math.max(0, num('m-gross', 0));
+    var applePct = Math.min(100, Math.max(0, num('m-apple', 15))) / 100;
+    var td = Math.max(0, num('m-td', 0));
+    var ai = Math.max(0, num('m-ai', 0));
+    var other = Math.max(0, num('m-other', 0));
+    var fixedAm = Math.max(0, num('m-fixed', 0));
+
+    var appleFee = gross * applePct;
+    /* RevenueCat: free below $2,500 monthly tracked revenue, then 1% of the excess */
+    var mtr = gross * (1 - applePct);
+    var rc = mtr > 2500 ? (mtr - 2500) * 0.01 : 0;
+
+    var cost = appleFee + rc + td + ai + other + fixedAm;
+    var profit = gross - cost;
+    var margin = gross > 0 ? (profit / gross) * 100 : 0;
+
+    $('o-apple').textContent = '-' + money(appleFee, 2);
+    $('o-rc').textContent = money(rc, 2);
+    $('o-cost').textContent = money(cost, 2);
+
+    var pEl = $('o-profit');
+    pEl.textContent = money(profit, 2);
+    pEl.className = 'v ' + (profit >= 0 ? 'pos' : 'neg');
+
+    var mEl = $('o-margin');
+    mEl.textContent = pct(margin, 1);
+    mEl.className = 'v ' + (margin >= 0 ? 'acc' : 'neg');
+
+    $('o-annual').textContent = money(profit * 12, 0);
+
+    /* bars, share of gross */
+    function setBar(barId, valId, value) {
+      var w = gross > 0 ? Math.max(0, Math.min(100, (value / gross) * 100)) : 0;
+      $(barId).style.width = w + '%';
+      $(valId).textContent = money(value, 2);
+    }
+    setBar('bar-profit', 'val-profit', Math.max(0, profit));
+    setBar('bar-apple', 'val-apple', appleFee);
+    setBar('bar-rc', 'val-rc', rc);
+    setBar('bar-ai', 'val-ai', ai);
+    setBar('bar-oth', 'val-oth', other + fixedAm + td);
+  }
+
+  /* ═══════════ wiring ═══════════ */
+  var roiIds = ['r-dl', 'r-start', 'r-conv', 'r-mixm', 'r-mixy', 'r-mixl', 'r-churn', 'r-apple', 'r-fixed'];
+  var mIds = ['m-gross', 'm-apple', 'm-td', 'm-ai', 'm-other', 'm-fixed'];
+
+  roiIds.forEach(function (id) { $(id).addEventListener('input', runROI); });
+  mIds.forEach(function (id) { $(id).addEventListener('input', runMargin); });
+
+  runROI();
+  runMargin();
+})();
+</script>
+</body>
+</html>

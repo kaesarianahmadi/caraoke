@@ -216,7 +216,8 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
             palette: entry.widgetPalette,
             artworkData: entry.artworkData,
             resyncPulse: entry.resyncPulse,
-            needsResync: entry.status != .playing || entry.resyncPulse < 1
+            needsResync: entry.status != .playing || entry.resyncPulse < 1,
+            showsProgressBar: false
         )
     }
 }
@@ -231,8 +232,8 @@ private struct CaraokeCarPlayHybridWidgetView: View {
         GeometryReader { geo in
             // Lyrics keep ~62% of the tile (the large widget gives them 75%,
             // but a small tile still has to fit the player bar underneath).
-            // No explicit height: the tile's own budget decides how many rows
-            // actually fit, and the bar takes what is left.
+            // Uses customBoxHeight so it fits within the 62% frame without clipping.
+            let lyricHeight = geo.size.height * 0.62
             VStack(spacing: 0) {
                 LyricTileView(
                     title: entry.title,
@@ -248,9 +249,11 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     palette: entry.widgetPalette,
                     artworkData: entry.artworkData,
                     resyncPulse: entry.resyncPulse,
-                    needsResync: entry.status != .playing || entry.resyncPulse < 1
+                    needsResync: entry.status != .playing || entry.resyncPulse < 1,
+                    showsProgressBar: false,
+                    customBoxHeight: lyricHeight - 12
                 )
-                .frame(height: geo.size.height * 0.62)
+                .frame(height: lyricHeight)
 
                 HStack(spacing: 8) {
                     CaraokeCarPlayCover(entry: entry, size: 34)

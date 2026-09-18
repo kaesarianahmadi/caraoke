@@ -9,7 +9,7 @@ your launch date / link specifics.
 | Field | Value |
 |---|---|
 | App name | **Caraoke: Live Lyrics** |
-| Subtitle | **Lyrics for the ride.** |
+| Subtitle | **Car Karaoke & Live Lyrics** |
 | Primary category | **Music** |
 | Secondary category | (optional) None |
 | Bundle ID | `app.caraoke.ios` (+ `app.caraoke.ios.widgets` extension) |
@@ -18,35 +18,35 @@ your launch date / link specifics.
 
 ## Description
 
-> **Every ride has a chorus — see it on CarPlay.**
+> Every road trip has a chorus. Caraoke brings real-time, word-by-word synced lyrics to your drive so everyone can sing along.
 >
-> Caraoke puts the current lyric line on your car's CarPlay screen through a
-> Live Activity, so the whole car can follow along. Tap Start Ride Mode before
-> you pull out. When the song starts, the words follow — no passing the phone
-> around, no scrolling, no setup mid-drive.
+> Start Ride Mode before you hit the road. When your music plays, the lyrics follow automatically on your Lock Screen and Dynamic Island. Glanceable, hands-free car karaoke designed for road trips, passengers, and sing-alongs.
 >
-> **How it works**
-> • Connect Apple Music or Spotify.
-> • Tap Start Ride Mode.
-> • Caraoke reads what's playing and shows the current line (plus the next
->   one) on CarPlay, the Lock Screen, and the Dynamic Island.
-> • CarPlay is glanceable and non-interactive — designed to keep eyes on the
->   road.
+> **Features**
+> • Ride Mode: Hands-free lyrics display designed for mounted phones and passengers.
+> • Dynamic Island & Lock Screen: Glanceable current and upcoming lyric lines without touching your phone.
+> • Apple Music & Spotify: Connect your favorite music player with one tap.
+> • Synchronized Lyrics: Word-by-word tracking timed to every beat.
+> • Zero Distraction: High-contrast, glanceable typography built for passengers. No scrolling required.
 >
-> **Made for road trips** — friends, couples, family, and the passenger seat.
-> Works with the music you already play.
+> **Perfect For**
+> • Road trips with friends and family
+> • Passenger seat karaoke duets
+> • Learning the words to your favorite tracks on the commute
+>
+> *Note: Focus on driving. Caraoke lyrics are designed for passengers and parked sing-alongs.*
 
 ## Keywords (≤100 chars)
 
 ```
-carplay,lyrics,sing along,road trip,car karaoke,live lyrics,passenger,music
+lyrics,car karaoke,road trip,sing along,live lyrics,passenger,music,duet
 ```
-(75 chars, room to spare.)
+(71 chars, room to spare.)
 
 ## What's New (first release)
 
 ```
-Ride Mode, live lyrics on CarPlay, Apple Music + Spotify, lifetime option.
+Ride Mode, live lyrics on Lock Screen & Dynamic Island, Apple Music + Spotify, lifetime option.
 ```
 
 ## Promotional text (optional)

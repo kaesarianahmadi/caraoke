@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Caraoke — Phone & Widget Simulator (Build 45)</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+  <!-- ========================================================================
+       TOP TESTING HUD
+       ======================================================================== -->
+  <div class="sim-top-hud">
+    <div class="sim-hud-left">
+      <div class="sim-hud-brand">
+        <svg viewBox="0 0 64 64" fill="currentColor">
+          <path d="M53.3 17.1A26 26 0 1 0 53.3 46.9" fill="none" stroke="currentColor" stroke-width="6.5" stroke-linecap="round"/>
+          <ellipse cx="20.2" cy="41.3" rx="4.5" ry="3.4" transform="rotate(-16 20.2 41.3)"/>
+          <ellipse cx="32.5" cy="39.2" rx="4.5" ry="3.4" transform="rotate(-16 32.5 39.2)"/>
+          <rect x="22.2" y="23.2" width="3.2" height="18.1"/>
+          <rect x="34.5" y="20.1" width="3.2" height="19.1"/>
+          <polygon points="22.2,19.8 37.7,15.4 37.7,20.3 22.2,24.7"/>
+          <polygon points="42.5,25 42.5,35 50.9,30"/>
+        </svg>
+        <span>Caraoke Simulator</span>
+      </div>
+
+      <div class="sim-view-picker">
+        <button class="sim-view-btn active" data-view="phone">📱 iPhone 16 Pro</button>
+        <button class="sim-view-btn" data-view="widgets">🔲 All Widgets</button>
+      </div>
+    </div>
+
+    <!-- Playback & Audio Simulation Controls -->
+    <div class="sim-hud-controls">
+      <select id="select-track" class="hud-select">
+        <option value="0">Road Trip Anthem (Demo Fixture)</option>
+        <option value="1">Cruel Summer — Taylor Swift</option>
+        <option value="2">Starboy — The Weeknd</option>
+      </select>
+
+      <button class="hud-btn" id="btn-prev">⏮</button>
+      <button class="hud-btn primary" id="btn-play-pause">⏸</button>
+      <button class="hud-btn" id="btn-next">⏭</button>
+
+      <div class="hud-scrubber-box">
+        <input type="range" id="sim-scrubber" class="hud-scrubber" min="0" max="100" value="0" />
+        <span class="hud-time" id="sim-time-cur">0:00</span>
+      </div>
+
+      <select id="select-status" class="hud-select">
+        <option value="playing">Playing</option>
+        <option value="paused">Paused</option>
+        <option value="loading">Loading…</option>
+        <option value="noLyrics">No Lyrics</option>
+        <option value="stale">Ride Ended</option>
+      </select>
+
+      <button class="hud-btn" id="btn-toggle-theme" title="OLED Dark / Light">🌓</button>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       STAGE AREA
+       ======================================================================== -->
+  <main class="sim-stage-area">
+
+    <!-- VIEW 1: EXACT IPHONE VIEW (HomeView.swift) -->
+    <div id="view-phone" class="iphone-device">
+
+      <!-- Status Bar & Dynamic Island -->
+      <div class="iphone-top-bar">
+        <span>9:41</span>
+        <div style="display:flex; gap:6px; font-size:12px">
+          <span>5G</span>
+          <span>100%</span>
+        </div>
+      </div>
+
+      <div class="dynamic-island-pill" id="island-pill">
+        <span style="font-size:12px; color:#fff">🎵</span>
+        <span id="island-pill-text" style="font-size:12.5px; font-weight:600; color:#fff; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Road Trip</span>
+      </div>
+
+      <!-- Scrollable Home View -->
+      <div class="iphone-scroll-body">
+        <div class="home-container">
+
+          <!-- 1. Header (Caraoke wordmark only + Help '?' + Settings gear) -->
+          <div class="home-header-row">
+            <span class="home-wordmark">Caraoke</span>
+            <div class="home-header-btns">
+              <button class="home-circle-btn" id="btn-open-docs" title="Help and FAQ">?</button>
+              <button class="home-circle-btn" id="btn-open-settings" title="Settings">⚙</button>
+            </div>
+          </div>
+
+          <!-- 2. How to display lyrics everywhere Banner (howToBanner) -->
+          <button class="how-to-banner-btn" id="btn-howto">
+            <span class="icon">🔊</span>
+            <span class="title">How to display lyrics everywhere</span>
+            <span class="chevron">›</span>
+          </button>
+
+          <!-- 3. Live Activities Section (liveActivitiesSection) -->
+          <div class="home-section-block">
+            <div class="home-section-top">
+              <span class="home-section-title">Live Lyrics</span>
+              <div class="ios-switch" id="toggle-ride-mode">
+                <div class="ios-switch-thumb"></div>
+              </div>
+            </div>
+            <p class="home-section-sub">Show lyrics on the Lock Screen, CarPlay, and Apple Watch.</p>
+
+            <!-- Player Card (LyricTileView.swift, surface: .home, height: 167pt) -->
+            <div class="home-player-card" id="btn-card-open-lyrics">
+              <div class="player-card-header">
+                <span class="identity" id="home-card-id">Road Trip Anthem — Cibul & Njun</span>
+                <span class="badge" id="home-card-badge">Playing</span>
+              </div>
+              <!-- Exact Swift parity: center-aligned 18pt lyrics block -->
+              <div class="player-card-lyrics">
+                <div class="lyric-item previous" id="home-card-prev"></div>
+                <div class="lyric-item hero" id="home-card-cur">The dashboard hums, the headlights glow</div>
+                <div class="lyric-item next" id="home-card-next">Two furry friends are in the know</div>
+              </div>
+              <div class="player-card-progress">
+                <div class="player-card-progress-fill" id="home-card-prog"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Widgets Section (widgetsSection -> HomeWidgetPreview, tap opens WidgetSettingsView) -->
+          <div class="home-section-block" style="cursor:pointer" id="btn-open-widget-settings">
+            <div class="home-section-top">
+              <span class="home-section-title">Widget</span>
+              <span style="color:var(--theme-muted); font-size:14px; font-weight:700">›</span>
+            </div>
+            <p class="home-section-sub">Add live lyrics to the Home Screen and CarPlay.</p>
+
+            <!-- HomeWidgetPreview (height: 158pt, vinyl disc right) -->
+            <div class="home-widget-preview-card" id="home-widget-preview">
+              <div class="widget-prev-left">
+                <div class="widget-prev-identity" id="widget-prev-id">Road Trip Anthem — Cibul & Njun</div>
+                <!-- Exact Swift parity: left-aligned 18pt lyrics in VinylWidgetView -->
+                <div class="widget-prev-lyrics">
+                  <div class="lyric-item previous" id="widget-prev-prev"></div>
+                  <div class="lyric-item hero" id="widget-prev-cur">The dashboard hums, the headlights glow</div>
+                  <div class="lyric-item next" id="widget-prev-next">Two furry friends are in the know</div>
+                </div>
+                <div class="widget-prev-transport">
+                  <span>⏮</span>
+                  <span id="widget-prev-play">⏸</span>
+                  <span>⏭</span>
+                </div>
+              </div>
+              <div class="widget-prev-right">
+                <div class="real-vinyl-disc" id="home-vinyl-disc">
+                  <div class="vinyl-ring-1"></div>
+                  <div class="vinyl-ring-2"></div>
+                  <div class="vinyl-ring-3"></div>
+                  <div class="vinyl-center-label">
+                    <img id="home-vinyl-img" src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80" alt="Disc" />
+                  </div>
+                  <div class="vinyl-spindle-hole"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Music Sources Section (sourcesSection) -->
+          <div class="sources-card-wrapper">
+            <span class="sources-label">Music sources</span>
+            <div class="sources-rounded-box">
+              <!-- Apple Music Row -->
+              <div class="source-item-row" id="source-row-apple">
+                <div class="source-logo-apple">🎵</div>
+                <div class="source-meta">
+                  <span class="source-title">Apple Music</span>
+                  <span class="source-subtitle connected" id="source-sub-apple">Active source</span>
+                </div>
+                <span class="source-trailing" id="source-check-apple">✓</span>
+              </div>
+              <div class="source-divider"></div>
+              <!-- Spotify Row -->
+              <div class="source-item-row" id="source-row-spotify">
+                <div class="source-logo-spotify">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path fill="#000" d="M17.5 17.3c-.2.3-.6.5-1 .2-2.8-1.7-6.4-2.1-10.6-1.1-.4.1-.8-.2-.9-.5-.1-.4.2-.8.5-.9 4.6-1 8.5-.6 11.6 1.3.4.2.5.7.4 1zm1.4-3.3c-.3.4-.8.6-1.3.3-3.2-2-8.2-2.6-11.9-1.4-.5.1-1-.1-1.1-.6-.1-.5.1-1 .6-1.1 4.3-1.3 9.8-.6 13.5 1.6.4.2.6.8.2 1.2zm.1-3.4C15.2 8.4 8.8 8.2 5.2 9.3c-.6.2-1.2-.2-1.4-.7-.2-.6.2-1.2.7-1.4 4.3-1.3 11.3-1 15.7 1.6.5.3.7 1 .4 1.5-.3.4-1 .6-1.4.3z"/></svg>
+                </div>
+                <div class="source-meta">
+                  <span class="source-title">Spotify</span>
+                  <span class="source-subtitle" id="source-sub-spotify">Connected (tap to switch)</span>
+                </div>
+                <span class="source-trailing" id="source-check-spotify" style="display:none">✓</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Footnote -->
+          <div class="home-footnote">Use while parked · Designed for passengers</div>
+
+        </div>
+      </div>
+
+      <!-- 7. Floating Mini-Player (floatingMiniPlayer) -->
+      <div class="floating-dock-player" id="floating-mini-player">
+        <div class="mini-left-group">
+          <!-- Exact Swift parity: 44x44 rounded square cover art (cornerRadius 11) -->
+          <div class="mini-cover-art">
+            <img id="mini-player-art" src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80" alt="Art" />
+          </div>
+          <div class="mini-text-stack">
+            <span class="mini-text-title" id="mini-player-title">Road Trip Anthem</span>
+            <!-- Exact Swift parity: 6x6 circle dot + source badge -->
+            <div class="mini-badge-row">
+              <span class="mini-badge-dot apple" id="mini-badge-dot"></span>
+              <span class="mini-badge-text apple" id="mini-player-sub">Apple Music</span>
+            </div>
+          </div>
+        </div>
+        <div class="mini-transport-group">
+          <button class="mini-transport-btn" id="mini-prev">⏮</button>
+          <button class="mini-transport-btn play" id="mini-play">⏸</button>
+          <button class="mini-transport-btn" id="mini-next">⏭</button>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           MODAL 1: FULLSCREEN LYRICS PAGE (LyricsPageView.swift)
+           ==================================================================== -->
+      <div class="fullscreen-lyrics-modal" id="modal-lyrics-page">
+        <div class="lyrics-wash-gradient"></div>
+        <div class="lyrics-modal-inner">
+          <div class="lyrics-modal-header">
+            <div class="lyrics-modal-art">
+              <img id="page-art" src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80" alt="Art" />
+            </div>
+            <div class="lyrics-modal-meta">
+              <span class="lyrics-modal-title" id="page-title">Road Trip Anthem</span>
+              <span class="lyrics-modal-artist" id="page-artist">Cibul & Njun</span>
+            </div>
+            <button class="lyrics-dismiss-btn" id="btn-close-lyrics">✕</button>
+          </div>
+
+          <!-- Exact Swift parity: 80pt headroom top, song header in scrollview, 220pt bottom scrollroom -->
+          <div class="lyrics-scrolling-stage" id="page-lyrics-stage">
+            <div class="lyrics-stage-song-header">
+              <h2 id="stage-song-title">Road Trip Anthem</h2>
+              <p id="stage-song-artist">Cibul & Njun</p>
+            </div>
+            <div id="stage-lines-container">
+              <!-- Rendered by app.js -->
+            </div>
+          </div>
+
+          <div class="lyrics-modal-footer">
+            <div class="lyrics-footer-progress">
+              <div class="lyrics-footer-progress-fill" id="page-prog-fill"></div>
+            </div>
+            <div class="lyrics-footer-times">
+              <span id="page-time-cur">0:00</span>
+              <span id="page-time-rem">-0:36</span>
+            </div>
+            <div class="lyrics-footer-transport">
+              <span id="page-btn-prev" style="cursor:pointer">⏮</span>
+              <span id="page-btn-play" style="cursor:pointer">⏸</span>
+              <span id="page-btn-next" style="cursor:pointer">⏭</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           MODAL 2: SETTINGS (SettingsView.swift)
+           ==================================================================== -->
+      <div class="settings-sheet-modal" id="modal-settings">
+        <div class="settings-nav-bar">
+          <button class="settings-back-btn" id="btn-close-settings">‹</button>
+          <span class="settings-title">Settings</span>
+          <div style="width:20px"></div>
+        </div>
+
+        <div class="caraoke-plus-card" id="settings-plus-card">
+          <div style="display:flex; align-items:center; gap:12px">
+            <div class="g-icon-circle" style="background:linear-gradient(135deg, #FFB800, #FF8A00); color:#000">👑</div>
+            <div>
+              <div style="font-size:16px; font-weight:700; color:#fff">Caraoke Plus</div>
+              <div style="font-size:12px; color:#8E8E93">CarPlay, widgets & live activity</div>
+            </div>
+          </div>
+          <span style="color:var(--theme-accent); font-weight:700">Upgrade ›</span>
+        </div>
+
+        <div class="sources-card-wrapper">
+          <span class="sources-label">Connect music</span>
+          <div class="sources-rounded-box">
+            <div class="g-row">
+              <div class="source-logo-apple" style="width:29px; height:29px; font-size:14px">🎵</div>
+              <span class="g-label">Apple Music</span>
+              <span class="g-value" style="color:var(--theme-ok)">Active source</span>
+              <span class="g-chevron">✓</span>
+            </div>
+            <div class="source-divider"></div>
+            <div class="g-row">
+              <div class="source-logo-spotify" style="width:29px; height:29px">
+                <svg viewBox="0 0 24 24" style="width:18px; height:18px"><circle cx="12" cy="12" r="12" fill="#1DB954"/><path fill="#000" d="M17.5 17.3c-.2.3-.6.5-1 .2-2.8-1.7-6.4-2.1-10.6-1.1-.4.1-.8-.2-.9-.5-.1-.4.2-.8.5-.9 4.6-1 8.5-.6 11.6 1.3.4.2.5.7.4 1zm1.4-3.3c-.3.4-.8.6-1.3.3-3.2-2-8.2-2.6-11.9-1.4-.5.1-1-.1-1.1-.6-.1-.5.1-1 .6-1.1 4.3-1.3 9.8-.6 13.5 1.6.4.2.6.8.2 1.2zm.1-3.4C15.2 8.4 8.8 8.2 5.2 9.3c-.6.2-1.2-.2-1.4-.7-.2-.6.2-1.2.7-1.4 4.3-1.3 11.3-1 15.7 1.6.5.3.7 1 .4 1.5-.3.4-1 .6-1.4.3z"/></svg>
+              </div>
+              <span class="g-label">Spotify</span>
+              <span class="g-value">Custom Client ID configured</span>
+              <span class="g-chevron">›</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sources-card-wrapper">
+          <span class="sources-label">Appearance</span>
+          <div class="sources-rounded-box">
+            <div class="g-row">
+              <div class="g-icon-circle">🎨</div>
+              <span class="g-label">Theme mode</span>
+              <span class="g-value">Auto</span>
+              <span class="g-chevron">›</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sources-card-wrapper">
+          <span class="sources-label">Support & About</span>
+          <div class="sources-rounded-box">
+            <div class="g-row">
+              <div class="g-icon-circle">❓</div>
+              <span class="g-label">Help & FAQ</span>
+              <span class="g-chevron">›</span>
+            </div>
+            <div class="source-divider"></div>
+            <div class="g-row">
+              <div class="g-icon-circle">📄</div>
+              <span class="g-label">Terms of Service</span>
+              <span class="g-chevron">›</span>
+            </div>
+            <div class="source-divider"></div>
+            <div class="g-row">
+              <div class="g-icon-circle">🔒</div>
+              <span class="g-label">Privacy Policy</span>
+              <span class="g-chevron">›</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:11px; color:#71717A; text-align:center; margin-top:16px">
+          Caraoke 0.1.0 (Build 45)<br/>Designed for CarPlay & Lock Screen
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           MODAL 3: WIDGET SETTINGS (WidgetSettingsView.swift)
+           ==================================================================== -->
+      <div class="widget-settings-modal" id="modal-widget-settings">
+        <div class="settings-nav-bar">
+          <button class="settings-back-btn" id="btn-close-widget-settings">‹</button>
+          <span class="settings-title" style="font-size:20px; font-weight:700">Widget</span>
+          <div style="width:20px"></div>
+        </div>
+
+        <div class="widget-settings-body">
+          <!-- Live Preview Card (height 160pt) -->
+          <div class="widget-settings-preview" id="ws-preview">
+            <div class="widget-prev-left">
+              <div class="widget-prev-identity" id="ws-prev-id">Road Trip Anthem — Cibul & Njun</div>
+              <div class="widget-prev-lyrics">
+                <div class="ws-prev-prev" id="ws-prev-prev"></div>
+                <div class="ws-prev-hero" id="ws-prev-cur">The dashboard hums, the headlights glow</div>
+                <div class="ws-prev-next" id="ws-prev-next">Two furry friends are in the know</div>
+              </div>
+              <div class="widget-prev-transport">
+                <span>⏮</span>
+                <span id="ws-prev-play">⏸</span>
+                <span>⏭</span>
+              </div>
+            </div>
+            <div class="widget-prev-right" id="ws-prev-cover-slot">
+              <!-- 126x126 vinyl or 110x110 picture, swapped by picker -->
+            </div>
+          </div>
+
+          <!-- Theme Settings Group -->
+          <div class="sources-card-wrapper">
+            <span class="sources-label">Theme settings</span>
+            <div class="sources-rounded-box">
+              <!-- Theme row (5 swatches: Follow Cover, Pitch Black, Simple Slate, Ivory White) -->
+              <div class="g-row">
+                <span class="g-label">Theme</span>
+                <div class="theme-swatches" id="theme-swatches">
+                  <button class="theme-swatch selected" data-theme="artwork" style="background: linear-gradient(135deg, #243047, #0a0a0c)" title="Follow Cover"></button>
+                  <button class="theme-swatch" data-theme="pitchBlack" style="background:#000000" title="Pitch Black"></button>
+                  <button class="theme-swatch" data-theme="simpleSlate" style="background:#18181B" title="Simple Slate"></button>
+                  <button class="theme-swatch" data-theme="ivoryWhite" style="background:#FAFAFA" title="Ivory White"></button>
+                </div>
+              </div>
+              <div class="source-divider"></div>
+              <!-- Cover style row (segmented picker: Picture / Vinyl Disc) -->
+              <div class="g-row">
+                <span class="g-label">Cover style</span>
+                <div class="segmented-picker" id="cover-style-picker">
+                  <button class="seg-btn" data-cover="picture">Picture</button>
+                  <button class="seg-btn selected" data-cover="vinyl">Vinyl Disc</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Make widgets update in real time button (toggles tips) -->
+          <button class="widget-tips-toggle" id="btn-toggle-tips">
+            <span id="tips-toggle-label">Make widgets update in real time</span>
+          </button>
+
+          <!-- Tips panel (hidden by default) -->
+          <div class="widget-tips-panel" id="widget-tips-panel" style="display:none">
+            <p class="tips-heading">Troubleshooting real-time updates</p>
+            <p class="tips-item-heading">1  Enable Background App Refresh</p>
+            <p class="tips-body">Settings → General → Background App Refresh → Caraoke → ON. Without this, the widget pauses when the app is suspended.</p>
+            <p class="tips-item-heading">2  Allow Live Activities</p>
+            <p class="tips-body">Settings → Caraoke → Live Activities → ON. Lock Screen and Dynamic Island updates require this permission.</p>
+            <p class="tips-item-heading">3  Tap the cover to resync</p>
+            <p class="tips-body">If lyrics drift, tap the album art or vinyl disc. Caraoke re-queries Spotify and LRCLIB in the background without launching the app.</p>
+            <p class="tips-item-heading">4  Use caraoke://lyrics deep link</p>
+            <p class="tips-body">Tapping anywhere on the Small widget opens the full karaoke page via the caraoke://lyrics URL scheme.</p>
+            <p class="tips-item-heading">5  StandBy</p>
+            <p class="tips-body">Place iPhone horizontally on a charger, then select the Caraoke lyrics widget to enable StandBy night mode.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           MODAL 4: PAYWALL (PaywallView.swift)
+           ==================================================================== -->
+      <div class="paywall-modal-view" id="modal-paywall">
+        <div class="paywall-close-row">
+          <button class="paywall-close-btn" id="btn-close-paywall">✕</button>
+        </div>
+
+        <div class="paywall-header-group">
+          <div class="crown-badge-glow">👑</div>
+          <span class="paywall-headline">Unlock Caraoke Premium</span>
+          <p class="paywall-subheadline">Sing along with real-time synced lyrics everywhere.</p>
+        </div>
+
+        <!-- 4 features with checkmark.circle.fill in green -->
+        <div class="paywall-features-list">
+          <div class="paywall-feat-item"><span class="paywall-feat-check">●</span><span>Synced Lyrics on CarPlay Dashboard</span></div>
+          <div class="paywall-feat-item"><span class="paywall-feat-check">●</span><span>Lock Screen Live Activity</span></div>
+          <div class="paywall-feat-item"><span class="paywall-feat-check">●</span><span>Dynamic Island & StandBy Mode</span></div>
+          <div class="paywall-feat-item"><span class="paywall-feat-check">●</span><span>Home Screen Desktop Widgets</span></div>
+        </div>
+
+        <!-- 3 Plan cards with exact radio indicators -->
+        <div class="paywall-tier-cards">
+          <!-- Yearly (Recommended) -->
+          <div class="paywall-tier-card selected" id="tier-yearly">
+            <div class="radio-circle"><div class="radio-inner-dot"></div></div>
+            <div class="tier-text-body">
+              <div class="tier-title-row">
+                <span class="tier-name">Yearly</span>
+                <span class="tier-badge">3-DAY FREE TRIAL</span>
+              </div>
+              <div class="tier-desc">3 days free, then $9.99/year ($0.83/mo)</div>
+            </div>
+            <div class="tier-price-col">
+              <span class="tier-final-price">$9.99 / yr</span>
+            </div>
+          </div>
+
+          <!-- Monthly -->
+          <div class="paywall-tier-card" id="tier-monthly">
+            <div class="radio-circle"><div class="radio-inner-dot"></div></div>
+            <div class="tier-text-body">
+              <div class="tier-title-row">
+                <span class="tier-name">Monthly</span>
+                <span class="tier-badge">3-DAY FREE TRIAL</span>
+              </div>
+              <div class="tier-desc">3 days free, then $1.99/month</div>
+            </div>
+            <div class="tier-price-col">
+              <span class="tier-final-price">$1.99 / mo</span>
+            </div>
+          </div>
+
+          <!-- Lifetime -->
+          <div class="paywall-tier-card" id="tier-lifetime">
+            <div class="radio-circle"><div class="radio-inner-dot"></div></div>
+            <div class="tier-text-body">
+              <div class="tier-title-row">
+                <span class="tier-name">Lifetime</span>
+                <span class="tier-badge" style="background:#E05A7B; color:#fff">45% OFF</span>
+              </div>
+              <div class="tier-desc">One-time purchase, yours forever</div>
+            </div>
+            <div class="tier-price-col">
+              <span class="tier-orig-price">$27.00</span>
+              <span class="tier-final-price">$14.99 once</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="paywall-cta-btn" id="paywall-cta">Subscribe Yearly</button>
+
+        <div class="paywall-legal-links">
+          <span>Restore Purchases</span>
+          <span class="dot">•</span>
+          <span>Terms of Use</span>
+          <span class="dot">•</span>
+          <span>Privacy Policy</span>
+        </div>
+      </div>
+
+      <!-- Home Indicator -->
+      <div class="iphone-home-indicator"></div>
+    </div>
+
+    <!-- VIEW 2: ALL WIDGETS & LIVE ACTIVITIES -->
+    <div id="view-widgets" class="widgets-showcase-view">
+
+      <div style="font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #27272A; padding-bottom:8px">
+        Desktop Widgets (CaraokeWidget.swift)
+      </div>
+
+      <div class="showcase-grid">
+        <!-- Small Widget (158x158) -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">SMALL (.systemSmall: 158×158 pt)</span>
+          <div class="standalone-widget-small">
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#8E8E93">
+              <span id="stand-small-title" style="font-weight:600; color:#fff">Road Trip Anthem</span>
+              <span>Caraoke</span>
+            </div>
+            <div class="small-lyric-stack">
+              <div class="small-cur" id="stand-small-cur">The dashboard hums, the headlights glow</div>
+              <div class="small-next" id="stand-small-next">Two furry friends are in the know</div>
+              <div class="small-next2" id="stand-small-next2">Cibul the silver, first to sing</div>
+            </div>
+            <div class="player-card-progress">
+              <div class="player-card-progress-fill" id="stand-small-prog"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Medium Widget (338x158) -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">REGULAR / MEDIUM (.systemMedium: 338×158 pt)</span>
+          <div class="standalone-widget-medium">
+            <div class="widget-prev-left">
+              <div class="widget-prev-identity" id="stand-med-id">Road Trip Anthem — Cibul & Njun</div>
+              <div class="widget-prev-lyrics" style="margin:auto 0">
+                <div class="lyric-item previous" id="stand-med-prev"></div>
+                <div class="lyric-item hero" id="stand-med-cur">The dashboard hums, the headlights glow</div>
+                <div class="lyric-item next" id="stand-med-next">Two furry friends are in the know</div>
+              </div>
+              <div class="widget-prev-transport">
+                <span>⏮</span>
+                <span id="stand-med-play">⏸</span>
+                <span>⏭</span>
+              </div>
+            </div>
+            <div class="widget-prev-right">
+              <div class="real-vinyl-disc" id="stand-med-disc">
+                <div class="vinyl-ring-1"></div>
+                <div class="vinyl-ring-2"></div>
+                <div class="vinyl-ring-3"></div>
+                <div class="vinyl-center-label">
+                  <img id="stand-med-img" src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80" alt="Disc" />
+                </div>
+                <div class="vinyl-spindle-hole"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Large Widget (375x375) -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">HUGE SQUARE (.systemLarge: 375×375 pt)</span>
+          <div class="standalone-widget-large">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:#8E8E93">
+              <span style="font-weight:700; color:#fff">Caraoke</span>
+              <span>Synced Lyrics</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin:auto 0; text-align:center">
+              <div class="lrg-prev2" id="stand-lrg-prev2"></div>
+              <div class="lrg-prev" id="stand-lrg-prev"></div>
+              <div class="lrg-cur" id="stand-lrg-cur">The dashboard hums, the headlights glow</div>
+              <div class="lrg-next" id="stand-lrg-next">Two furry friends are in the know</div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08)">
+              <div style="display:flex; align-items:center; gap:10px">
+                <img id="stand-lrg-art" src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&auto=format&fit=crop&q=80" style="width:42px; height:42px; border-radius:12px; object-fit:cover" alt="Art" />
+                <div>
+                  <h5 id="stand-lrg-title" style="font-size:13.5px; font-weight:600; color:#fff">Road Trip Anthem</h5>
+                  <p id="stand-lrg-artist" style="font-size:11.5px; color:#8E8E93">Cibul & Njun</p>
+                </div>
+              </div>
+              <div style="display:flex; gap:14px; font-size:16px; color:#fff">
+                <span>⏮</span>
+                <span id="stand-lrg-play">⏸</span>
+                <span>⏭</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #27272A; padding-bottom:8px; margin-top:20px">
+        Live Activities (LyricsLiveActivity.swift)
+      </div>
+
+      <div class="showcase-grid">
+        <!-- Lock Screen Live Activity Banner (375x160) -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">LOCK SCREEN LIVE ACTIVITY (375×160 pt)</span>
+          <div class="standalone-lock-banner">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:rgba(255,255,255,0.6)">
+              <span>Caraoke · Live Sync</span>
+              <span id="stand-lock-badge">Playing</span>
+            </div>
+            <div class="lock-lyric-stack">
+              <div class="lock-prev" id="stand-lock-prev"></div>
+              <div id="stand-lock-cur" class="lock-cur">The dashboard hums, the headlights glow</div>
+              <div id="stand-lock-next" class="lock-next">Two furry friends are in the know</div>
+            </div>
+            <div>
+              <div class="player-card-progress" style="margin-bottom:6px">
+                <div class="player-card-progress-fill" id="stand-lock-prog"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size:11px; font-family:var(--font-mono); color:rgba(255,255,255,0.5)">
+                <span id="stand-lock-cur-time">0:00</span>
+                <span id="stand-lock-rem-time">-0:36</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CarPlay Supplemental Tile (FamilyAdaptiveTile .carPlaySmall) -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">CARPLAY DASHBOARD (.carPlaySmall)</span>
+          <div class="standalone-carplay-tile">
+            <div class="carplay-header">
+              <div class="carplay-icon">🎵</div>
+              <div class="carplay-id">
+                <div class="carplay-title" id="stand-carplay-title">Road Trip Anthem</div>
+                <div class="carplay-artist" id="stand-carplay-artist">Cibul & Njun</div>
+              </div>
+            </div>
+            <div class="carplay-lyric" id="stand-carplay-cur">The dashboard hums, the headlights glow</div>
+            <div class="carplay-progress">
+              <div class="carplay-progress-fill" id="stand-carplay-prog"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #27272A; padding-bottom:8px; margin-top:20px">
+        Dynamic Island (LyricsLiveActivity.swift)
+      </div>
+
+      <div class="showcase-grid">
+        <!-- Dynamic Island: Compact (Leading + Trailing) -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">COMPACT (Leading + Trailing)</span>
+          <div class="di-compact-bar">
+            <div class="di-compact-shape">
+              <div class="di-compact-leading" id="di-compact-leading">🎵</div>
+              <div class="di-compact-trailing" id="di-compact-trailing">Road Trip</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Island: Minimal -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">MINIMAL (when shared with other activities)</span>
+          <div class="di-compact-bar">
+            <div class="di-minimal-shape">
+              <span class="di-mini-glyph">🎵</span>
+              <span class="di-mini-text" id="di-minimal-text">Road Trip</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Island: Expanded (Long-press view) -->
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">EXPANDED (Long-press view)</span>
+          <div class="di-expanded-card">
+            <div class="di-exp-row">
+              <div class="di-exp-leading" id="di-exp-leading">⏸</div>
+              <div class="di-exp-center">
+                <div class="di-exp-cur" id="di-exp-cur">The dashboard hums, the headlights glow</div>
+                <div class="di-exp-next" id="di-exp-next">Two furry friends are in the know</div>
+              </div>
+            </div>
+            <div class="di-exp-bottom">
+              <span class="di-exp-badge">Caraoke</span>
+              <div class="di-exp-progbar"><div class="di-exp-progfill" id="di-exp-prog"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:17px; font-weight:700; color:#fff; border-bottom:1px solid #27272A; padding-bottom:8px; margin-top:20px">
+        StandBy Mode (iPhone horizontal charging)
+      </div>
+
+      <div class="showcase-grid">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px">
+          <span style="font-size:11px; font-weight:600; color:#8E8E93">STANDBY LYRICS (Night clock face style)</span>
+          <div class="standby-frame">
+            <div class="standby-time" id="standby-clock">9:41</div>
+            <div class="standby-lyric" id="standby-lyric">The dashboard hums, the headlights glow</div>
+            <div class="standby-next" id="standby-next">Two furry friends are in the know</div>
+            <div class="standby-footer">
+              <span id="standby-title">Road Trip Anthem</span>
+              <span class="standby-dot">·</span>
+              <span id="standby-artist">Cibul & Njun</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

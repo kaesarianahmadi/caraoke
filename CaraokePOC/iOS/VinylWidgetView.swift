@@ -15,13 +15,11 @@ struct VinylWidgetView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            // The disc is sized from the space that is actually left after the
-            // lyrics column, so it can never run past the widget's right edge.
-            // Build 44 sized it from `maxHeight: .infinity` instead: a fixed
-            // 126 pt disc in a ~114 pt column, overflowing by ~12 pt.
-            let inner = CGSize(width: geometry.size.width - 28,
-                               height: geometry.size.height - 28)
-            let lyricsWidth = inner.width * 0.60
+            // Reclaim width for lyrics (68% width + 10 pt padding) to prevent truncation
+            // while preserving crisp vinyl disc sizing on the right.
+            let inner = CGSize(width: geometry.size.width - 20,
+                               height: geometry.size.height - 20)
+            let lyricsWidth = inner.width * 0.68
             let disc = min(inner.height, inner.width - lyricsWidth - 8)
 
             HStack(spacing: 8) {
@@ -31,7 +29,7 @@ struct VinylWidgetView: View {
                     .frame(width: disc, height: disc)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .padding(14)
+            .padding(10)
         }
         .foregroundStyle(theme.textColor)
         .containerBackground(for: .widget) {
@@ -67,35 +65,34 @@ struct VinylWidgetView: View {
         }
     }
 
-    /// Every row at the SAME 18 pt (`LyricType.lyric`). Emphasis on the active
-    /// line is weight only — `.semibold`, not `.bold`. Allows 2 wrapped rows with
-    /// subtle scale factor fallback to avoid word clipping.
+    /// Every row at the SAME 18 pt (`LyricType.lyric`) — no font shrinking or scaling.
+    /// Uses dynamic line eviction so multi-line wrapped active lyrics fit within the
+    /// widget height without truncating.
     private var lyricBlock: some View {
-        VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
-            if let previous = entry.previousLines.last, !previous.isEmpty {
+        let text = currentLyricText
+        let isLong = text.count > 54
+        let isMedium = text.count > 26
+
+        return VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
+            if !isLong, let previous = entry.previousLines.last, !previous.isEmpty {
                 Text(previous)
-                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
-                    .foregroundStyle(theme.mutedTextColor.opacity(0.42))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.8)
-            }
-            if !currentLyricText.isEmpty {
-                Text(currentLyricText)
-                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
-                    .foregroundStyle(theme.textColor)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                    .lineSpacing(LyricType.lyricLineSpacing)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let next = entry.nextLine, !next.isEmpty {
-                Text(next)
                     .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.62))
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.8)
+            }
+            if !text.isEmpty {
+                Text(text)
+                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                    .foregroundStyle(theme.textColor)
+                    .lineLimit(isLong ? 3 : 2)
+                    .lineSpacing(LyricType.lyricLineSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !isMedium && !isLong, let next = entry.nextLine, !next.isEmpty {
+                Text(next)
+                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                    .foregroundStyle(theme.mutedTextColor.opacity(0.82))
+                    .lineLimit(1)
             }
         }
         .id(entry.lineIndex)

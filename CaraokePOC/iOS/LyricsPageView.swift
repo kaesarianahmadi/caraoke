@@ -135,8 +135,8 @@ struct LyricsPageView: View {
                             let isHero = !model.currentLine.isEmpty && line.text == model.currentLine
                             let isPast = isLineInPast(index: index)
                             Text(line.text)
-                                .font(.system(size: LyricType.pageLyric, weight: isHero ? .bold : .semibold))
-                                .foregroundColor(isHero ? fg : (isPast ? muted.opacity(0.35) : muted.opacity(0.70)))
+                                .font(.system(size: LyricType.pageLyric, weight: isHero ? .bold : .regular))
+                                .foregroundColor(isHero ? fg : (isPast ? muted.opacity(0.55) : muted.opacity(0.90)))
                                 .multilineTextAlignment(.leading)
                                 .lineSpacing(LyricType.lyricLineSpacing)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,7 +147,7 @@ struct LyricsPageView: View {
                         // Fallback when full track is still arriving
                         ForEach(fallbackLines) { row in
                             Text(row.text)
-                                .font(.system(size: LyricType.pageLyric, weight: row.isHero ? .bold : .semibold))
+                                .font(.system(size: LyricType.pageLyric, weight: row.isHero ? .bold : .regular))
                                 .foregroundColor(row.isHero ? fg : muted.opacity(row.opacity))
                                 .multilineTextAlignment(.leading)
                                 .lineSpacing(LyricType.lyricLineSpacing)
@@ -218,13 +218,13 @@ struct LyricsPageView: View {
     private var fallbackLines: [FallbackRow] {
         var rows: [FallbackRow] = []
         for (idx, line) in model.previousLines.enumerated() {
-            rows.append(FallbackRow(id: "prev_\(idx)", text: line, isHero: false, opacity: 0.35))
+            rows.append(FallbackRow(id: "prev_\(idx)", text: line, isHero: false, opacity: 0.55))
         }
         if !model.currentLine.isEmpty {
             rows.append(FallbackRow(id: "hero", text: model.currentLine, isHero: true, opacity: 1.0))
         }
         for (idx, line) in model.upcomingLines.enumerated() {
-            rows.append(FallbackRow(id: "up_\(idx)", text: line, isHero: false, opacity: 0.70))
+            rows.append(FallbackRow(id: "up_\(idx)", text: line, isHero: false, opacity: 0.90))
         }
         return rows
     }

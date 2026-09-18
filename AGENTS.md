@@ -17,11 +17,16 @@
 3. **Optional Native Subagents:** Use native DSH `subagent` only when an independent background investigation, deep codebase audit, or parallel research task is genuinely needed without polluting session context.
 4. **Skills as Technical Reference:** Consult reference patterns under `.agents/skills/` (`swiftui-patterns.md`, `error-handling.md`, `security-review.md`, etc.) for architectural compliance.
 5. **Telegram Integration:** Feedback and bug reports received via `.agents/telegram-bridge/bridge.mjs` route directly into the active session for immediate action.
-6. **Security & Deployment Gate:** Secrets and credentials must never be committed to the public repository. Verify build and version bumping (`CURRENT_PROJECT_VERSION` in `project.yml`) before TestFlight CI pushes.
+6. **Security & Deployment Gate:** Secrets and credentials must never be committed to the public repository. **STRICT AUTHORIZATION RULE:** NEVER push to `main`, NEVER trigger CI, and NEVER upload to TestFlight without explicit, unambiguous direct authorization from the user in chat. Document edits, markdown updates, or local fixes must NEVER trigger a push or build bump.
 
 ---
 
 ## Release Workflow: push to `main` → CI → TestFlight
+
+**STRICT REQUIREMENT: PUSH ONLY WITH EXPLICIT USER AUTHORIZATION.**
+- **Never push to `main` autonomously.**
+- **Never bump `CURRENT_PROJECT_VERSION` or trigger CI/TestFlight unless the user explicitly commands it in the current turn.**
+- **Local edits, documentation fixes, or refactors stay strictly local.**
 
 **This is the only build/verification path. There is no local Xcode and no iOS SDK on this machine (Command Line Tools only). Do not attempt `xcodebuild` locally, and do not claim a build is verified until the CI run is green.**
 
@@ -78,6 +83,7 @@ gh auth switch --user <account-with-write>
 
 ### Hard-won constraints — do not repeat these
 
+- **PUSH PERMISSION: NEVER PUSH WITHOUT EXPLICIT USER AUTHORIZATION IN CHAT.** Pushing to `main` triggers TestFlight CI and spends build numbers / CI minutes. Edits, docs, and fixes remain strictly local until the user explicitly says to push.
 - **Swift 5.9: `try` cannot appear inside `??`.** `player ?? (try Foo())` fails with *"operator can throw but expression is not marked with 'try'"*. Build 46 died on exactly this. Use an explicit `if let` branch instead.
 - **`swiftc -parse` catches syntax only, not types.** A type error compiles clean locally and only surfaces in `ios-app-compile`. Assume anything touching types is unverified until CI says otherwise.
 - **A bumped build number must be a *new* number.** If a run's artifact never uploaded, that number is spent — bump again.

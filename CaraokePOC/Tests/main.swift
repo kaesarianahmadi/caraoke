@@ -843,17 +843,16 @@ final class TestRunner {
             // CarPlay is the one surface that renders smaller, and its budget
             // and its view spec must agree on the number — a mismatch is the
             // "fonts too big, still truncating" defect coming back.
-            checkEqual("layoutCarPlayFontIs12", LyricType.carPlayLyric, 12)
+            checkEqual("layoutCarPlayFontIs14", LyricType.carPlayLyric, 14)
             checkEqual("layoutCarPlaySurfaceFont",
                        LyricSurface.carPlaySmall.lyricFont, LyricType.carPlayLyric)
             check("layoutOnlyCarPlayShrinks",
                   LyricSurface.allCases.filter { $0.lyricFont != LyricType.lyric }
                       == [.carPlaySmall])
 
-            // The active line is emphasis-by-weight only, and slimmer than
-            // build 40's `.bold` (user direction).
+            // The active line renders at `.regular` (user direction).
             check("layoutHeroNotBold", LyricType.lyricWeight != .bold)
-            check("layoutHeroHeavierThanNeighbours", LyricType.lyricWeight != LyricType.lyricNeighborWeight)
+            check("layoutHeroIsRegular", LyricType.lyricWeight == .regular)
 
             // The budget exists in the first place — a surface must offer at
             // least the active line.

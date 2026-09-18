@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caraoke — Zero-Budget Marketing Playbook</title>
+<style>
+  :root{
+    --bg:#fdfaf4; --bg2:#f7f1e6; --card:#ffffff; --card2:#fdf8ee;
+    --line:rgba(40,30,16,.10); --line2:rgba(40,30,16,.20);
+    --tx:#1d1710; --tx2:#5d5346; --tx3:#8d8275;
+    --or:#c2410c; --or2:#f59e0b; --or3:#fff1e0;
+    --a1:#6d4aff; --a2:#d94b93; --a3:#0e7490;
+    --ok:#15803d; --okbg:#e8f7ec; --warn:#b45309; --warnbg:#fdf1e0; --bad:#b91c1c; --badbg:#fdeceb;
+    --r:14px; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --shadow:0 1px 2px rgba(40,30,16,.05),0 6px 20px -12px rgba(40,30,16,.20);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--tx);
+    font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(820px 460px at 8% -10%, rgba(245,158,11,.16), transparent 62%),
+      radial-gradient(680px 400px at 96% 2%, rgba(109,74,255,.10), transparent 60%);
+  }
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 20px 120px}
+
+  header.hero{padding:58px 0 24px}
+  .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--or);font-weight:700}
+  h1{font-size:clamp(30px,5.2vw,50px);line-height:1.05;letter-spacing:-.03em;margin:14px 0 12px;font-weight:800}
+  h1 em{font-style:normal;background:linear-gradient(100deg,var(--or),var(--a2) 55%,var(--a1));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--tx2);max-width:62ch;font-size:16px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin:26px 0 6px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi b{display:block;font-size:21px;letter-spacing:-.02em}
+  .kpi span{font-size:11.5px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+  .kpi small{display:block;color:var(--tx2);font-size:12px;margin-top:4px}
+  .kpi.hi{background:linear-gradient(160deg,#fff,var(--or3));border-color:rgba(194,65,12,.22)}
+
+  /* ---------- nav ---------- */
+  nav.tabs{position:sticky;top:0;z-index:30;margin:20px 0 6px;padding:10px 0;
+    background:linear-gradient(180deg,rgba(253,250,244,.97) 62%,rgba(253,250,244,0));backdrop-filter:blur(10px)}
+  .tabwrap{display:flex;align-items:center;gap:6px}
+  .tabrow{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none;scroll-behavior:smooth;flex:1}
+  .tabrow::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;background:var(--card);border:1px solid var(--line);color:var(--tx2);
+    padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap;box-shadow:var(--shadow)}
+  .tab:hover{color:var(--tx);border-color:var(--line2)}
+  .tab[aria-selected="true"]{color:#fff;border-color:transparent;background:linear-gradient(100deg,var(--or),var(--or2))}
+  .scrollbtn{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--card);
+    color:var(--tx2);cursor:pointer;font-size:14px;line-height:1;display:grid;place-items:center;box-shadow:var(--shadow)}
+  .scrollbtn:hover{color:var(--or);border-color:rgba(194,65,12,.35)}
+  .scrollbtn[disabled]{opacity:.3;cursor:default}
+
+  section.panel{display:none;padding-top:24px;animation:fade .2s ease}
+  section.panel.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  h2{font-size:24px;letter-spacing:-.02em;margin:34px 0 6px}
+  h2:first-child{margin-top:0}
+  h3{font-size:16px;margin:24px 0 8px}
+  h4{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--tx3);margin:18px 0 8px;font-weight:700}
+  p{color:var(--tx2);margin:10px 0}
+  p strong,li strong{color:var(--tx)}
+  ul,ol{color:var(--tx2);padding-left:20px;margin:10px 0}
+  li{margin:6px 0}
+  a{color:var(--or);text-decoration-color:rgba(194,65,12,.3)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--bg2);padding:1px 5px;border-radius:5px;color:#3f3428}
+  .lead{font-size:16px;color:var(--tx2);max-width:70ch}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin:14px 0;box-shadow:var(--shadow)}
+  .card.tight{padding:14px 16px}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--tx2);background:var(--bg2)}
+  .tag.hot{color:#9a3412;background:var(--or3);border-color:rgba(194,65,12,.3)}
+  .tag.cool{color:var(--a3);background:#e6f6f9;border-color:rgba(14,116,144,.25)}
+  .tag.ok{color:var(--ok);background:var(--okbg);border-color:rgba(21,128,61,.25)}
+
+  .callout{border-left:3px solid var(--or);background:var(--or3);border-radius:0 var(--r) var(--r) 0;padding:12px 16px;margin:14px 0;color:#4a3a2c}
+  .callout.warn{border-left-color:var(--warn);background:var(--warnbg);color:#4a3a20}
+  .callout.bad{border-left-color:var(--bad);background:var(--badbg);color:#4a2a28}
+  .callout.ok{border-left-color:var(--ok);background:var(--okbg);color:#26402e}
+  .callout b{color:var(--tx)}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--tx3);font-weight:800}
+  td{color:var(--tx2)}
+  td strong{color:var(--tx)}
+  tbody tr:hover{background:var(--bg2)}
+  .scroll{overflow-x:auto}
+
+  /* ---------- inputs / buttons ---------- */
+  input[type=range]{width:100%;accent-color:var(--or);height:4px}
+  input[type=number]{
+    width:100%;padding:8px 10px;border:1px solid var(--line2);border-radius:9px;background:var(--card);
+    font:inherit;font-size:14px;color:var(--tx);font-variant-numeric:tabular-nums;
+  }
+  input[type=number]:focus{outline:2px solid rgba(245,158,11,.45);outline-offset:1px;border-color:var(--or2)}
+  .btn{background:linear-gradient(100deg,var(--or),#e2711c);border:0;color:#fff;font-weight:700;font-size:11.5px;
+    letter-spacing:.05em;padding:8px 13px;border-radius:9px;cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn:hover{filter:brightness(1.07)}
+  .btn.ghost{background:var(--card);color:var(--tx2);border:1px solid var(--line2)}
+  .btn.ghost:hover{color:var(--or);border-color:rgba(194,65,12,.35);filter:none}
+  .btn.done{background:var(--ok)}
+
+  /* ---------- funnel calc ---------- */
+  .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+  .field label{display:flex;justify-content:space-between;font-size:13px;color:var(--tx2);margin-bottom:8px;gap:10px}
+  .field label b{color:var(--tx);font-variant-numeric:tabular-nums}
+  .out{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:18px}
+  .out .kpi b{font-size:19px}
+  .verdict{margin-top:14px;font-weight:700}
+  .verdict.good{color:var(--ok)}
+  .verdict.bad{color:var(--warn)}
+
+  /* ---------- hook carousel ---------- */
+  .chips{display:flex;gap:7px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none;margin-bottom:10px}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;border:1px solid var(--line2);background:var(--card);color:var(--tx2);border-radius:999px;
+    padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .chip:hover{border-color:rgba(194,65,12,.4);color:var(--or)}
+  .chip[aria-pressed="true"]{background:var(--tx);color:#fff;border-color:var(--tx)}
+
+  .viewport{overflow:hidden;border-radius:var(--r);cursor:grab;touch-action:pan-y}
+  .viewport.dragging{cursor:grabbing}
+  .track{display:flex;transition:transform .28s cubic-bezier(.22,.61,.36,1)}
+  .track.nofx{transition:none}
+  .slide{flex:0 0 100%;background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:26px 24px 22px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;min-height:230px}
+  .slide .hooktext{font-size:clamp(19px,2.6vw,26px);line-height:1.28;letter-spacing:-.02em;color:var(--tx);font-weight:700;margin:0}
+  .slide .hookmeta{font-size:13px;color:var(--tx3);margin:0}
+  .slide .slidefoot{margin-top:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .carnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+  .carnav .mid{font-size:12.5px;color:var(--tx3);font-variant-numeric:tabular-nums;font-weight:700}
+  .dots{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:10px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--line2);border:0;padding:0;cursor:pointer}
+  .dot[aria-current="true"]{background:var(--or);transform:scale(1.25)}
+
+  /* ---------- timeline + progress ---------- */
+  .dash{background:linear-gradient(160deg,#fff,var(--or3));border:1px solid rgba(194,65,12,.2);border-radius:var(--r);
+    padding:18px 20px;margin:14px 0;box-shadow:var(--shadow)}
+  .dashgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+  .dashgrid .m b{display:block;font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .dashgrid .m span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--tx3);font-weight:800}
+  .dashgrid .m small{display:block;font-size:12px;color:var(--tx2);margin-top:2px}
+  .prog{margin-top:16px}
+  .prog .lbl{display:flex;justify-content:space-between;font-size:12.5px;color:var(--tx2);margin:10px 0 5px;font-weight:600}
+  .prog .lbl b{font-variant-numeric:tabular-nums}
+  .bar{height:9px;border-radius:99px;background:rgba(40,30,16,.09);overflow:hidden}
+  .bar i{display:block;height:100%;width:0;border-radius:99px;transition:width .35s}
+  .bar.asp i{background:linear-gradient(90deg,var(--or2),var(--or))}
+  .bar.com i{background:linear-gradient(90deg,#34d399,var(--ok))}
+  .bar.dl i{background:linear-gradient(90deg,var(--a1),var(--a2))}
+  .dashfoot{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  .dashverdict{font-weight:700;font-size:13.5px}
+  .dashverdict.good{color:var(--ok)}
+  .dashverdict.bad{color:var(--warn)}
+
+  details.week{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:8px 0;overflow:hidden;box-shadow:var(--shadow)}
+  details.week summary{cursor:pointer;padding:13px 18px;display:flex;gap:14px;align-items:center;list-style:none;font-weight:700;font-size:14px}
+  details.week summary::-webkit-details-marker{display:none}
+  details.week summary:hover{background:var(--bg2)}
+  .wnum{flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--or);min-width:52px}
+  .wtitle{flex:1}
+  .wviews{font-size:12px;color:var(--tx3);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wstat{flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.04em}
+  .wstat.hit{background:var(--okbg);color:var(--ok)}
+  .wstat.part{background:var(--warnbg);color:var(--warn)}
+  .wstat.miss{background:var(--badbg);color:var(--bad)}
+  .wstat.none{background:var(--bg2);color:var(--tx3)}
+  details.week .body{padding:0 18px 16px;border-top:1px solid var(--line)}
+  details.week .body ul{margin-top:12px}
+  .wklog{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:14px 0 4px;
+    background:var(--card2);border:1px dashed var(--line2);border-radius:12px;padding:12px 14px}
+  .wklog label{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--tx3);display:block}
+  .wklog label input{margin-top:6px;font-weight:600}
+  .wkbar{grid-column:1/-1}
+  .wkbar .bar{height:7px}
+  .wkbar .bl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--tx3);margin-bottom:4px;font-weight:700}
+
+  /* ---------- checklist ---------- */
+  .cl{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:6px 8px;margin:10px 0;box-shadow:var(--shadow)}
+  .cl label{display:flex;gap:11px;align-items:flex-start;padding:9px 10px;border-radius:9px;cursor:pointer;font-size:14px;color:var(--tx2)}
+  .cl label:hover{background:var(--bg2)}
+  .cl input{margin:3px 0 0;accent-color:var(--or);width:16px;height:16px;flex:0 0 auto}
+  .cl input:checked + span{color:var(--tx3);text-decoration:line-through}
+  .clbar{position:sticky;top:56px;z-index:10;background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:12px 16px;margin:14px 0;display:flex;gap:14px;align-items:center;box-shadow:var(--shadow)}
+  .clbar .track2{flex:1;height:8px;border-radius:99px;background:rgba(40,30,16,.09);overflow:hidden}
+  .clbar .fill{height:100%;width:0;background:linear-gradient(90deg,var(--or2),var(--or));transition:width .3s}
+  .clbar b{font-variant-numeric:tabular-nums;font-size:13px}
+
+  footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);color:var(--tx3);font-size:12.5px}
+  @media print{
+    body{background:#fff}
+    nav.tabs,.scrollbtn,.btn,.dots,.carnav{display:none}
+    section.panel{display:block!important}
+    .card,.kpi,details.week,.slide{box-shadow:none}
+    details.week .body{display:block!important}
+    .track{display:block!important}
+    .slide{flex:none;border:0;padding:8px 0;min-height:0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Caraoke · Go-to-market · v2</div>
+  <h1>Zero-budget playbook to <em>100M views</em> → 100k downloads</h1>
+  <p class="sub">CarPlay live lyrics for the whole car. Solo dev, no ad spend, AI-assisted content engine. What to make, what to say, when to post, what to kill — and a tracker to log what actually happened.</p>
+
+  <div class="kpis">
+    <div class="kpi hi"><span>Committed</span><b>30M views</b><small>build the plan on this</small></div>
+    <div class="kpi"><span>Aspirational</span><b>100M views</b><small>70% = a win</small></div>
+    <div class="kpi"><span>Downloads</span><b>30k / 100k</b><small>committed / aspirational</small></div>
+    <div class="kpi"><span>Paid spend</span><b>$0</b><small>organic + earned only</small></div>
+  </div>
+
+  <div class="callout bad">
+    <b>Read this first.</b> 100M views is a <em>content-volume and breakout</em> problem, not a cleverness problem. Roughly 60% of the total will come from 2–3 breakouts. The plan manufactures enough shots on goal (≈270 posts) that breakouts become statistically likely, then squeezes them with remix rules. If you cannot sustain 2 posts/day for 13 weeks, cut the goal to 30M views — do not cut the cadence and keep the goal.
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tabwrap">
+    <button class="scrollbtn" id="tabLeft" aria-label="Scroll tabs left">‹</button>
+    <div class="tabrow" role="tablist">
+      <button class="tab" role="tab" aria-selected="true"  data-tab="overview">The Bet</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="audience">Audience</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="content">Content Engine</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="hooks">Hook Library</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="aivideo">AI Video Workflow</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="platforms">Platforms</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="upload">Upload Strategy</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="timeline">Timeline + Tracker</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="earned">ASO &amp; Earned</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="measure">Measurement</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="stack">$0 Stack</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="risks">Risks</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="sprint">Sprint Checklist</button>
+    </div>
+    <button class="scrollbtn" id="tabRight" aria-label="Scroll tabs right">›</button>
+  </div>
+</nav>
+
+<!-- ================= THE BET ================= -->
+<section class="panel on" id="overview">
+  <h2>The bet</h2>
+  <p class="lead">Caraoke is not a karaoke app. It is the only app that puts the <strong>current lyric line</strong> on CarPlay, Lock Screen and Dynamic Island while the music the user already owns keeps playing. That is a glanceable, non-interactive, safety-positive product — a rare combination on the App Store.</p>
+
+  <div class="grid g3">
+    <div class="card tight"><div class="tag cool">Positioning</div><p><strong>“The words on the screen for the whole car.”</strong> Brand = road-trip sing-along. Credibility = safety (no phone passing). Use case = passenger seat.</p></div>
+    <div class="card tight"><div class="tag cool">Category</div><p>Music. Not “karaoke” — that fights Smule with $0. Own the phrase <strong>car karaoke</strong> and <strong>CarPlay lyrics</strong>.</p></div>
+    <div class="card tight"><div class="tag cool">Moat</div><p>None technically. Apple could ship this. So the moat is <strong>being first + owning the vocabulary + a content brand</strong> that outlives the feature gap.</p></div>
+  </div>
+
+  <h3>The funnel math</h3>
+  <p>Downloads are the only number you cannot fake. Drag the sliders to see what your current assumptions actually produce.</p>
+
+  <div class="card">
+    <div class="calc">
+      <div class="field">
+        <label>Total views <b id="vV">100M</b></label>
+        <input id="v" type="range" min="5" max="300" value="100" step="5">
+      </div>
+      <div class="field">
+        <label>Views → profile / link click <b id="vC">1.5%</b></label>
+        <input id="c" type="range" min="0.2" max="5" value="1.5" step="0.1">
+      </div>
+      <div class="field">
+        <label>Store page → install <b id="vS">6%</b></label>
+        <input id="s" type="range" min="1" max="20" value="6" step="0.5">
+      </div>
+    </div>
+    <div class="out">
+      <div class="kpi"><span>Link clicks</span><b id="o1">1.5M</b></div>
+      <div class="kpi"><span>Downloads</span><b id="o2">90,000</b></div>
+      <div class="kpi"><span>Views needed for 100k</span><b id="o3">111M</b></div>
+    </div>
+    <div class="verdict" id="verdict"></div>
+    <p style="font-size:13px;margin-top:10px;color:var(--tx3)">Benchmarks: short-form profile-click rate 1–2% is normal, 3%+ is a strong CTA; iOS paid-app store conversion sits well below the ~35% free-app average — a hard paywall is the single biggest conversion tax in this plan.</p>
+  </div>
+
+  <div class="callout warn">
+    <b>The paywall conflict.</b> Locked pricing: <strong>$1.99/mo · $9.99/yr · $14.99 lifetime (anchor $27, 45% off)</strong>, both subscriptions carrying a 3-day free trial. Hard paywall + 3-day trial = no free users = no referral loop = every install must be earned by content. That is workable but it means: (1) the trial must convert on the <em>first ride</em>, not the first launch; (2) download numbers will look worse than a free app at the same reach; (3) the lifetime tier is your early-adopter harvesting tool. If 100k downloads is a hard goal, the free-download-with-paywall-inside model is 3–5× easier — decide consciously, not by accident.
+  </div>
+
+  <h3>Committed vs aspirational</h3>
+  <p>Two tracks, one dashboard. The committed number builds the calendar; the aspirational number builds the morale.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Track</th><th>Views</th><th>Downloads</th><th>Expected hit rate</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Committed</strong></td><td>30M</td><td>30k</td><td>~100%</td><td>Cadence, format decisions, weekly plan</td></tr>
+      <tr><td><strong>Aspirational</strong> (stretch / moonshot OKR)</td><td>100M</td><td>100k</td><td>~70% counts as success</td><td>Ambition, morale, the story you tell</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout">
+    <b>Why the split.</b> Aspirational OKRs are graded at ~70% (Doerr, <em>Measure What Matters</em>); the failure mode is <em>Goals Gone Wild</em> — stretch goals demoralize when they feel impossible. So: grade monthly, never weekly, and never let the aspirational number change a format decision.
+  </div>
+
+  <h3>Three hooks, one at a time</h3>
+  <table class="scroll">
+    <thead><tr><th>Hook</th><th>Why it works</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Road-trip sing-along</strong></td><td>Emotional, visual, shareable, TikTok-native</td><td>Brand + reach</td></tr>
+      <tr><td><strong>Safety: stop passing the phone</strong></td><td>Press-friendly, defensible, parent-approved</td><td>Credibility + conversion</td></tr>
+      <tr><td><strong>Passenger seat</strong></td><td>Kids, couples, friends — a real argument solved</td><td>Use-case clarity</td></tr>
+    </tbody>
+  </table>
+  <p>Never say all three in one video. One hook per asset.</p>
+
+  <h3>Market ≠ home</h3>
+  <p>CarPlay penetration in Indonesia is near zero. Target <strong>US / CA / AU / UK</strong> road-trip culture. Indonesia content (macet, motorbike, Gojek) is a different product for a different hardware base. Content language: English. Posting times: US evening.</p>
+</section>
+
+<!-- ================= AUDIENCE ================= -->
+<section class="panel" id="audience">
+  <h2>Who this is for</h2>
+  <p class="lead">Five segments. Two are for reach, two are for revenue, one is a distribution channel disguised as an audience.</p>
+
+  <div class="grid g2">
+    <div class="card">
+      <div class="tag hot">Reach</div>
+      <h3>A. Road-trip friend groups, 18–34</h3>
+      <ul>
+        <li>Night drives, aux-cord culture, group chats about playlists</li>
+        <li>Lives on TikTok + Reels, shares anything that makes them look fun</li>
+        <li>Watches with sound on. Hook must land visually in 1.2s</li>
+      </ul>
+      <p><strong>Content that lands:</strong> aesthetic night drive, chorus reveals, “POV: the whole car knows the words”.</p>
+    </div>
+    <div class="card">
+      <div class="tag hot">Reach + aesthetic</div>
+      <h3>B. Couples, 22–40</h3>
+      <ul>
+        <li>Date-night drives, “our song” nostalgia</li>
+        <li>Highest save + share rate of any segment for emotional content</li>
+      </ul>
+      <p><strong>Content that lands:</strong> rain on windshield, one lyric line glowing, no voiceover.</p>
+    </div>
+    <div class="card">
+      <div class="tag ok">Revenue</div>
+      <h3>C. Families with kids, 28–45</h3>
+      <ul>
+        <li>Minivan, road trip, back-seat demands for “the song again”</li>
+        <li>Buys subscriptions without thinking when it stops an argument</li>
+        <li>Least likely to be on TikTok — reach them via Reels, YouTube Shorts, Facebook groups, Reddit</li>
+      </ul>
+      <p><strong>Content that lands:</strong> kid singing along in the mirror, hands on the wheel, no phone in sight.</p>
+    </div>
+    <div class="card">
+      <div class="tag ok">Revenue</div>
+      <h3>D. Commuters in traffic, 25–45</h3>
+      <ul>
+        <li>Daily 30–60 min in the car, already plays music, hates fumbling the phone</li>
+        <li>Converts on utility, not vibes</li>
+      </ul>
+      <p><strong>Content that lands:</strong> “how to get lyrics on CarPlay” — search-intent videos.</p>
+    </div>
+    <div class="card">
+      <div class="tag cool">Distribution</div>
+      <h3>E. Car-culture accounts</h3>
+      <ul>
+        <li>Not your users — your megaphone. Detailing, dashcam, car-mod, road-trip creators 10–50k</li>
+        <li>Free lifetime keys + a clip they can post as their own content</li>
+      </ul>
+      <p><strong>Ask:</strong> “Want a free lifetime code to show it on your dash? No obligation.” 20 DMs beat 1 ad.</p>
+    </div>
+  </div>
+
+  <h3>Where they actually are</h3>
+  <table class="scroll">
+    <thead><tr><th>Surface</th><th>Segment</th><th>Content type</th></tr></thead>
+    <tbody>
+      <tr><td>TikTok</td><td>A, B</td><td>Trend audio + CarPlay overlay, 7–15s</td></tr>
+      <tr><td>IG Reels</td><td>A, B, C</td><td>Same cut, IG-native audio, carousel variants</td></tr>
+      <tr><td>YouTube Shorts</td><td>C, D</td><td>Search-intent, 20–35s, titled like a query</td></tr>
+      <tr><td>X</td><td>Dev/Apple circle, E</td><td>Build-in-public, TestFlight, Live Activity internals</td></tr>
+      <tr><td>Threads</td><td>A, B</td><td>Text takes + one screenshot/video</td></tr>
+      <tr><td>Reddit</td><td>C, D, E</td><td>Value-first posts in r/CarPlay, r/roadtrip, r/AppleMusic</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================= CONTENT ENGINE ================= -->
+<section class="panel" id="content">
+  <h2>Content engine</h2>
+  <p class="lead">Seven pillars, one mix ratio, zero improvisation. Improvisation is what kills solo content operations by week 3.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Pillar</th><th>Share</th><th>Format</th><th>Goal</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1. Trend hijack</strong></td><td>35%</td><td>Trending sound + CarPlay lyrics overlay on real dash footage</td><td>Reach</td></tr>
+      <tr><td><strong>2. Night-drive aesthetic</strong></td><td>20%</td><td>Rain, city lights, one glowing lyric line, no voiceover</td><td>Shares/saves</td></tr>
+      <tr><td><strong>3. Feature flex</strong></td><td>15%</td><td>“Wait, CarPlay does this now?” screen reveal</td><td>Conversion</td></tr>
+      <tr><td><strong>4. Cat co-pilot</strong></td><td>10%</td><td>Cibul / Njun in the passenger seat reacting to the chorus (AI-generated inserts)</td><td>Brand + shareability</td></tr>
+      <tr><td><strong>5. Relatable pain</strong></td><td>10%</td><td>Passenger fumbling the phone vs clean CarPlay view</td><td>Relatability</td></tr>
+      <tr><td><strong>6. Build in public</strong></td><td>5%</td><td>Solo dev in Indonesia → App Store, Live Activity internals</td><td>X/Threads trust</td></tr>
+      <tr><td><strong>7. Song hook</strong></td><td>5%</td><td>Song-specific nostalgia bait (“if you know this chorus you’re a 2000s kid”)</td><td>Search + shares</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout ok">
+    <b>The moat is pillar 4.</b> Cats as co-pilots is the only asset a competitor cannot copy, and it is the only one you personally enjoy making. Treat it as a recurring character brand, not a gimmick: consistent framing, consistent sound signature, consistent caption voice. That is what turns a feature into a following.
+  </div>
+
+  <h3>Format rules that are non-negotiable</h3>
+  <div class="grid g2">
+    <div class="card tight">
+      <h4>Structure</h4>
+      <ul>
+        <li>1.2s visual hook — motion, sound and text all at once</li>
+        <li>No intro, no logo sting, no “hey guys”</li>
+        <li>Payoff by second 4; loop-friendly ending</li>
+        <li>Length: 7–15s TikTok/Reels, 20–35s Shorts, 15–25s X</li>
+        <li>Always 9:16, 1080×1920, watermark-free</li>
+      </ul>
+    </div>
+    <div class="card tight">
+      <h4>Credibility</h4>
+      <ul>
+        <li>Real dash footage base — it is the authenticity signal</li>
+        <li>Real screen recording of the app, not a mockup</li>
+        <li>AI for inserts, backgrounds, cats, impossible shots — never a talking AI face</li>
+        <li>No fake testimonials, no fake download counts</li>
+        <li>Captions burned in, always (85% watch muted)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Series to run on repeat</h3>
+  <ul>
+    <li><strong>Songs that hit different on a night drive</strong> — endless, zero production cost, one per episode.</li>
+    <li><strong>Lyric of the day</strong> — one screenshot, one post, 60 seconds to make.</li>
+    <li><strong>The car knows the words</strong> — passengers singing, one lyric line on screen.</li>
+    <li><strong>Cibul rides shotgun</strong> — cat reacts to a chorus. Number them.</li>
+    <li><strong>Building Caraoke</strong> — weekly dev log, X thread + Shorts cut.</li>
+    <li><strong>Every song, one line</strong> — pick an iconic song, show only its best line.</li>
+  </ul>
+
+  <h3>What not to make</h3>
+  <ul>
+    <li>App walkthroughs of settings screens. Nobody watches UI tours.</li>
+    <li>AI avatar voiceovers reading a script. Instant slop flag, reach suppression, trust loss.</li>
+    <li>Anything over 35s in the first 6 weeks — you have not earned patience yet.</li>
+    <li>Text-only posts on TikTok/Reels. Wrong medium.</li>
+    <li>Anything that shows the app failing to find lyrics.</li>
+  </ul>
+</section>
+
+<!-- ================= HOOKS ================= -->
+<section class="panel" id="hooks">
+  <h2>Hook library</h2>
+  <p class="lead">Swipe or drag left and right, filter by pillar, then tap the text to select it (or use Copy). Test 3 per week, keep the winners, remix them to death.</p>
+
+  <div class="chips" id="hookChips"></div>
+
+  <div class="viewport" id="viewport">
+    <div class="track" id="track"></div>
+  </div>
+
+  <div class="carnav">
+    <button class="btn ghost" id="prevSlide">‹ Prev</button>
+    <span class="mid" id="carCount">1 / 26</span>
+    <button class="btn ghost" id="nextSlide">Next ›</button>
+  </div>
+  <div class="dots" id="dots"></div>
+</section>
+
+<!-- ================= AI VIDEO ================= -->
+<section class="panel" id="aivideo">
+  <h2>AI video workflow</h2>
+  <p class="lead">The 2026 lesson: fully AI-generated content reads as slop and gets suppressed or distrusted. Hybrid wins — real footage as the base, AI for what a phone camera cannot shoot.</p>
+
+  <div class="callout warn">
+    <b>Rule zero: no AI talking heads.</b> AI faces reading scripts are the fastest way to lose an audience and get flagged as low-quality. Your face, your dash, your screen — or no face at all.
+  </div>
+
+  <h3>Tool map (free tiers first)</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Job</th><th>Tool</th><th>Why</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Stills → video (best for product/CarPlay shots)</td><td><strong>Seedance 2.0</strong></td><td>Strongest image-to-video, product animation, fashion, any still-driven shot</td><td>Free credits / low</td></tr>
+      <tr><td>Multi-subject motion, cats, cars</td><td><strong>Kling 3.0</strong></td><td>Best multi-subject motion; strong short-form social output, multi-language</td><td>Free tier daily credits</td></tr>
+      <tr><td>Short-form motion + native audio</td><td><strong>Sora 2 / Veo 3.1</strong></td><td>Best short-form motion; Veo's native audio simplifies sound design</td><td>Free tier / paid</td></tr>
+      <tr><td>Long-form motion, atmospheric drives</td><td><strong>Hailuo 02</strong></td><td>Longer coherent motion for ambient b-roll</td><td>Free tier</td></tr>
+      <tr><td>Unlimited local generation</td><td><strong>Wan 2.6</strong> (ComfyUI)</td><td>Open source, runs locally, zero marginal cost for volume</td><td>$0</td></tr>
+      <tr><td>Stylised effect clips</td><td><strong>Pika 2.5</strong></td><td>Effects/swaps built for social clips</td><td>$8/mo</td></tr>
+      <tr><td>Stills, thumbnails, plates</td><td><strong>Nano Banana Pro</strong> / Midjourney</td><td>Fast, cheap, high fidelity for composition plates</td><td>Free tier</td></tr>
+      <tr><td>Voiceover (rarely)</td><td><strong>ElevenLabs v3</strong></td><td>Natural VO when text is not enough</td><td>Free tier</td></tr>
+      <tr><td>Edit / captions / sound</td><td><strong>CapCut</strong></td><td>Auto-captions, sync, effects, native export</td><td>$0</td></tr>
+      <tr><td>Free footage</td><td>Pexels / Pixabay</td><td>Night-drive, rain, highway 4K plates</td><td>$0</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>The weekly production pipeline (one batch day, 3–4 hours)</h3>
+  <ol>
+    <li><strong>Brief (30 min).</strong> Pick 12–15 hooks from the library. Assign pillar + sound + format. Never start from a blank page.</li>
+    <li><strong>Plate build (30 min).</strong> Generate or pull dash/night-drive plates. Generate cat inserts as stills, then image-to-video for motion.</li>
+    <li><strong>Screen capture library (20 min, once).</strong> Record the real app over 5 songs, day and night. This is your hero asset — it gets reused in every video.</li>
+    <li><strong>Compose (90 min).</strong> In CapCut: 9:16, plate + CarPlay composite + lyric overlay + burned captions + hook text in the first frame. Cut to the beat.</li>
+    <li><strong>QC (20 min).</strong> Hook in 1.2s? Legible on a small screen? Audio trend-matched? No watermark? No misleading claim? Loopable?</li>
+    <li><strong>Export + schedule (20 min).</strong> Watermark-free master → per-platform cuts → schedule native uploads.</li>
+  </ol>
+
+  <h3>Composite recipe for the hero format</h3>
+  <p>Real dash plate (or free stock night drive) → screen-replacement with real Caraoke recording, perspective-matched → 8% vignette → subtle rain/reflection overlay → lyric line large, high contrast, centered low-third → burned caption top-third → sound: trending audio, app audio muted in edit but implied.</p>
+
+  <h3>AI disclosure</h3>
+  <p>Label AI-generated inserts where a platform requires it (TikTok’s AI-content toggle, IG’s AI label). Disclosure does not hurt reach; getting caught not disclosing does. Never use AI to fake real users, real reviews, or real cars you do not have.</p>
+</section>
+
+<!-- ================= PLATFORMS ================= -->
+<section class="panel" id="platforms">
+  <h2>Platform playbooks</h2>
+  <p class="lead">Do not spread effort evenly. TikTok carries reach, Reels carries cross-posting, Shorts carries search intent, X carries trust, Threads carries cheap volume.</p>
+
+  <div class="grid g2">
+    <div class="card">
+      <div class="tag hot">50% of effort</div>
+      <h3>TikTok</h3>
+      <ul>
+        <li><strong>Cadence:</strong> 2/day, every day, 13 weeks (≈180 posts)</li>
+        <li><strong>Accounts:</strong> 1 brand + 1 founder-POV + 1 cat account. Cross-promote, never cross-post identical cuts on day 1.</li>
+        <li><strong>Sound:</strong> use audio trending within the last 7 days; check TikTok Creative Center weekly</li>
+        <li><strong>Hook:</strong> text + motion + sound in frame 1</li>
+        <li><strong>CTA:</strong> “link in bio” spoken or as final frame; pin a comment with the store link</li>
+        <li><strong>Engagement:</strong> reply to every comment in the first 60 min; use “reply with video” for the 5 best questions</li>
+        <li><strong>Never:</strong> delete flops — TikTok re-pushes old posts</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="tag hot">30% of effort</div>
+      <h3>Instagram Reels + Threads</h3>
+      <ul>
+        <li><strong>Reels:</strong> 1/day. Upload natively (strip TikTok watermark), replace audio with IG trending audio, same cut.</li>
+        <li><strong>Carousels:</strong> 2/week — screenshots of CarPlay + copy. Cheap, high save rate.</li>
+        <li><strong>Threads:</strong> 3–5 text posts/day. Car/road-trip takes, build-in-public, reply to big car accounts. Attach a clip to 1 in 5.</li>
+        <li><strong>Bio:</strong> single link to the App Store page. No Linktree for a one-product company.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="tag cool">Search intent</div>
+      <h3>YouTube Shorts</h3>
+      <ul>
+        <li><strong>Cadence:</strong> 1/day, 20–35s</li>
+        <li><strong>Title = the query:</strong> “How to get lyrics on CarPlay”, “CarPlay lyrics Apple Music setup”</li>
+        <li>Shorts rank in search long after posting — this is your evergreen conversion channel</li>
+        <li>One long-form video/month (5–8 min) for search authority: “CarPlay lyrics: the complete guide”</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="tag cool">10% of effort</div>
+      <h3>X</h3>
+      <ul>
+        <li><strong>Cadence:</strong> 3 posts/day + 1 thread/week</li>
+        <li>Build-in-public: TestFlight milestones, Live Activity internals, App Review notes, revenue transparency</li>
+        <li>Reply to Apple/iOS dev and car-account threads daily — this is how you get discovered without followers</li>
+        <li>Attach a 15–25s clip to 1 in 3 posts</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="tag ok">One-shot</div>
+      <h3>Reddit</h3>
+      <ul>
+        <li>1 post/week maximum. Value-first, no marketing voice.</li>
+        <li>r/CarPlay (feature question), r/roadtrip, r/AppleMusic, r/karaoke, r/SideProject, r/iOSProgramming</li>
+        <li>Read each sub’s self-promo rules first — one ban costs a channel</li>
+        <li>Best format: “I built a thing that puts lyrics on CarPlay — here's how it works technically”</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="tag ok">One-shot</div>
+      <h3>Product Hunt + Hacker News</h3>
+      <ul>
+        <li><strong>PH:</strong> launch on a Tuesday–Thursday, have 5 people ready to comment meaningfully in the first hour</li>
+        <li><strong>HN:</strong> Show HN with the technical angle — Live Activity mirrored to CarPlay without a CarPlay entitlement. Post 8–10am ET.</li>
+        <li>Both are single-day spikes. Do not expect retention; do expect backlinks and a review bump.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= UPLOAD ================= -->
+<section class="panel" id="upload">
+  <h2>Upload strategy</h2>
+
+  <h3>Cadence that is actually survivable solo</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Day</th><th>Output</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Sunday</strong></td><td>Production day: 12–15 master assets</td></tr>
+      <tr><td><strong>Mon–Sat</strong></td><td>2 TikTok + 1 Reel + 1 Short + 3–5 Threads + 3 X</td></tr>
+      <tr><td><strong>Weekly</strong></td><td>1 Reddit post, 1 X thread, 20 creator DMs, 1 carousel</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>Total: ≈270 posts across platforms over 13 weeks.</strong> Batch production is the only way this survives.</p>
+
+  <h3>Posting times (US audience, from WIB)</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Window</th><th>US ET</th><th>WIB</th><th>Use</th></tr></thead>
+    <tbody>
+      <tr><td>Morning commute</td><td>7–9am</td><td>18:00–20:00</td><td>Search-intent Shorts</td></tr>
+      <tr><td>Lunch</td><td>12–1pm</td><td>23:00–00:00</td><td>Text posts (X/Threads)</td></tr>
+      <tr><td>Prime evening</td><td>6–9pm</td><td>05:00–08:00</td><td><strong>All hero video posts</strong></td></tr>
+      <tr><td>Late night</td><td>10pm–12am</td><td>09:00–11:00</td><td>Aesthetic/night-drive content</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Schedule everything in advance. Posting manually at 5am WIB for 90 days is how this plan dies.</p>
+
+  <h3>Account warm-up (before launch)</h3>
+  <ul>
+    <li>5 days of scrolling + liking + commenting in car/roadtrip/Apple Music niches</li>
+    <li>1 post/day for 3 days before any promo content</li>
+    <li>Complete profile: handle, bio with the positioning line, one link, no placeholder avatar</li>
+  </ul>
+
+  <h3>The 3-3-3 test framework</h3>
+  <p>Every week, take one concept and make <strong>3 hooks × 3 formats × 3 sounds</strong> (27 variants is too many — do 3 hooks × 3 sounds on one format, or 3 formats on one hook). At 48 hours:</p>
+  <ul>
+    <li><strong>Winner</strong> (&gt;100k views or &gt;8% completion): 5 remixes within 48h, same sound, new footage.</li>
+    <li><strong>Middle</strong> (5k–100k): one remix, then move on.</li>
+    <li><strong>Loser</strong> (&lt;2k views at 2h and &lt;5% watch-through): retire the format, keep the hook for later.</li>
+  </ul>
+
+  <h3>Hashtags &amp; captions</h3>
+  <ul>
+    <li>3–5 hashtags max. Niche beats broad: <code>#CarPlay</code> <code>#CarTok</code> <code>#roadtrip</code> <code>#karaoke</code> <code>#nightdrive</code></li>
+    <li>Caption = one line of the hook + one CTA. No paragraph walls.</li>
+    <li>Comment-pin the store link. Never the first comment by a second account that looks fake.</li>
+  </ul>
+
+  <h3>Kill rules for the whole strategy</h3>
+  <div class="callout bad">
+    If by <strong>week 6</strong> cumulative views are under 2M and no single post has crossed 250k, the format is wrong, not the cadence. Change the pillar mix (move 15% into trend hijack + cat content), not the posting schedule.
+  </div>
+</section>
+
+<!-- ================= TIMELINE + TRACKER ================= -->
+<section class="panel" id="timeline">
+  <h2>13-week timeline + progress tracker</h2>
+  <p class="lead">Type what actually happened into each week. Everything below recalculates and saves in this browser.</p>
+
+  <div class="dash">
+    <div class="dashgrid">
+      <div class="m"><span>Views logged</span><b id="mViews">0M</b><small id="mViewsSub">of 100M aspirational</small></div>
+      <div class="m"><span>Downloads logged</span><b id="mDl">0</b><small id="mDlSub">of 100k aspirational</small></div>
+      <div class="m"><span>Pace vs plan</span><b id="mPace">—</b><small id="mPaceSub">no weeks logged yet</small></div>
+      <div class="m"><span>Weeks logged</span><b id="mWeeks">0 / 7</b><small>periods filled in</small></div>
+    </div>
+
+    <div class="prog">
+      <div class="lbl"><span>Committed target · 30M views</span><b id="pComLbl">0%</b></div>
+      <div class="bar com"><i id="pCom"></i></div>
+      <div class="lbl"><span>Aspirational target · 100M views</span><b id="pAspLbl">0%</b></div>
+      <div class="bar asp"><i id="pAsp"></i></div>
+      <div class="lbl"><span>Downloads · 30k committed / 100k aspirational</span><b id="pDlLbl">0%</b></div>
+      <div class="bar dl"><i id="pDl"></i></div>
+    </div>
+
+    <div class="dashfoot">
+      <span class="dashverdict" id="dashVerdict">Log your first week to see where you stand.</span>
+      <button class="btn ghost" id="copyReport">COPY PROGRESS REPORT</button>
+      <button class="btn ghost" id="resetProgress">RESET TRACKER</button>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>How to grade.</b> Weekly status compares actual against that week's plan. The committed bar (30M) is what you should hit; the aspirational bar (100M) is graded at ~70%. Never re-plan your formats based on a bad week — only on the 48h kill rules.
+  </div>
+
+  <details class="week" data-wk="0" data-target="0.4" open>
+    <summary><span class="wnum">W1–2</span><span class="wtitle">Foundation &amp; pilot</span><span class="wstat none">—</span><span class="wviews">plan 0.4M</span></summary>
+    <div class="body">
+      <ul>
+        <li>Landing page live, App Store page polished, 30s preview video, 5 screenshots</li>
+        <li>Warm up 3 TikTok accounts, 1 IG, 1 Shorts channel, X, Threads</li>
+        <li>Build the screen-capture library (5 songs, day + night) and 20 plate shots</li>
+        <li>Post 1/day per account to establish a baseline; measure 3s hook rate</li>
+        <li>Recruit 20–30 TestFlight testers from Reddit/X for launch-day reviews</li>
+        <li><strong>Milestone:</strong> know your baseline median views per post</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="week" data-wk="1" data-target="1.6">
+    <summary><span class="wnum">W3–4</span><span class="wtitle">Trend hijack engine</span><span class="wstat none">—</span><span class="wviews">plan 1.6M</span></summary>
+    <div class="body">
+      <ul>
+        <li>Shift to 35% trend-hijack content; 2/day TikTok begins</li>
+        <li>Run first 3-3-3 test; document winners in a sheet</li>
+        <li>Launch the cat co-pilot series (episodes 1–4)</li>
+        <li>20 creator DMs/week; send 10 lifetime keys</li>
+        <li>Pitch Apple editorial + 5 press outlets (ahead of launch)</li>
+        <li><strong>Milestone:</strong> one post &gt;250k views</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="week" data-wk="2" data-target="5">
+    <summary><span class="wnum">W5–6</span><span class="wtitle">Launch week</span><span class="wstat none">—</span><span class="wviews">plan 5M</span></summary>
+    <div class="body">
+      <ul>
+        <li>App goes live: Product Hunt + Show HN + Reddit posts + X thread on the same day</li>
+        <li>“Founding driver” lifetime discount for 2 weeks</li>
+        <li>Push every piece of content to the store link; watch profile-click rate daily</li>
+        <li>Ask the TestFlight cohort for reviews on day 1 and day 3 (target 20+ reviews week 1)</li>
+        <li><strong>Milestone:</strong> first breakout (&gt;1M on a single post) + 5k downloads</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="week" data-wk="3" data-target="12">
+    <summary><span class="wnum">W7–8</span><span class="wtitle">Remix &amp; scale what works</span><span class="wstat none">—</span><span class="wviews">plan 12M</span></summary>
+    <div class="body">
+      <ul>
+        <li>Only make content in the 2–3 winning formats; kill everything else</li>
+        <li>5 remixes per winner within 48h of it popping</li>
+        <li>Add Shorts search-intent set: “how to get lyrics on CarPlay” variants</li>
+        <li>Start a weekly “Cibul rides shotgun” episode with a fixed intro sound</li>
+        <li><strong>Milestone:</strong> 15k downloads cumulative</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="week" data-wk="4" data-target="22">
+    <summary><span class="wnum">W9–10</span><span class="wtitle">Breakout hunting</span><span class="wstat none">—</span><span class="wviews">plan 22M</span></summary>
+    <div class="body">
+      <ul>
+        <li>Triple down on trend audio within 24h of it trending — speed beats polish</li>
+        <li>Creator collaborations go live (10–20 accounts posting their own clips)</li>
+        <li>Cross-post winners to Threads + X with a different hook; test Facebook groups for the family segment</li>
+        <li>Submit an App Store featuring request tied to a real editorial angle</li>
+        <li><strong>Milestone:</strong> one post &gt;5M views; 40k downloads cumulative</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="week" data-wk="5" data-target="35">
+    <summary><span class="wnum">W11–12</span><span class="wtitle">Compounding</span><span class="wstat none">—</span><span class="wviews">plan 35M</span></summary>
+    <div class="body">
+      <ul>
+        <li>Winner-of-winners: rebuild the best 3 posts with better footage and a harder hook</li>
+        <li>Seasonal angle (holiday road trips) if the calendar fits</li>
+        <li>Second Reddit wave with real usage data and screenshots</li>
+        <li>Add a long-form YouTube guide; link it from the App Store support page</li>
+        <li><strong>Milestone:</strong> 70k downloads cumulative; review count 200+</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="week" data-wk="6" data-target="45">
+    <summary><span class="wnum">W13</span><span class="wtitle">Sprint to target</span><span class="wstat none">—</span><span class="wviews">plan 45M</span></summary>
+    <div class="body">
+      <ul>
+        <li>Publish 4/day TikTok with the top 3 winning hooks</li>
+        <li>Repost the single best asset of the quarter on every platform with a new hook</li>
+        <li>Press follow-up: “app hit X downloads with $0 marketing” — the story is now the content</li>
+        <li><strong>Milestone:</strong> 100k downloads cumulative</li>
+      </ul>
+    </div>
+  </details>
+
+  <div class="callout warn">
+    <b>Reality check on the distribution.</b> 45M views in week 13 alone is not a posting plan — it is a breakout assumption. If no post has crossed 1M by week 8, the honest move is to reset the target to 30M views / 30k downloads and re-plan, rather than to keep posting into the void.
+  </div>
+</section>
+
+<!-- ================= EARNED ================= -->
+<section class="panel" id="earned">
+  <h2>ASO &amp; earned distribution</h2>
+  <p class="lead">Free, compounding, and most solo devs skip it. This is where the second 50k downloads actually come from.</p>
+
+  <h3>App Store optimisation</h3>
+  <ul>
+    <li><strong>Name + subtitle:</strong> “Caraoke: Live Lyrics” / “Lyrics for the ride.” — keep, it is already strong.</li>
+    <li><strong>Keywords (100 chars):</strong> <code>carplay,lyrics,sing along,road trip,car karaoke,live lyrics,passenger,music</code> — add <code>night drive</code> if space allows; never use Apple/Spotify brand names in metadata.</li>
+    <li><strong>Screenshots 1–2:</strong> CarPlay screen with lyrics glowing. Not app UI. This is the single highest-leverage image in the whole plan.</li>
+    <li><strong>Screenshot 3:</strong> safety angle (no phone in hand). <strong>Screenshot 4:</strong> 3-step setup.</li>
+    <li><strong>Preview video:</strong> 30s, driving footage, lyrics syncing. Mandatory.</li>
+    <li><strong>Ratings prompt:</strong> after the 3rd successful ride, not on launch.</li>
+    <li><strong>Localisation:</strong> at minimum add EN-GB, EN-AU, DE, FR, ES, PT-BR metadata once revenue justifies it.</li>
+  </ul>
+
+  <h3>Apple editorial</h3>
+  <ul>
+    <li>Submit an App Store featuring request via App Store Connect, 3–4 weeks before launch, with a specific angle: “the first glanceable karaoke experience for CarPlay”.</li>
+    <li>Follow up by email to App Store editorial with a 30s video and one-line pitch. No attachments bigger than a link.</li>
+    <li>Angle for local featuring in Indonesia as a solo-dev story — cheap, and Apple likes it.</li>
+  </ul>
+
+  <h3>Press targets</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Outlet type</th><th>Angle</th></tr></thead>
+    <tbody>
+      <tr><td>Apple/iOS blogs (9to5Mac, MacStories, AppleInsider, iMore)</td><td>Live Activity mirrored to CarPlay without a CarPlay entitlement — technically novel</td></tr>
+      <tr><td>Car outlets (Autoblog, Car and Driver, Motor1)</td><td>Road-trip safety: stop passing the phone around</td></tr>
+      <tr><td>Indie/startup (TechCrunch, Indie Hackers, Sifted)</td><td>Solo dev in Indonesia, $0 marketing, N downloads in 90 days</td></tr>
+      <tr><td>Newsletters (iOS Dev Weekly, mobile dev roundups)</td><td>Technical implementation + free lifetime codes</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Communities &amp; collabs</h3>
+  <ul>
+    <li>r/CarPlay, r/roadtrip, r/AppleMusic, r/karaoke, r/SideProject, r/iOSProgramming</li>
+    <li>Car accessory and dashcam accounts — cross-promo, they need content too</li>
+    <li>Small artists/playlists: send a lifetime code, ask for a “lyrics on CarPlay” clip featuring their song</li>
+    <li>Facebook groups for road-trip families — the segment TikTok cannot reach</li>
+  </ul>
+</section>
+
+<!-- ================= MEASUREMENT ================= -->
+<section class="panel" id="measure">
+  <h2>Measurement</h2>
+  <p class="lead">One north star, three leading indicators, one weekly 30-minute review. Anything else is vanity.</p>
+
+  <div class="grid g2">
+    <div class="card tight">
+      <div class="tag cool">North star</div>
+      <p><strong>App Store page views → installs.</strong> Tracked in App Store Connect → Analytics. If this is flat, content is not converting regardless of views.</p>
+    </div>
+    <div class="card tight">
+      <div class="tag hot">Leading</div>
+      <ul style="margin:0">
+        <li><strong>3s hook rate</strong> — % still watching at 3s (target &gt;60%)</li>
+        <li><strong>Completion rate</strong> (target &gt;40% for &lt;15s)</li>
+        <li><strong>Shares per 1k views</strong> — the real virality signal (target &gt;5)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Weekly funnel review</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Stage</th><th>Metric</th><th>Healthy</th><th>Fix if low</th></tr></thead>
+    <tbody>
+      <tr><td>Reach</td><td>Views</td><td>on plan</td><td>More trend hijack, post faster on trends</td></tr>
+      <tr><td>Interest</td><td>Profile clicks / views</td><td>1–2%</td><td>Stronger CTA frame, clearer bio</td></tr>
+      <tr><td>Intent</td><td>Store page views</td><td>—</td><td>Direct link, remove friction</td></tr>
+      <tr><td>Install</td><td>Store view → install</td><td>&gt;6%</td><td>Screenshots 1–2, preview video, reviews</td></tr>
+      <tr><td>Activation</td><td>Install → trial start</td><td>&gt;40%</td><td>Onboarding, first-ride flow</td></tr>
+      <tr><td>Revenue</td><td>Trial → paid</td><td>&gt;15%</td><td>Paywall timing, pricing, lifetime anchor</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Weekly ritual (30 min, every Monday)</h3>
+  <ol>
+    <li>Pull the 5 best and 5 worst posts by shares/1k. Write one sentence on why.</li>
+    <li>Update the format scoreboard: keep / remix / kill.</li>
+    <li>Check App Store Connect: page views, installs, reviews, keyword ranks for “car karaoke” and “carplay lyrics”.</li>
+    <li>Pick next week's 12–15 hooks from the winners only.</li>
+    <li>Log the week's views and downloads in the tracker tab.</li>
+  </ol>
+
+  <div class="callout ok">
+    <b>Compounding metric to watch from week 6:</b> <em>organic App Store search impressions</em>. When those rise without new content, ASO is working and you can reduce posting volume without losing downloads.
+  </div>
+</section>
+
+<!-- ================= STACK ================= -->
+<section class="panel" id="stack">
+  <h2>The $0 stack</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Need</th><th>Tool</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Editing + captions</td><td>CapCut</td><td>$0</td></tr>
+      <tr><td>Video generation</td><td>Kling / Seedance / Sora / Veo free tiers, Wan 2.6 local</td><td>$0–low</td></tr>
+      <tr><td>Stills</td><td>Nano Banana Pro / Midjourney free tier</td><td>$0</td></tr>
+      <tr><td>Voice</td><td>ElevenLabs free tier</td><td>$0</td></tr>
+      <tr><td>Footage</td><td>Pexels, Pixabay, your own dash cam</td><td>$0</td></tr>
+      <tr><td>Graphics</td><td>Canva free</td><td>$0</td></tr>
+      <tr><td>Scheduling</td><td>Native schedulers (TikTok, IG, YouTube, X)</td><td>$0</td></tr>
+      <tr><td>Trend research</td><td>TikTok Creative Center, Google Trends</td><td>$0</td></tr>
+      <tr><td>Analytics</td><td>App Store Connect, RevenueCat free tier</td><td>$0</td></tr>
+      <tr><td>Tracker</td><td>This page (saves locally) or Google Sheets</td><td>$0</td></tr>
+      <tr><td>Landing page</td><td>GitHub Pages (<code>caraoke.app</code>)</td><td>$0</td></tr>
+      <tr><td>Link</td><td>Direct App Store URL — no Linktree</td><td>$0</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>Only justified spend:</strong> $50 Apple Search Ads test on <code>carplay lyrics</code> / <code>car karaoke</code> exact match, after week 8, only if organic store conversion is already above 6%.</p>
+</section>
+
+<!-- ================= RISKS ================= -->
+<section class="panel" id="risks">
+  <h2>Risks &amp; mitigations</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>Multi-account bans on TikTok</td><td>Lose the main channel</td><td>Distinct content per account, no identical cross-posting, no automation tools</td></tr>
+      <tr><td>Music/lyrics copyright in marketing clips</td><td>Takedowns, muted audio</td><td>Use in-app trending sounds, keep clips short, avoid showing full licensed lyric blocks with big-artist branding</td></tr>
+      <tr><td>Apple ships native CarPlay lyrics</td><td>Differentiator gone</td><td>Ship first, own the phrase “car karaoke”, build the cat/brand following that survives the feature gap</td></tr>
+      <tr><td>“AI slop” perception</td><td>Reach suppression, distrust</td><td>Real footage base, no AI talking heads, AI disclosure where required</td></tr>
+      <tr><td>Hard paywall kills conversion</td><td>Downloads ≠ revenue</td><td>Free trial framing, lifetime anchor, prompt review after 3rd ride; revisit free-tier decision if install→trial &lt;30%</td></tr>
+      <tr><td>CarPlay not in the user's car</td><td>Lost value promise</td><td>Lock Screen + Dynamic Island is the fallback story; show it in screenshots 3–4</td></tr>
+      <tr><td>Solo burnout at 2 posts/day</td><td>Plan collapse</td><td>Batch production Sundays, 4-week content buffer, cut platforms before cutting cadence</td></tr>
+      <tr><td>Algorithm change / reach drop</td><td>View target misses</td><td>Diversify: Shorts search intent + Reddit + ASO carry downloads when TikTok dips</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ================= SPRINT ================= -->
+<section class="panel" id="sprint">
+  <h2>30-day sprint checklist</h2>
+  <p class="lead">Progress saves in this browser. Do these in order — nothing here needs money.</p>
+
+  <div class="clbar">
+    <b id="clcount">0 / 30</b>
+    <div class="track2"><div class="fill" id="clfill"></div></div>
+    <button class="btn ghost" id="clreset">RESET</button>
+  </div>
+
+  <div id="clhost"></div>
+</section>
+
+<footer>
+  <p>Caraoke marketing playbook v2 · built for a solo, zero-budget launch · pricing locked: <strong>$1.99/mo · $9.99/yr · $14.99 lifetime (anchor $27, 45% off)</strong>, both subscriptions with a 3-day free trial. All repo docs aligned on these numbers.</p>
+  <p>AI-video tool landscape references: <a href="https://pinggy.io/blog/best_video_generation_ai_models">Best Video Generation AI Models in 2026</a> · <a href="https://higgsfield.ai/blog/5-Best-AI-Video-Models-2026-Tested-Compared">The 5 Best AI Video Models in 2026</a> · <a href="https://www.aimagicx.com/blog/seedance-2-vs-kling-2-vs-sora-2-video-comparison-march-2026">Seedance 2 vs Kling 2 vs Sora 2</a></p>
+</footer>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+/* ============ tabs ============ */
+const tabs = [...document.querySelectorAll('.tab')];
+const panels = [...document.querySelectorAll('section.panel')];
+function show(id){
+  tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === id)));
+  panels.forEach(p => p.classList.toggle('on', p.id === id));
+  if (history.replaceState) history.replaceState(null,'','#'+id);
+  window.scrollTo({top:0,behavior:'instant'});
+}
+tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.tab)));
+if (location.hash && $(location.hash.slice(1))) show(location.hash.slice(1));
+
+/* tab row slide buttons */
+const tabrow = document.querySelector('.tabrow');
+function tabScroll(dir){ tabrow.scrollBy({left: dir * Math.max(220, tabrow.clientWidth * .7), behavior:'smooth'}); }
+$('tabLeft').addEventListener('click', () => tabScroll(-1));
+$('tabRight').addEventListener('click', () => tabScroll(1));
+function tabBtnState(){
+  $('tabLeft').disabled = tabrow.scrollLeft < 4;
+  $('tabRight').disabled = tabrow.scrollLeft + tabrow.clientWidth >= tabrow.scrollWidth - 4;
+}
+tabrow.addEventListener('scroll', tabBtnState);
+window.addEventListener('resize', tabBtnState);
+tabBtnState();
+
+/* ============ funnel calculator ============ */
+function calc(){
+  const v = +$('v').value, c = +$('c').value/100, s = +$('s').value/100;
+  const clicks = v * 1e6 * c, dl = clicks * s, need = (1e5/(c*s))/1e6;
+  $('vV').textContent = v + 'M';
+  $('vC').textContent = (c*100).toFixed(1) + '%';
+  $('vS').textContent = (s*100).toFixed(0) + '%';
+  $('o1').textContent = clicks >= 1e6 ? (clicks/1e6).toFixed(1)+'M' : Math.round(clicks/1e3)+'k';
+  $('o2').textContent = Math.round(dl).toLocaleString();
+  $('o3').textContent = need.toFixed(0) + 'M';
+  const vd = $('verdict');
+  if (dl >= 1e5){ vd.className='verdict good'; vd.textContent='✓ Hits 100k downloads — with ' + Math.round(dl-1e5).toLocaleString() + ' to spare.'; }
+  else { vd.className='verdict bad'; vd.textContent='✗ Short by ' + Math.round(1e5-dl).toLocaleString() + ' downloads. Need ' + need.toFixed(0) + 'M views, or a better click/store rate.'; }
+}
+['v','c','s'].forEach(id => $(id).addEventListener('input', calc));
+calc();
+
+/* ============ clipboard with fallback ============ */
+async function copyText(text, btn, sourceEl){
+  let ok = false;
+  if (navigator.clipboard && window.isSecureContext){
+    try { await navigator.clipboard.writeText(text); ok = true; } catch(e){}
+  }
+  if (!ok){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly','');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    try { ok = document.execCommand('copy'); } catch(e){}
+    ta.remove();
+  }
+  if (!ok && sourceEl){
+    const r = document.createRange(); r.selectNodeContents(sourceEl);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    flash(btn, 'SELECTED — PRESS ⌘C / CTRL+C', true);
+    return;
+  }
+  flash(btn, ok ? 'COPIED' : 'COPY FAILED', ok);
+}
+function flash(btn, msg, good){
+  const old = btn.textContent, cls = btn.className;
+  btn.textContent = msg;
+  if (good) btn.classList.add('done');
+  setTimeout(() => { btn.textContent = old; btn.className = cls; }, 1500);
+}
+
+/* ============ hook carousel ============ */
+const HOOKS = [
+  {c:'Flex',   t:'Wait — CarPlay can show lyrics now?',                          m:'Reveal: screen lights up mid-chorus'},
+  {c:'Flex',   t:'Nobody told me my car could do this.',                          m:'Dash cam POV, no voiceover'},
+  {c:'Flex',   t:'POV: you found the app that ends phone-passing forever.',       m:'Passenger hands phone back to pocket'},
+  {c:'Flex',   t:"Your CarPlay has a karaoke mode. It's not Apple's.",            m:'Bold claim, then proof'},
+  {c:'Flex',   t:'This is what 3 months of solo dev looks like on a dashboard.',  m:'Build-in-public crossover'},
+  {c:'Aesthetic', t:'2am. Rain. Every word on screen.',                           m:'No voiceover, lofi/synth, loop cut'},
+  {c:'Aesthetic', t:'The chorus hits different when you can see it.',              m:'Slow zoom on one lyric line'},
+  {c:'Aesthetic', t:'Songs that hit different on a night drive — part 7.',         m:'Series numbering = retention'},
+  {c:'Aesthetic', t:'No destination. Just the next line.',                        m:'Highway lights, empty road'},
+  {c:'Aesthetic', t:"If you know this chorus you're a 2000s kid.",                m:'Nostalgia bait + song hook'},
+  {c:'Pain',   t:'Every road trip has this exact argument.',                      m:'Split screen: fumbling vs clean'},
+  {c:'Pain',   t:"POV: your passenger won't stop passing the phone around.",      m:'Comedy beat, 2 shots'},
+  {c:'Pain',   t:'Me: drives. My friend: scrolling Genius on the highway.',       m:'Relatable exaggeration'},
+  {c:'Pain',   t:'You memorized half the song. Your passenger memorized none.',   m:'Fix: lyrics on screen'},
+  {c:'Cat',    t:"He knows every word. He just won't admit it.",                  m:'Cibul staring at the dash on the chorus'},
+  {c:'Cat',    t:'Cibul rides shotgun — episode 4.',                              m:'Numbered series, consistent framing'},
+  {c:'Cat',    t:'My cat has better taste in music than my passenger.',           m:'Cat + lyric line reaction'},
+  {c:'Cat',    t:'Njun only comes home for the good songs.',                      m:'Callback to the missing cat'},
+  {c:'Search', t:'How to get lyrics on CarPlay (2026)',                           m:'Title = the query, 25s answer'},
+  {c:'Search', t:'CarPlay lyrics with Apple Music — full setup, 3 steps.',        m:'Utility conversion asset'},
+  {c:'Search', t:"Does CarPlay show lyrics? Yes — here's how.",                   m:'Question-shaped title'},
+  {c:'Search', t:'Spotify lyrics on your car screen, no phone in hand.',          m:'Platform-specific intent'},
+  {c:'Build',  t:'Solo dev in Indonesia. Shipping a CarPlay lyrics app. Day 1.',  m:'Thread opener'},
+  {c:'Build',  t:'CarPlay has no custom app for this — so I used a Live Activity instead.', m:'Technical credibility'},
+  {c:'Build',  t:'App Review rejected nothing. Here is the exact setup that passed.', m:'Post-approval thread'},
+  {c:'Build',  t:"$0 marketing. Here's week 6's numbers.",                        m:'Transparency = shares'}
+];
+const CATS = ['All','Flex','Aesthetic','Pain','Cat','Search','Build'];
+const track = $('track'), chipsHost = $('hookChips'), dotsHost = $('dots');
+let filter = 'All', idx = 0, slides = [];
+
+function renderChips(){
+  chipsHost.innerHTML = '';
+  CATS.forEach(cat => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = cat;
+    b.setAttribute('aria-pressed', String(cat === filter));
+    b.addEventListener('click', () => { filter = cat; idx = 0; renderChips(); renderSlides(); });
+    chipsHost.appendChild(b);
+  });
+}
+function visible(){ return HOOKS.filter(h => filter === 'All' || h.c === filter); }
+
+function renderSlides(){
+  slides = visible();
+  track.innerHTML = '';
+  slides.forEach((h, i) => {
+    const s = document.createElement('article');
+    s.className = 'slide';
+    s.innerHTML =
+      '<div><span class="tag hot">' + h.c + '</span></div>' +
+      '<p class="hooktext"></p>' +
+      '<p class="hookmeta"></p>' +
+      '<div class="slidefoot">' +
+        '<button class="btn copy">COPY</button>' +
+        '<button class="btn ghost pick">SELECT TEXT</button>' +
+      '</div>';
+    s.querySelector('.hooktext').textContent = h.t;
+    s.querySelector('.hookmeta').textContent = h.m;
+    s.querySelector('.copy').addEventListener('click', e => copyText(h.t, e.currentTarget, s.querySelector('.hooktext')));
+    s.querySelector('.pick').addEventListener('click', e => {
+      const r = document.createRange(); r.selectNodeContents(s.querySelector('.hooktext'));
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      flash(e.currentTarget, 'SELECTED — ⌘C', true);
+    });
+    track.appendChild(s);
+  });
+  dotsHost.innerHTML = '';
+  slides.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot'; d.setAttribute('aria-label','Go to hook ' + (i+1));
+    d.addEventListener('click', () => go(i));
+    dotsHost.appendChild(d);
+  });
+  go(Math.min(idx, slides.length - 1));
+}
+function go(i){
+  if (!slides.length) return;
+  idx = Math.max(0, Math.min(i, slides.length - 1));
+  track.style.transform = 'translateX(' + (-idx * 100) + '%)';
+  $('carCount').textContent = (idx + 1) + ' / ' + slides.length;
+  [...dotsHost.children].forEach((d, k) => d.setAttribute('aria-current', String(k === idx)));
+}
+$('prevSlide').addEventListener('click', () => go(idx - 1));
+$('nextSlide').addEventListener('click', () => go(idx + 1));
+document.addEventListener('keydown', e => {
+  if (!$('hooks').classList.contains('on')) return;
+  if (e.key === 'ArrowLeft') go(idx - 1);
+  if (e.key === 'ArrowRight') go(idx + 1);
+});
+
+/* drag / swipe */
+const vp = $('viewport');
+let down = false, startX = 0, dx = 0;
+vp.addEventListener('pointerdown', e => {
+  down = true; startX = e.clientX; dx = 0;
+  track.classList.add('nofx'); vp.classList.add('dragging');
+  vp.setPointerCapture(e.pointerId);
+});
+vp.addEventListener('pointermove', e => {
+  if (!down) return;
+  dx = e.clientX - startX;
+  track.style.transform = 'translateX(calc(' + (-idx * 100) + '% + ' + dx + 'px))';
+});
+function endDrag(){
+  if (!down) return;
+  down = false;
+  track.classList.remove('nofx'); vp.classList.remove('dragging');
+  const w = vp.clientWidth || 1;
+  if (Math.abs(dx) > Math.min(70, w * .12)) go(idx + (dx < 0 ? 1 : -1));
+  else go(idx);
+  dx = 0;
+}
+vp.addEventListener('pointerup', endDrag);
+vp.addEventListener('pointercancel', endDrag);
+renderChips(); renderSlides();
+
+/* ============ timeline progress tracker ============ */
+const WEEKS = [
+  {label:'W1–2', target:0.4},
+  {label:'W3–4', target:1.6},
+  {label:'W5–6', target:5},
+  {label:'W7–8', target:12},
+  {label:'W9–10', target:22},
+  {label:'W11–12', target:35},
+  {label:'W13', target:45}
+];
+const COMMITTED_VIEWS = 30, ASP_VIEWS = 100;      // millions
+const COMMITTED_DL = 30000, ASP_DL = 100000;
+const PKEY = 'caraoke-playbook-progress-v2';
+let prog = {views:{}, dl:{}};
+try { prog = JSON.parse(localStorage.getItem(PKEY) || '') || {views:{}, dl:{}}; } catch(e){}
+prog.views = prog.views || {}; prog.dl = prog.dl || {};
+
+document.querySelectorAll('details.week').forEach((d, i) => {
+  const w = WEEKS[i]; if (!w) return;
+  const log = document.createElement('div');
+  log.className = 'wklog';
+  log.innerHTML =
+    '<div><label>Actual views (M)<input type="number" min="0" step="0.1" placeholder="0" data-k="views" data-i="' + i + '"></label></div>' +
+    '<div><label>Actual downloads<input type="number" min="0" step="1" placeholder="0" data-k="dl" data-i="' + i + '"></label></div>' +
+    '<div class="wkbar"><div class="bl"><span>vs plan ' + w.target + 'M</span><span class="pct"></span></div><div class="bar"><i></i></div></div>';
+  d.querySelector('.body').appendChild(log);
+  const vi = log.querySelector('[data-k="views"]'), di = log.querySelector('[data-k="dl"]');
+  if (prog.views[i] != null) vi.value = prog.views[i];
+  if (prog.dl[i] != null) di.value = prog.dl[i];
+  vi.addEventListener('input', () => { prog.views[i] = vi.value === '' ? null : +vi.value; save(); update(); });
+  di.addEventListener('input', () => { prog.dl[i] = di.value === '' ? null : +di.value; save(); update(); });
+});
+
+function save(){ try { localStorage.setItem(PKEY, JSON.stringify(prog)); } catch(e){} }
+const fmtM = n => (n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)).replace(/\.0+$/,'') + 'M';
+
+function update(){
+  let views = 0, dls = 0, logged = 0;
+  WEEKS.forEach((w, i) => {
+    const v = prog.views[i] == null ? null : +prog.views[i];
+    const d = prog.dl[i] == null ? null : +prog.dl[i];
+    if (v != null) views += v;
+    if (d != null) dls += d;
+    if (v != null || d != null) logged++;
+
+    const dEl = document.querySelector('details.week[data-wk="' + i + '"]');
+    if (!dEl) return;
+    const stat = dEl.querySelector('.wstat');
+    const bar = dEl.querySelector('.wkbar');
+    const pctEl = dEl.querySelector('.wkbar .pct');
+    const fill = dEl.querySelector('.wkbar .bar i');
+    if (v == null){
+      stat.className = 'wstat none'; stat.textContent = '—';
+      pctEl.textContent = ''; fill.style.width = '0%'; fill.style.background = 'var(--line2)';
+      return;
+    }
+    const r = w.target > 0 ? v / w.target : 0;
+    const pct = Math.min(100, Math.round(r * 100));
+    fill.style.width = pct + '%';
+    fill.style.background = r >= .85 ? 'linear-gradient(90deg,#34d399,var(--ok))'
+                         : r >= .5  ? 'linear-gradient(90deg,var(--or2),var(--or))'
+                                    : 'linear-gradient(90deg,#f87171,var(--bad))';
+    pctEl.textContent = Math.round(r * 100) + '% of plan';
+    if (r >= .85){ stat.className = 'wstat hit';  stat.textContent = 'HIT'; }
+    else if (r >= .5){ stat.className = 'wstat part'; stat.textContent = 'PARTIAL'; }
+    else { stat.className = 'wstat miss'; stat.textContent = 'MISS'; }
+  });
+
+  /* dashboard */
+  $('mViews').textContent = fmtM(views);
+  $('mViewsSub').textContent = Math.round(views / ASP_VIEWS * 100) + '% of 100M aspirational · ' + Math.round(views / COMMITTED_VIEWS * 100) + '% of 30M committed';
+  $('mDl').textContent = Math.round(dls).toLocaleString();
+  $('mDlSub').textContent = Math.round(dls / ASP_DL * 100) + '% of 100k aspirational · ' + Math.round(dls / COMMITTED_DL * 100) + '% of 30k committed';
+  $('mWeeks').textContent = logged + ' / ' + WEEKS.length;
+
+  /* pace: cumulative actual vs cumulative plan through the last logged week */
+  let lastLogged = -1;
+  WEEKS.forEach((w, i) => { if (prog.views[i] != null) lastLogged = i; });
+  if (lastLogged >= 0){
+    const planToDate = WEEKS.slice(0, lastLogged + 1).reduce((a, w) => a + w.target, 0);
+    const diff = views - planToDate;
+    const pct = planToDate > 0 ? Math.round(views / planToDate * 100) : 0;
+    $('mPace').textContent = (diff >= 0 ? '+' : '−') + fmtM(Math.abs(diff));
+    $('mPaceSub').textContent = pct + '% of plan through ' + WEEKS[lastLogged].label + ' (' + fmtM(planToDate) + ' planned)';
+    $('mPace').style.color = diff >= 0 ? 'var(--ok)' : 'var(--warn)';
+  } else {
+    $('mPace').textContent = '—';
+    $('mPaceSub').textContent = 'no weeks logged yet';
+    $('mPace').style.color = '';
+  }
+
+  /* bars */
+  const cV = Math.min(100, views / COMMITTED_VIEWS * 100);
+  const aV = Math.min(100, views / ASP_VIEWS * 100);
+  const dP = Math.min(100, dls / ASP_DL * 100);
+  $('pCom').style.width = cV + '%';  $('pComLbl').textContent = Math.round(cV) + '%';
+  $('pAsp').style.width = aV + '%';  $('pAspLbl').textContent = Math.round(aV) + '%';
+  $('pDl').style.width = dP + '%';   $('pDlLbl').textContent = Math.round(dP) + '%';
+
+  /* verdict */
+  const v = $('dashVerdict');
+  if (!logged){
+    v.className = 'dashverdict'; v.textContent = 'Log your first week to see where you stand.';
+  } else if (views >= ASP_VIEWS * .7){
+    v.className = 'dashverdict good'; v.textContent = '✓ Aspirational territory — 70% of the moonshot already counts as a win.';
+  } else if (views >= COMMITTED_VIEWS){
+    v.className = 'dashverdict good'; v.textContent = '✓ Committed target cleared. Everything above this is upside.';
+  } else if (views >= COMMITTED_VIEWS * .5){
+    v.className = 'dashverdict good'; v.textContent = 'On the committed track — ' + fmtM(COMMITTED_VIEWS - views) + ' to go for 30M.';
+  } else {
+    v.className = 'dashverdict bad'; v.textContent = 'Behind the committed track. Check the week-6 kill rule before changing anything.';
+  }
+}
+
+$('copyReport').addEventListener('click', e => {
+  let views = 0, dls = 0;
+  WEEKS.forEach((w, i) => { if (prog.views[i] != null) views += +prog.views[i]; if (prog.dl[i] != null) dls += +prog.dl[i]; });
+  const lines = ['Caraoke marketing progress',
+    'Views: ' + fmtM(views) + ' (' + Math.round(views / COMMITTED_VIEWS * 100) + '% of 30M committed · ' + Math.round(views / ASP_VIEWS * 100) + '% of 100M aspirational)',
+    'Downloads: ' + Math.round(dls).toLocaleString() + ' (' + Math.round(dls / COMMITTED_DL * 100) + '% of 30k · ' + Math.round(dls / ASP_DL * 100) + '% of 100k)',
+    ''];
+  WEEKS.forEach((w, i) => {
+    const v = prog.views[i], d = prog.dl[i];
+    if (v == null && d == null) return;
+    lines.push(w.label + ': ' + (v == null ? '—' : fmtM(+v)) + ' views (' + Math.round((+v || 0) / w.target * 100) + '% of ' + w.target + 'M plan), ' + (d == null ? '—' : (+d).toLocaleString()) + ' downloads');
+  });
+  copyText(lines.join('\n'), e.currentTarget);
+});
+
+$('resetProgress').addEventListener('click', () => {
+  prog = {views:{}, dl:{}};
+  document.querySelectorAll('.wklog input').forEach(i => i.value = '');
+  save(); update();
+});
+update();
+
+/* ============ checklist ============ */
+const ITEMS = [
+  ['Week 1 · Foundation', 'Reconcile pricing across App Store Connect and the record draft'],
+  ['Week 1 · Foundation', 'Landing page live on GitHub Pages with one App Store link'],
+  ['Week 1 · Foundation', '5 App Store screenshots: CarPlay hero first, UI never first'],
+  ['Week 1 · Foundation', 'Record the 30s preview video (driving footage + lyric sync)'],
+  ['Week 1 · Foundation', 'Create the 3 TikTok accounts, IG, Shorts channel, X, Threads'],
+  ['Week 1 · Foundation', 'Warm up accounts: 5 days of niche scrolling, 1 post/day'],
+  ['Week 1 · Foundation', 'Build the screen-capture library: 5 songs, day + night'],
+  ['Week 1 · Foundation', 'Collect 20–30 free night-drive / dash plates from Pexels'],
+  ['Week 1 · Foundation', 'Set up the tracker sheet: posts, hooks, views, shares, format score'],
+  ['Week 1 · Foundation', 'Generate 5 cat co-pilot stills (Cibul, Njun) and animate 2'],
+  ['Week 2 · Pilot', 'Publish 7 posts and record baseline median views + 3s hook rate'],
+  ['Week 2 · Pilot', 'Run one 3-3-3 test on a single concept'],
+  ['Week 2 · Pilot', 'Recruit 20–30 TestFlight testers from X and Reddit'],
+  ['Week 2 · Pilot', 'DM 20 car/road-trip creators with a free lifetime key offer'],
+  ['Week 2 · Pilot', 'Draft the Apple editorial featuring request'],
+  ['Week 3 · Engine', 'Move to 2 posts/day on TikTok, 1 Reel, 1 Short'],
+  ['Week 3 · Engine', 'Launch the cat co-pilot numbered series'],
+  ['Week 3 · Engine', 'Set up auto-scheduling for the 5am–8am WIB prime window'],
+  ['Week 3 · Engine', 'Publish the first build-in-public X thread'],
+  ['Week 3 · Engine', 'Kill every format below the 2k/2h threshold'],
+  ['Week 4 · Engine', 'Scale the first winner with 5 remixes in 48h'],
+  ['Week 4 · Engine', 'Publish the first search-intent Short: how to get lyrics on CarPlay'],
+  ['Week 4 · Engine', 'Post the first Reddit value-first thread in r/CarPlay'],
+  ['Week 4 · Engine', 'Pitch 5 press outlets with the technical angle'],
+  ['Week 4 · Engine', 'Confirm the rating prompt fires after the 3rd ride'],
+  ['Week 5 · Launch', 'Launch day: Product Hunt + Show HN + Reddit + X thread together'],
+  ['Week 5 · Launch', 'Activate the founding-driver lifetime discount'],
+  ['Week 5 · Launch', 'Ask the TestFlight cohort for reviews on day 1 and day 3'],
+  ['Week 5 · Launch', 'Watch store page → install daily; fix screenshots if under 6%'],
+  ['Week 5 · Launch', 'Submit the App Store featuring request']
+];
+const CKEY = 'caraoke-playbook-checklist-v1';
+let clState = {};
+try { clState = JSON.parse(localStorage.getItem(CKEY) || '{}'); } catch(e){}
+const clHost = $('clhost');
+let lastGroup = '', box = null;
+ITEMS.forEach(([group, text], i) => {
+  if (group !== lastGroup){
+    const h = document.createElement('h4'); h.textContent = group; clHost.appendChild(h);
+    box = document.createElement('div'); box.className = 'cl'; clHost.appendChild(box);
+    lastGroup = group;
+  }
+  const label = document.createElement('label');
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!clState[i];
+  cb.addEventListener('change', () => { clState[i] = cb.checked; saveCl(); });
+  const span = document.createElement('span'); span.textContent = text;
+  label.append(cb, span); box.appendChild(label);
+});
+function saveCl(){
+  try { localStorage.setItem(CKEY, JSON.stringify(clState)); } catch(e){}
+  const done = ITEMS.filter((_, i) => clState[i]).length;
+  $('clcount').textContent = done + ' / ' + ITEMS.length;
+  $('clfill').style.width = (done / ITEMS.length * 100) + '%';
+}
+$('clreset').addEventListener('click', () => {
+  clState = {};
+  document.querySelectorAll('#clhost input').forEach(cb => cb.checked = false);
+  saveCl();
+});
+saveCl();
+</script>
+</body>
+</html>
