@@ -221,7 +221,9 @@ struct LyricTileView: View {
          positionMs: Int = 0, durationMs: Int? = nil,
          surface: Surface, palette: LyricTilePalette? = nil, artworkData: Data? = nil,
          resyncPulse: Double = 1, needsResync: Bool = false,
-         showsProgressBar: Bool = true, customBoxHeight: CGFloat? = nil) {
+         showsProgressBar: Bool = true, customBoxHeight: CGFloat? = nil,
+         customFont: CGFloat? = nil, customPadding: CGFloat? = nil,
+         customRowSpacing: CGFloat? = nil, customLineSpacing: CGFloat? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -240,6 +242,10 @@ struct LyricTileView: View {
         self.needsResync = needsResync
         self.showsProgressBar = showsProgressBar
         self.customBoxHeight = customBoxHeight
+        self.customFont = customFont
+        self.customPadding = customPadding
+        self.customRowSpacing = customRowSpacing
+        self.customLineSpacing = customLineSpacing
     }
 
     var body: some View {
