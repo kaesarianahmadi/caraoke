@@ -36,6 +36,9 @@ struct LyricTileLayout {
     /// Height the surface reserves for everything that is not the lyric block:
     /// padding, the header row, the progress bar, the large widget's player bar.
     var chromeHeight: CGFloat = 0
+    /// Size lyrics render at on this surface. Comes from `LyricSurface`, so it
+    /// is the same number the budget math uses. Text is NEVER scaled below it.
+    var font: CGFloat = LyricType.lyric
 }
 
 struct LyricTilePalette {
@@ -134,9 +137,15 @@ struct LyricTileView: View {
                                    headerCompact: true, padding: 12,
                                    chromeHeight: LyricSurface.lockBanner.chromeHeight)
         case .carPlaySmall:
+            // Build 46. The CarPlay mirror reads at 12 pt, not the Lock Screen's
+            // 18 pt: the dashboard tile is the smallest surface we render and
+            // the user's report was "fonts too big, still truncating". The
+            // identity row is conditional (`showsCarPlayIntroHeader`) — it is
+            // only there before the first line of the song arrives.
             return LyricTileLayout(boxHeight: LyricSurface.carPlaySmall.blockHeight,
                                    headerCompact: true, padding: 12,
-                                   chromeHeight: LyricSurface.carPlaySmall.chromeHeight)
+                                   chromeHeight: LyricSurface.carPlaySmall.chromeHeight,
+                                   font: LyricSurface.carPlaySmall.lyricFont)
         case .widgetSmall:
             // Apple's 158×158 grid, also the StandBy/CarPlay tile (the system
             // scales this up). One identity row, then hero (2 wrapped rows) plus
@@ -203,7 +212,7 @@ struct LyricTileView: View {
     var body: some View {
         let spec = layout
         VStack(alignment: .leading, spacing: 0) {
-            if spec.showsHeader {
+            if spec.showsHeader && showsCarPlayIntroHeader {
                 header(compact: spec.headerCompact)
             }
             lyricBody(spec: spec)
@@ -225,6 +234,16 @@ struct LyricTileView: View {
         .overlay(cardStroke(enabled: surface != .lockBanner))
         .opacity(status == .stale ? 0.8 : 1)
         .accessibilityElement(children: .combine)
+    }
+
+    /// CarPlay's identity row is conditional, every other surface always shows
+    /// it. On the dashboard tile the title and artist are an INTRO: they hold
+    /// the tile from the moment the song starts until its first lyric line
+    /// arrives, then give up the row so the lyrics own the whole tile and the
+    /// active line stays centred. (User direction, build 46 — the identity was
+    /// previously pinned at the top for the entire song.)
+    private var showsCarPlayIntroHeader: Bool {
+        surface != .carPlaySmall || currentLine.isEmpty
     }
 
     /// Only non-glass surfaces paint their own card; the Lock Screen banner
@@ -316,33 +335,33 @@ struct LyricTileView: View {
                 skeleton(widthFraction: 0.50)
             }, spec: spec, alignment: .center)
         case .noLyrics:
-            // Every text row in the tile is 18 pt, including these stand-ins —
-            // build 40 shrank them to 13, which is the same inconsistency the
-            // lyric rows had.
+            // Every text row in the tile renders at the surface's own lyric
+            // size — build 40 shrank these stand-ins to 13, which is the same
+            // inconsistency the lyric rows had.
             boxed(VStack(alignment: .center, spacing: LyricType.lyricRowSpacing) {
                 HStack(spacing: 6) {
-                    musicNoteGlyph(size: LyricType.lyric)
+                    musicNoteGlyph(size: spec.font)
                     Text(currentLine.isEmpty ? title : currentLine)
-                        .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                        .font(.system(size: spec.font, weight: LyricType.lyricWeight))
                         .foregroundColor(colors.heroText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Text("No lyrics found for this song")
-                    .font(.system(size: LyricType.lyric))
+                    .font(.system(size: spec.font))
                     .foregroundColor(colors.metaText)
                     .multilineTextAlignment(.center)
             }, spec: spec, alignment: .center)
         case .stale:
             boxed(VStack(alignment: .center, spacing: LyricType.lyricRowSpacing) {
                 Text(currentLine.isEmpty ? "Ride ended" : currentLine)
-                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                    .font(.system(size: spec.font, weight: LyricType.lyricWeight))
                     .foregroundColor(colors.heroText)
                     .opacity(0.32)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Lyrics return when a song plays")
-                    .font(.system(size: LyricType.lyric))
+                    .font(.system(size: spec.font))
                     .foregroundColor(colors.metaText)
                     .multilineTextAlignment(.center)
             }, spec: spec, alignment: .center)
@@ -411,6 +430,12 @@ struct LyricTileView: View {
         let hero: String
         if !currentLine.isEmpty {
             hero = currentLine
+        } else if surface == .carPlaySmall {
+            // CarPlay intro: the identity row above is already showing the
+            // title and artist, so the body stays empty until the song's first
+            // real line lands. (Without this the tile printed the identity
+            // twice.)
+            hero = ""
         } else if !previousLines.isEmpty && isPlaying {
             // Outro transition: current line cleared so previous line rolls off
             hero = ""
@@ -450,7 +475,7 @@ struct LyricTileView: View {
         let items = rows(spec: spec, budget: budget)
         VStack(alignment: .center, spacing: budget.rowSpacing) {
             ForEach(items) { row in
-                rowView(row, budget: budget)
+                rowView(row, budget: budget, spec: spec)
                     .transition(.asymmetric(
                         insertion: .move(edge: .bottom).combined(with: .opacity),
                         removal: .move(edge: .top).combined(with: .opacity)
@@ -464,25 +489,25 @@ struct LyricTileView: View {
         .animation(.easeInOut(duration: 0.32), value: items.map(\.id))
     }
 
-    /// Active line: 18 pt `.semibold` — emphasis by weight only. Build 40 used
-    /// `.bold` and the user read it as too heavy. It still has to be visibly
-    /// bolder than the dimmed neighbours, which `.semibold` is.
+    /// Active line: emphasis by weight only, never by size. Build 40 used
+    /// `.bold` and the user read it as too heavy; `.semibold` still reads
+    /// clearly bolder than the dimmed neighbours.
     ///
-    /// Build 42: `.lineLimit(...)` removed for neighbor rows — long lyric lines
-    /// were truncated with "..." instead of wrapping to show the full text.
-    /// Hero still has a limit (2 rows) because it's the focal point; neighbors
-    /// flow naturally and ViewThatFits picks fewer rows if text is long.
+    /// Build 46 — the no-truncation rule. `minimumScaleFactor` is GONE from
+    /// every row (it was the "fonts are too big, then shrink randomly" defect:
+    /// the size changed per line depending on how long the line was), and so
+    /// is `.truncationMode(.tail)`. A line that does not fit across the tile
+    /// now carries onto the row below it, at the same size, for as many rows as
+    /// the surface's budget allows.
     @ViewBuilder
-    private func rowView(_ row: LyricRow, budget: LyricRowBudget) -> some View {
+    private func rowView(_ row: LyricRow, budget: LyricRowBudget, spec: LyricTileLayout) -> some View {
         let weight: Font.Weight = row.kind == .hero ? LyricType.lyricWeight : LyricType.lyricNeighborWeight
         let allowance = row.kind == .hero ? budget.heroRows : budget.neighborRows
         Text(row.text)
-            .font(.system(size: budget.font, weight: weight))
+            .font(.system(size: spec.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
             .multilineTextAlignment(.center)
             .lineLimit(allowance)
-            .truncationMode(.tail)
-            .minimumScaleFactor(surface == .widgetSmall ? 0.85 : 0.9)
             .lineSpacing(budget.lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .center)

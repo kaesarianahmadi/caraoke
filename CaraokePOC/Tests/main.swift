@@ -816,19 +816,39 @@ final class TestRunner {
             checkEqual("widgetCappedStart", capped.first?.lineIndex, 10)
         }
 
-        // MARK: Lyric layout budget (build 41)
+        // MARK: Lyric layout budget (build 41, revised build 46)
         //
         // Build 40's regression, mechanically: every surface rendered lyrics at
         // its own font size and shrank the text with `minimumScaleFactor` when a
         // line overran, and the large widget asked for ~450 pt of lyrics inside
         // a ~262 pt block, then clipped the overflow. These checks assert the
-        // opposite: ONE font size, and a row budget that provably fits.
+        // opposite: ONE size per surface, never a per-row size, and a row budget
+        // that provably fits.
+        //
+        // Build 46 added the one deliberate exception: CarPlay's mirrored tile
+        // renders at `LyricType.carPlayLyric` (12 pt) because the dashboard tile
+        // is the smallest surface and 18 pt overran it. The rule that survives
+        // is the one that matters — no row inside a surface may have its own
+        // size, and nothing scales at render time.
         do {
-            // One type scale for every surface. This is the "text consistency"
+            // One type scale PER SURFACE. This is the "text consistency"
             // requirement, expressed as a number.
-            let fonts = LyricSurface.allCases.flatMap { $0.budgets.map(\.font) }
-            check("layoutSingleFont", Set(fonts) == [LyricType.lyric])
+            for surface in LyricSurface.allCases {
+                let sizes = Set(surface.budgets.map(\.font))
+                check("layoutSingleFont_\(surface.rawValue)",
+                      sizes == [surface.lyricFont])
+            }
             checkEqual("layoutFontIs18", LyricType.lyric, 18)
+
+            // CarPlay is the one surface that renders smaller, and its budget
+            // and its view spec must agree on the number — a mismatch is the
+            // "fonts too big, still truncating" defect coming back.
+            checkEqual("layoutCarPlayFontIs12", LyricType.carPlayLyric, 12)
+            checkEqual("layoutCarPlaySurfaceFont",
+                       LyricSurface.carPlaySmall.lyricFont, LyricType.carPlayLyric)
+            check("layoutOnlyCarPlayShrinks",
+                  LyricSurface.allCases.filter { $0.lyricFont != LyricType.lyric }
+                      == [.carPlaySmall])
 
             // The active line is emphasis-by-weight only, and slimmer than
             // build 40's `.bold` (user direction).
@@ -857,6 +877,23 @@ final class TestRunner {
                   (LyricSurface.widgetSmall.budgets.first?.rowCount ?? 0) >= 3)
             check("layoutLockBannerShowsThreeRows",
                   (LyricSurface.lockBanner.budgets.first?.rowCount ?? 0) >= 3)
+
+            // Build 46 — CarPlay. The mirrored dashboard tile keeps the same
+            // three-row shape (active line centred, a neighbour above or below)
+            // but has to hold its rows at 12 pt, so its hero allowance grows to
+            // three rows: the rule is that text which does not fit carries onto
+            // the next row instead of being cut.
+            check("layoutCarPlayShowsThreeRows",
+                  (LyricSurface.carPlaySmall.budgets.first?.rowCount ?? 0) >= 3)
+            check("layoutCarPlayHasCentredHero",
+                  (LyricSurface.carPlaySmall.budgets.first?.previousShown ?? 0) >= 1)
+            check("layoutCarPlayHeroCarriesThreeRows",
+                  (LyricSurface.carPlaySmall.budgets.first?.heroRows ?? 0) >= 3)
+            // Worst case at 12 pt must clear the box the tile pins itself to,
+            // which is what stops the tile clipping the active line.
+            check("layoutCarPlayFitsAtCarPlayFont",
+                  (LyricSurface.carPlaySmall.budgets.first?.worstCaseHeight ?? .infinity)
+                      <= LyricSurface.carPlaySmall.blockHeight)
 
             // Regression guard. Build 40's large widget asked for 9 rows
             // (1 hero + 2 past + 6 upcoming) with a 3-row hero allowance, inside

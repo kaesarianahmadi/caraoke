@@ -37,6 +37,12 @@ enum LyricType {
     /// The lyrics page is the one surface that scales UP: the whole window is
     /// lyrics, so it uses the Spotify/Apple Music scale instead of 18 pt.
     static let pageLyric: CGFloat = 28
+
+    /// CarPlay's mirrored Live Activity tile. Smaller than every other surface
+    /// (user direction, build 46): the dashboard tile is read from ~1 m in a
+    /// moving car and the font must come down, or the active line overruns the
+    /// tile and gets cut.
+    static let carPlayLyric: CGFloat = 12
 }
 
 /// How much vertical room a surface gives its lyric block, and how many rows
@@ -119,6 +125,17 @@ enum LyricSurface: String, CaseIterable, Sendable {
         }
     }
 
+    /// The size lyrics render at on this surface. One size per surface, never
+    /// per row and never shrunk at render time — CarPlay is the only surface
+    /// that asks for less than `LyricType.lyric`, because its mirror tile is
+    /// the smallest of them all.
+    var lyricFont: CGFloat {
+        switch self {
+        case .carPlaySmall: return LyricType.carPlayLyric
+        default: return LyricType.lyric
+        }
+    }
+
     /// Space granted to the block itself. For fixed-box surfaces this is the
     /// anti-flicker height; for the large widget it is `maxBoxHeight` plus the
     /// padding the box sits inside.
@@ -143,7 +160,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
     /// `ViewThatFits`, and the last entry is the guaranteed minimum.
     var budgets: [LyricRowBudget] {
         switch self {
-        case .lockBanner, .carPlaySmall:
+        case .lockBanner:
             // Build 42: active lyric is always in the MIDDLE row.
             // Best: 1 previous + 1 hero + 1 upcoming (active centered).
             // Minimum: 0 previous + 1 hero + 1 upcoming (hero at top).
@@ -151,6 +168,24 @@ enum LyricSurface: String, CaseIterable, Sendable {
             return [
                 LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 1, neighborRows: 1),
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 1, neighborRows: 1),
+            ]
+        case .carPlaySmall:
+            // Build 46. Same three-row shape (active line always centred, with
+            // a neighbour above OR below it) but at `carPlayLyric` — 12 pt and
+            // no scaling, so the active line always fits instead of being cut.
+            //
+            // The hero gets three rows: the user's rule is that text which does
+            // not fit is carried to the next row rather than truncated. The
+            // worst case (3 + 1 + 1 rows) measures 81 pt inside the 119 pt box,
+            // so it still lands with room to spare.
+            let font = LyricType.carPlayLyric
+            return [
+                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 1,
+                               neighborRows: 1, font: font),
+                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 1,
+                               neighborRows: 1, font: font),
+                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0,
+                               neighborRows: 1, font: font),
             ]
         case .widgetSmall:
             // Hero (2 rows) + two following lines = the "three or four lines"

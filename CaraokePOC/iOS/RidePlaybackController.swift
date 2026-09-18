@@ -166,7 +166,7 @@ final class RidePlaybackController: ObservableObject {
         durationMs = nil
         lyricState = .idle
         SharedWidgetStore.write(nil)
-        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     func setSourcePin(_ pin: SourcePin) {
@@ -434,7 +434,7 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetIsPlaying = snapshot.isPlaying
         lastWidgetStatus = snapshot.status.rawValue
         lastWidgetArtworkHex = artworkColorHex
-        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Artwork
@@ -449,7 +449,7 @@ final class RidePlaybackController: ObservableObject {
         // the network). Force the next widget write past the dedupe and reload,
         // or the widget keeps the artwork-less timeline it was first handed.
         lastWidgetSignature = nil
-        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+        WidgetCenter.shared.reloadAllTimelines()
         // Re-render now: while paused the engine emits no position ticks, so
         // waiting for the next tick would leave the payload artwork-less.
         render(engine.positionSubject.value)
@@ -461,7 +461,7 @@ final class RidePlaybackController: ObservableObject {
         artworkColorHex = nil
         lastArtworkKey = key
         lastWidgetSignature = nil
-        WidgetCenter.shared.reloadTimelines(ofKind: "CaraokeWidget")
+        WidgetCenter.shared.reloadAllTimelines()
         render(engine.positionSubject.value)
     }
 
