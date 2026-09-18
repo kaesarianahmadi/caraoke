@@ -59,7 +59,13 @@ final class RideAudioKeeper {
             }
             // Reuse the player across an interruption when we still have it —
             // rebuilding it costs a disk read on every navigation prompt.
-            let p = player ?? (try AVAudioPlayer(contentsOf: url))
+            // (`try` cannot sit inside `??`, hence the explicit branch.)
+            let p: AVAudioPlayer
+            if let existing = player {
+                p = existing
+            } else {
+                p = try AVAudioPlayer(contentsOf: url)
+            }
             p.numberOfLoops = -1  // loop forever — one 1 s inaudible sample
             p.volume = 1.0      // the asset itself is already ~-68 dBFS
             if !p.isPlaying { p.play() }
