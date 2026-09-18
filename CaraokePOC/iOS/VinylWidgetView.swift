@@ -15,11 +15,10 @@ struct VinylWidgetView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            // Reclaim width for lyrics (68% width + 10 pt padding) to prevent truncation
-            // while preserving crisp vinyl disc sizing on the right.
-            let inner = CGSize(width: geometry.size.width - 20,
-                               height: geometry.size.height - 20)
-            let lyricsWidth = inner.width * 0.68
+            // Original vinyl disc proportions (60% lyrics width, 14 pt padding).
+            let inner = CGSize(width: geometry.size.width - 28,
+                               height: geometry.size.height - 28)
+            let lyricsWidth = inner.width * 0.60
             let disc = min(inner.height, inner.width - lyricsWidth - 8)
 
             HStack(spacing: 8) {
@@ -29,11 +28,11 @@ struct VinylWidgetView: View {
                     .frame(width: disc, height: disc)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .padding(10)
+            .padding(14)
         }
         .foregroundStyle(theme.textColor)
         .containerBackground(for: .widget) {
-            WidgetArtworkBackground(theme: theme, artworkColorHex: entry.artworkColorHex)
+            WidgetArtworkBackground(theme: theme, artworkData: entry.artworkData)
         }
         .widgetURL(URL(string: "caraoke://lyrics"))
     }
@@ -65,34 +64,30 @@ struct VinylWidgetView: View {
         }
     }
 
-    /// Every row at the SAME 18 pt (`LyricType.lyric`) — no font shrinking or scaling.
-    /// Uses dynamic line eviction so multi-line wrapped active lyrics fit within the
-    /// widget height without truncating.
+    /// Active lyric is always anchored at the first row.
+    /// When the active line wraps, it takes all available room (up to 3 rows).
+    /// Next line appears only when the active line is single-row and next line fits
+    /// without truncating (up to 2 rows). Neighbor lyrics never truncate.
     private var lyricBlock: some View {
         let text = currentLyricText
-        let isLong = text.count > 54
-        let isMedium = text.count > 26
+        let heroWraps = text.count > 22
 
         return VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
-            if !isLong, let previous = entry.previousLines.last, !previous.isEmpty {
-                Text(previous)
-                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
-                    .foregroundStyle(theme.mutedTextColor.opacity(0.62))
-                    .lineLimit(1)
-            }
             if !text.isEmpty {
                 Text(text)
-                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                    .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricHeroWeight))
                     .foregroundStyle(theme.textColor)
-                    .lineLimit(isLong ? 3 : 2)
+                    .lineLimit(heroWraps ? 3 : 1)
                     .lineSpacing(LyricType.lyricLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !isMedium && !isLong, let next = entry.nextLine, !next.isEmpty {
+            if !heroWraps, let next = entry.nextLine, !next.isEmpty, next.count <= 40 {
                 Text(next)
-                    .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                    .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.82))
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .lineSpacing(LyricType.lyricLineSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .id(entry.lineIndex)

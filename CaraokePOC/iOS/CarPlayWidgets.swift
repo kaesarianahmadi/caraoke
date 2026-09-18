@@ -28,6 +28,8 @@ private struct CaraokeCarPlayTransport: View {
     let entry: CaraokeWidgetEntry
     let tint: Color
     var size: CGFloat = 15
+    var buttonWidth: CGFloat = 34
+    var buttonHeight: CGFloat = 34
 
     var body: some View {
         HStack(spacing: 2) {
@@ -44,7 +46,7 @@ private struct CaraokeCarPlayTransport: View {
             Image(systemName: name)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundColor(tint)
-                .frame(width: 34, height: 34)
+                .frame(width: buttonWidth, height: buttonHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -56,6 +58,8 @@ private struct CaraokeCarPlayTransport: View {
 private struct CaraokeCarPlayCover: View {
     let entry: CaraokeWidgetEntry
     let size: CGFloat
+    var cornerRadius: CGFloat? = nil
+    private var radius: CGFloat { cornerRadius ?? max(4, size * 0.22) }
     private var theme: WidgetTheme { WidgetTheme(rawValue: entry.settings.theme) ?? .artwork }
 
     var body: some View {
@@ -65,7 +69,7 @@ private struct CaraokeCarPlayCover: View {
                     Image(uiImage: image).resizable().scaledToFill()
                 } else {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black)
+                        RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Color.black)
                         Image(systemName: "music.note")
                             .font(.system(size: size * 0.34))
                             .foregroundColor(theme.mutedTextColor)
@@ -73,8 +77,8 @@ private struct CaraokeCarPlayCover: View {
                 }
             }
             .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(theme.textColor.opacity(0.12), lineWidth: 1))
             .overlay {
                 if entry.status != .playing || entry.resyncPulse < 1 {
@@ -166,7 +170,7 @@ private struct CaraokeCarPlayChrome<Content: View>: View {
         content
             .widgetURL(URL(string: "caraoke://lyrics"))
             .containerBackground(for: .widget) {
-                WidgetArtworkBackground(theme: entry.theme, artworkColorHex: entry.artworkColorHex)
+                WidgetArtworkBackground(theme: entry.theme, artworkData: entry.artworkData)
             }
     }
 }
@@ -179,18 +183,19 @@ private struct CaraokePlayerWidgetView: View {
     var body: some View {
         let t = entry.theme
         GeometryReader { geo in
-            let cover = min(geo.size.width, geo.size.height) * 0.46
+            let cover = min(geo.size.width, geo.size.height) * 0.52
             VStack(spacing: 0) {
                 CaraokeCarPlayCover(entry: entry, size: cover)
-                Spacer(minLength: 6)
+                Spacer(minLength: 4)
                 CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
-                                       mutedColor: t.mutedTextColor, titleSize: 12.5)
-                Spacer(minLength: 6)
+                                       mutedColor: t.mutedTextColor, titleSize: 13)
+                Spacer(minLength: 4)
                 CaraokeCarPlayProgress(progress: entry.progress, tint: t.textColor)
-                    .padding(.bottom, 6)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 4)
                 CaraokeCarPlayTransport(entry: entry, tint: t.textColor)
             }
-            .padding(12)
+            .padding(8)
             .frame(width: geo.size.width, height: geo.size.height)
         }
     }
@@ -217,7 +222,11 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
             artworkData: entry.artworkData,
             resyncPulse: entry.resyncPulse,
             needsResync: entry.status != .playing || entry.resyncPulse < 1,
-            showsProgressBar: false
+            showsProgressBar: false,
+            customFont: 16,
+            customPadding: 4,
+            customRowSpacing: 9,
+            customLineSpacing: 4
         )
     }
 }
@@ -230,10 +239,8 @@ private struct CaraokeCarPlayHybridWidgetView: View {
     var body: some View {
         let t = entry.theme
         GeometryReader { geo in
-            // Lyrics keep ~62% of the tile (the large widget gives them 75%,
-            // but a small tile still has to fit the player bar underneath).
-            // Uses customBoxHeight so it fits within the 62% frame without clipping.
-            let lyricHeight = geo.size.height * 0.62
+            // Lyrics allocate 68% of the tile height.
+            let lyricHeight = geo.size.height * 0.68
             VStack(spacing: 0) {
                 LyricTileView(
                     title: entry.title,
@@ -251,18 +258,21 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     resyncPulse: entry.resyncPulse,
                     needsResync: entry.status != .playing || entry.resyncPulse < 1,
                     showsProgressBar: false,
-                    customBoxHeight: lyricHeight - 12
+                    customBoxHeight: lyricHeight
                 )
                 .frame(height: lyricHeight)
 
-                HStack(spacing: 8) {
-                    CaraokeCarPlayCover(entry: entry, size: 34)
+                HStack(spacing: 6) {
+                    CaraokeCarPlayCover(entry: entry, size: 24)
                     CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
-                                           mutedColor: t.mutedTextColor, titleSize: 11)
+                                           mutedColor: t.mutedTextColor, titleSize: 11.5)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 13)
+                    CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
+                                           buttonWidth: 26, buttonHeight: 28)
                 }
-                .padding(.top, 4)
+                .padding(.horizontal, 6)
+                .padding(.top, 2)
+                .padding(.bottom, 4)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }

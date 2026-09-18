@@ -51,7 +51,7 @@ Write access to `main` therefore equals deployment rights, including the ability
 
 ### The push procedure
 
-1. **Bump the build number** in `CaraokePOC/project.yml` → `CURRENT_PROJECT_VERSION` (last shipped: `48`). The workflow does **not** set it; it comes from `project.yml` via xcodegen. A push without a bump reuses the previous number and Apple rejects the upload.
+1. **Bump the build number** in `CaraokePOC/project.yml` → `CURRENT_PROJECT_VERSION` (last shipped: `51`, this push is `54`). The workflow does **not** set it; it comes from `project.yml` via xcodegen. A push without a bump reuses the previous number and Apple rejects the upload.
 2. Run the local gate (catches only what is checkable locally):
    ```bash
    cd CaraokePOC

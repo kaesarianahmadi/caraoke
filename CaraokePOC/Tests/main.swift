@@ -838,21 +838,52 @@ final class TestRunner {
                 check("layoutSingleFont_\(surface.rawValue)",
                       sizes == [surface.lyricFont])
             }
+            // Build 54 raised the 4x4 widget only — the shared scale is 18.
             checkEqual("layoutFontIs18", LyricType.lyric, 18)
+            checkEqual("layoutWidgetLargeFontIs20", LyricType.widgetLargeLyric, 20)
 
-            // CarPlay is the one surface that renders smaller, and its budget
-            // and its view spec must agree on the number — a mismatch is the
-            // "fonts too big, still truncating" defect coming back.
+            // There are exactly two exceptions to the shared size, and they pull
+            // in opposite directions: CarPlay drops to 14, the 4x4 widget rises
+            // to 20. Every other surface renders the shared 18.
             checkEqual("layoutCarPlayFontIs14", LyricType.carPlayLyric, 14)
             checkEqual("layoutCarPlaySurfaceFont",
                        LyricSurface.carPlaySmall.lyricFont, LyricType.carPlayLyric)
-            check("layoutOnlyCarPlayShrinks",
-                  LyricSurface.allCases.filter { $0.lyricFont != LyricType.lyric }
-                      == [.carPlaySmall])
+            checkEqual("layoutWidgetLargeSurfaceFont",
+                       LyricSurface.widgetLarge.lyricFont, LyricType.widgetLargeLyric)
+            checkEqual("layoutOnlyTwoSurfacesLeaveScale",
+                  LyricSurface.allCases.filter { $0.lyricFont != LyricType.lyric },
+                  [.carPlaySmall, .widgetLarge])
 
-            // The active line renders at `.regular` (user direction).
-            check("layoutHeroNotBold", LyricType.lyricWeight != .bold)
-            check("layoutHeroIsRegular", LyricType.lyricWeight == .regular)
+            // The active line carries emphasis, and the dimmed context lines
+            // carry none. Build 53 records the direction this replaces: the
+            // active line was `.regular` (build 50), and `.medium` for one
+            // revision before the user chose bold on the strength of the
+            // rendered comparison in design/font-comparison.html.
+            check("layoutHeroIsBold", LyricType.lyricHeroWeight == .bold)
+
+            // On the lyric surfaces the neighbours are the SAME weight as the
+            // hero, not lighter — their hierarchy is opacity alone (`nextText`
+            // at 0.36–0.82, `previousLines` fading 0.70 → 0.38). The assertion
+            // that matters is therefore that the neighbour never outweighs the
+            // hero, which would invert the hierarchy the fade is drawing.
+            check("layoutNeighboursNeverOutweighHero",
+                  LyricType.rank(LyricType.lyricNeighborWeight)
+                      <= LyricType.rank(LyricType.lyricHeroWeight))
+
+            // The lyric face is standard San Francisco, chosen by the user from
+            // the rendered comparison in design/font-comparison.html. iOS picks
+            // the Text optical size below 20 pt and the Display one above it, so
+            // this one value covers both the widget rows and the 28 pt page.
+            check("layoutLyricsAreSystemFace", LyricType.lyricDesign == .default)
+
+            // The lyrics page takes the shared hero weight and reads its
+            // hierarchy from size plus its non-hero lines dropping to
+            // `.regular`. That only works while the hero actually outranks
+            // regular — so the shared weight may never be diluted to `.regular`
+            // without the page losing its active line.
+            check("pageHeroStillOutranksRegular",
+                  LyricType.rank(LyricType.lyricHeroWeight)
+                      > LyricType.rank(.regular))
 
             // The budget exists in the first place — a surface must offer at
             // least the active line.

@@ -529,7 +529,7 @@ struct HomeWidgetPreview: View {
                 VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
                     if let previousLine, !previousLine.isEmpty {
                         Text(previousLine)
-                            .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                            .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                             .foregroundStyle(theme.mutedTextColor.opacity(0.42))
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -537,7 +537,7 @@ struct HomeWidgetPreview: View {
                     }
                     if !currentLyricText.isEmpty {
                         Text(currentLyricText)
-                            .font(.system(size: LyricType.lyric, weight: LyricType.lyricWeight))
+                            .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricHeroWeight))
                             .foregroundStyle(theme.textColor)
                             .lineLimit(2)
                             .minimumScaleFactor(0.85)
@@ -546,7 +546,7 @@ struct HomeWidgetPreview: View {
                     }
                     if let nextLine, !nextLine.isEmpty {
                         Text(nextLine)
-                            .font(.system(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                            .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                             .foregroundStyle(theme.mutedTextColor.opacity(0.62))
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -570,12 +570,12 @@ struct HomeWidgetPreview: View {
         .padding(14)
         .frame(height: 158)
         // The same recipe `WidgetArtworkBackground` paints on the real widget:
-        // the song's own average colour when the theme follows the cover.
+        // the song's own cover, blurred, when the theme follows the artwork.
         // It is a View, not a ShapeStyle, so it goes through the ViewBuilder
         // `background(alignment:content:)` overload and is clipped to the card
         // shape explicitly — `.background(_:in:)` only accepts shape styles.
         .background {
-            WidgetArtworkBackground(theme: theme, artworkColorHex: artworkColorHex)
+            WidgetArtworkBackground(theme: theme, artworkData: artworkData)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         // Same outline + shadow recipe as the Live Activity card above, so the

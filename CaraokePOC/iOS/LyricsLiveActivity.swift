@@ -179,12 +179,12 @@ private struct IslandCenter: View {
                 Text(context.state.currentLine.isEmpty
                      ? "Play a song to see lyrics"
                      : context.state.currentLine)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(LyricType.font(size: 16, weight: LyricType.lyricHeroWeight))
                     .foregroundColor(.white)
                     .lineLimit(2)
                 if let nextLine = context.state.nextLine, !nextLine.isEmpty {
                     Text(nextLine)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(LyricType.font(size: 13))
                         .foregroundColor(.white.opacity(0.55))
                         .lineLimit(1)
                 }

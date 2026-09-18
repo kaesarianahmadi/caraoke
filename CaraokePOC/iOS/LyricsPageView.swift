@@ -135,7 +135,7 @@ struct LyricsPageView: View {
                             let isHero = !model.currentLine.isEmpty && line.text == model.currentLine
                             let isPast = isLineInPast(index: index)
                             Text(line.text)
-                                .font(.system(size: LyricType.pageLyric, weight: isHero ? .bold : .regular))
+                                .font(LyricType.font(size: LyricType.pageLyric, weight: isHero ? LyricType.lyricHeroWeight : .regular))
                                 .foregroundColor(isHero ? fg : (isPast ? muted.opacity(0.55) : muted.opacity(0.90)))
                                 .multilineTextAlignment(.leading)
                                 .lineSpacing(LyricType.lyricLineSpacing)
@@ -147,7 +147,7 @@ struct LyricsPageView: View {
                         // Fallback when full track is still arriving
                         ForEach(fallbackLines) { row in
                             Text(row.text)
-                                .font(.system(size: LyricType.pageLyric, weight: row.isHero ? .bold : .regular))
+                                .font(LyricType.font(size: LyricType.pageLyric, weight: row.isHero ? LyricType.lyricHeroWeight : .regular))
                                 .foregroundColor(row.isHero ? fg : muted.opacity(row.opacity))
                                 .multilineTextAlignment(.leading)
                                 .lineSpacing(LyricType.lyricLineSpacing)

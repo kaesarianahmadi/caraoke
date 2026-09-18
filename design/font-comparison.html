@@ -1,0 +1,420 @@
+<!doctype html>
+<!--
+  Caraoke · Font comparison — renders the real lyric surfaces at true point sizes
+  in San Francisco (Text / Display) and SF Pro Rounded, so the type choice can be
+  judged at 1 CSS px = 1 pt against the actual widget geometry.
+
+  System fonts only: nothing is downloaded, nothing is embedded. Open in Safari on
+  macOS — both families are resident, so what you see is what iOS ships.
+
+  Sources for the geometry: KaraokePOC/Sources/CaraokeCore/LyricType.swift
+  (LyricType, LyricSurface) and KaraokePOC/iOS/LyricTileView.swift (LyricTileLayout).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Caraoke — Font Comparison</title>
+<style>
+  :root {
+    /* App palette, mirrored from design/swiftui-frontend-guidance.md §2 */
+    --bg:      #0A0E15;
+    --surface: #131921;
+    --border:  #292E36;
+    --fg:      #ECEFF2;
+    --muted:   #82868E;
+    --accent:  #FF9845;
+
+    /* SF Pro Text — the optical size iOS uses below ~20pt */
+    --sf-text: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    /* SF Pro Display — the optical size iOS switches to at >= 20pt */
+    --sf-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    /* SF Pro Rounded — first-party media apps (Music Sing, Podcasts, Fitness) */
+    --sf-rounded: ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', -apple-system, sans-serif;
+
+    --radius-card: 18px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: radial-gradient(70% 60% at 50% 0%, #141b26 0%, var(--bg) 55%);
+    color: var(--fg);
+    font-family: var(--sf-text);
+    -webkit-font-smoothing: antialiased;
+    padding: 40px 28px 80px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  h1 { font-family: var(--sf-display); font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; }
+  h2 { font-family: var(--sf-display); font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 46px 0 4px; }
+  h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+  p.lede { color: var(--muted); font-size: 15px; margin: 0 0 8px; max-width: 72ch; }
+  p.note { color: var(--muted); font-size: 13px; margin: 10px 0 0; max-width: 86ch; }
+  code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.92em; color: var(--fg); background: #1b2230; padding: 1px 5px; border-radius: 5px; }
+
+  hr { border: 0; border-top: 1px solid var(--border); margin: 44px 0 0; }
+
+  /* ── Option matrix ─────────────────────────────────────────────────────── */
+  .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+  .option {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-card); padding: 18px;
+  }
+  .option.rec { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+  .option header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .option .name { font-size: 15px; font-weight: 600; }
+  .option .tag {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+  }
+  .option .spec { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+  .option .spec b { color: #b9bec8; font-weight: 600; }
+
+  /* A lyric block: hero at 18pt, neighbour dimmed — the app's exact hierarchy. */
+  .lyric-demo { text-align: center; padding: 14px 4px; border-radius: 12px; background: #0d121b; }
+  .lyric-demo .hero { font-size: 18px; line-height: 1.16; }
+  .lyric-demo .next { font-size: 18px; line-height: 1.16; opacity: 0.45; margin-top: 7px; }
+  .lyric-demo .prev { font-size: 18px; line-height: 1.16; opacity: 0.30; margin-bottom: 7px; }
+
+  .sf-text-r400  { font-family: var(--sf-text);    font-weight: 400; }
+  .sf-disp-r700  { font-family: var(--sf-display); font-weight: 700; }
+  .sf-rnd-r600   { font-family: var(--sf-rounded); font-weight: 600; }
+  /* The build: the system face at bold, hierarchy carried by opacity alone. */
+  .shipped .hero, .shipped .next, .shipped .prev { font-family: var(--sf-text); font-weight: 700; }
+
+  /* ── Real surface mockups ──────────────────────────────────────────────── */
+  .surfaces { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; margin-top: 20px; }
+  .surface { display: flex; flex-direction: column; gap: 8px; }
+  .surface .caption { font-size: 12px; color: var(--muted); }
+  .surface .caption b { color: var(--fg); font-weight: 600; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-card); padding: 14px 16px;
+    display: flex; flex-direction: column; color: var(--fg);
+  }
+  .card .identity { display: flex; align-items: center; gap: 6px; }
+  .card .identity .title { font-size: 13px; font-weight: 600; }
+  .card .identity .artist { font-size: 11.5px; color: var(--muted); }
+  .card .badge { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .card .lyrics { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  .card .lyrics .hero { font-size: 18px; line-height: 1.06; }
+  .card .lyrics .next { font-size: 18px; line-height: 1.06; opacity: 0.45; }
+  .card .lyrics .prev { font-size: 18px; line-height: 1.06; opacity: 0.30; }
+  .card .lyrics > * + * { margin-top: 6px; }
+  .track { height: 3px; border-radius: 999px; background: rgba(255,255,255,0.18); margin-top: 10px; overflow: hidden; }
+  .track > i { display: block; height: 100%; width: 41%; background: rgba(255,255,255,0.75); }
+
+  /* Widget grid: 1 CSS px = 1 pt. Small 158², medium 338×158, CarPlay 119 block. */
+  .w-small  { width: 158px; height: 158px; padding: 10px; }
+  .w-small .identity .title { font-size: 12.5px; }
+  .w-medium { width: 338px; height: 158px; padding: 13px 16px; }
+  .w-carplay { width: 300px; aspect-ratio: 300 / 119; padding: 8px 12px; border-radius: 14px; }
+  .w-carplay .identity .title { font-size: 11px; }
+  .w-carplay .lyrics .hero { font-size: 14px; }
+  .w-carplay .lyrics .next { font-size: 14px; }
+  .w-carplay .lyrics .prev { font-size: 14px; }
+
+  /* App chrome, for context beside the lyrics. */
+  .appscale { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 18px 20px; margin-top: 20px; max-width: 460px; }
+  .appscale .row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 5px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .appscale .row:last-child { border-bottom: 0; }
+  .appscale .label { font-size: 12px; color: var(--muted); font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+  .appscale .sample { font-family: var(--sf-text); color: var(--fg); }
+  .app-title  { font-family: var(--sf-display); font-size: 35px; font-weight: 700; letter-spacing: -0.02em; }
+  .app-row    { font-size: 17px; font-weight: 500; }
+  .app-card   { font-size: 16px; font-weight: 600; }
+  .app-body   { font-size: 15px; }
+  .app-sub    { font-size: 13px; font-weight: 600; }
+  .app-cap    { font-size: 12px; }
+  .app-micro  { font-size: 11.5px; }
+  .app-time   { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .verdict { background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: var(--radius-card); padding: 18px 20px; margin-top: 24px; }
+  .verdict h3 { color: var(--accent); }
+  .verdict ul { margin: 0; padding-left: 20px; font-size: 14px; }
+  .verdict li { margin-bottom: 6px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: 1px; }
+
+  @media (max-width: 900px) {
+    .options { grid-template-columns: 1fr; }
+    .w-medium { width: 100%; max-width: 338px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Caraoke — Font Comparison</h1>
+  <p class="lede">
+    Every lyric surface in the app, rendered at true point sizes (1 CSS px = 1 pt) in the four
+    text faces Apple actually ships. Open in Safari on macOS: San Francisco and SF Pro Rounded
+    are both resident, so this is the same rasterisation iOS performs.
+  </p>
+  <p class="note">
+    The strings are the longest real lyric lines the app handles — the ones that wrap to two and
+    three rows inside the widget budget. Type that looks comfortable on a short line can fall apart
+    on a long one, so long lines are the honest test.
+  </p>
+
+  <hr />
+
+  <h2>1 · The options</h2>
+  <p class="lede">Same 18 pt, same colours, same hierarchy. Only the face and the weight change.</p>
+
+  <div class="options">
+
+    <div class="option">
+      <header>
+        <span class="name">SF Pro Text · Regular</span>
+        <span class="tag">Before</span>
+      </header>
+      <p class="spec"><b>design: .default</b> · weight <b>.regular</b> · 18 pt<br />What the app rendered before this change — the flat baseline.</p>
+      <div class="lyric-demo">
+        <div class="prev sf-text-r400">I see a little silhouetto of a man</div>
+        <div class="hero sf-text-r400">Scaramouche, Scaramouche, will you do the Fandango?</div>
+        <div class="next sf-text-r400">Thunderbolt and lightning, very, very frightening me</div>
+      </div>
+    </div>
+
+    <div class="option rec">
+      <header>
+        <span class="name">SF Pro Display · Bold</span>
+        <span class="tag">The build</span>
+      </header>
+      <p class="spec"><b>design: .default</b> · weight <b>.bold</b> · 18 pt<br />The Apple Music full-screen lyric panel — and what the app now renders.</p>
+      <div class="lyric-demo">
+        <div class="prev sf-disp-r700">I see a little silhouetto of a man</div>
+        <div class="hero sf-disp-r700">Scaramouche, Scaramouche, will you do the Fandango?</div>
+        <div class="next sf-disp-r700">Thunderbolt and lightning, very, very frightening me</div>
+      </div>
+    </div>
+
+    <div class="option">
+      <header>
+        <span class="name">SF Pro Rounded · Semibold</span>
+        <span class="tag">Not chosen</span>
+      </header>
+      <p class="spec"><b>design: .rounded</b> · weight <b>.semibold</b> · 18 pt<br />The rounded alternative considered and passed over — what Apple Music Sing uses.</p>
+      <div class="lyric-demo">
+        <div class="prev sf-rnd-r600">I see a little silhouetto of a man</div>
+        <div class="hero sf-rnd-r600">Scaramouche, Scaramouche, will you do the Fandango?</div>
+        <div class="next sf-rnd-r600">Thunderbolt and lightning, very, very frightening me</div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">
+    The face is <code>.default</code>, which on iOS resolves to the <b>Text</b> optical size below
+    20 pt and the <b>Display</b> one above it — so the widget rows render in SF Pro Text while the
+    28 pt lyrics page renders in SF Pro Display, with no separate handling anywhere in the code.
+    The weight is <code>.bold</code> on every lyric row, hero and neighbours alike: the hierarchy is
+    the opacity ladder (0.36–0.82), which is what lets one bold weight carry both the active line
+    and the dimmed context without a second weight axis fighting the fade.
+  </p>
+
+  <hr />
+
+  <h2>2 · Real surfaces, at real sizes</h2>
+  <p class="lede">
+    Left column shipped before this change; right column shipped after. Same geometry, same
+    strings, same wrap budget — <code>LyricRowBudget</code> allows the hero three rows on these
+    surfaces.
+  </p>
+
+  <div class="surfaces">
+
+    <div class="surface">
+      <div class="caption"><b>Lock Screen banner</b> · 119 pt block · 18 pt</div>
+      <div class="card" style="width:300px;height:167px;">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody</span>
+          <span class="badge"><span class="dot"></span>Playing</span>
+        </div>
+        <div class="lyrics sf-text-r400">
+          <div class="prev">I see a little silhouetto of a man</div>
+          <div class="hero">Scaramouche, Scaramouche, will you do the Fandango?</div>
+        </div>
+        <div class="track"><i></i></div>
+      </div>
+      <div class="card shipped" style="width:300px;height:167px;">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody</span>
+          <span class="badge"><span class="dot"></span>Playing</span>
+        </div>
+        <div class="lyrics">
+          <div class="prev">I see a little silhouetto of a man</div>
+          <div class="hero">Scaramouche, Scaramouche, will you do the Fandango?</div>
+        </div>
+        <div class="track"><i></i></div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="caption"><b>Home Screen widget, small</b> · 158 × 158 · 18 pt</div>
+      <div class="card w-small">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody — Queen</span>
+          <span class="badge"><span class="dot"></span></span>
+        </div>
+        <div class="lyrics sf-text-r400">
+          <div class="hero">Scaramouche, will you do the Fandango?</div>
+          <div class="next">Thunderbolt and lightning</div>
+        </div>
+      </div>
+      <div class="card w-small shipped">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody — Queen</span>
+          <span class="badge"><span class="dot"></span></span>
+        </div>
+        <div class="lyrics">
+          <div class="hero">Scaramouche, will you do the Fandango?</div>
+          <div class="next">Thunderbolt and lightning</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="surface">
+      <div class="caption"><b>CarPlay dashboard</b> · 14 pt · read at a glance</div>
+      <div class="card w-carplay">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody</span>
+        </div>
+        <div class="lyrics sf-text-r400">
+          <div class="hero">Scaramouche, will you do the Fandango?</div>
+          <div class="next">Thunderbolt and lightning</div>
+        </div>
+      </div>
+      <div class="card w-carplay shipped">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody</span>
+        </div>
+        <div class="lyrics">
+          <div class="hero">Scaramouche, will you do the Fandango?</div>
+          <div class="next">Thunderbolt and lightning</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="surfaces" style="margin-top:22px;">
+    <div class="surface">
+      <div class="caption"><b>Medium widget</b> · 338 × 158 · before vs after</div>
+      <div class="card w-medium">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody</span>
+          <span class="artist">Queen</span>
+          <span class="badge"><span class="dot"></span>Playing</span>
+        </div>
+        <div class="lyrics sf-text-r400">
+          <div class="prev">I see a little silhouetto of a man</div>
+          <div class="hero">Scaramouche, Scaramouche, will you do the Fandango?</div>
+        </div>
+        <div class="track"><i></i></div>
+      </div>
+      <div class="card w-medium shipped">
+        <div class="identity">
+          <span class="title">Bohemian Rhapsody</span>
+          <span class="artist">Queen</span>
+          <span class="badge"><span class="dot"></span>Playing</span>
+        </div>
+        <div class="lyrics">
+          <div class="prev">I see a little silhouetto of a man</div>
+          <div class="hero">Scaramouche, Scaramouche, will you do the Fandango?</div>
+        </div>
+        <div class="track"><i></i></div>
+      </div>
+    </div>
+  </div>
+
+  <hr />
+
+  <h2>3 · The chrome, for context</h2>
+  <p class="lede">
+    Everything that is not a lyric stays in San Francisco. Mixing a rounded lyric face with
+    standard chrome is exactly what Apple Music Sing and Podcasts do — the rounded face is a
+    signal for "this is the content", not a global theme.
+  </p>
+
+  <div class="appscale">
+    <div class="row"><span class="sample app-title">Caraoke</span><span class="label">35 bold</span></div>
+    <div class="row"><span class="sample app-row">Live Lyrics</span><span class="label">17 medium</span></div>
+    <div class="row"><span class="sample app-card">Music Sources</span><span class="label">16 semibold</span></div>
+    <div class="row"><span class="sample app-body">Dynamic Island and Lock Screen</span><span class="label">15 regular</span></div>
+    <div class="row"><span class="sample app-sub">Connected</span><span class="label">13 semibold</span></div>
+    <div class="row"><span class="sample app-cap">Waiting for lyrics…</span><span class="label">12 regular</span></div>
+    <div class="row"><span class="sample app-micro">Queen — Bohemian Rhapsody</span><span class="label">11.5 regular</span></div>
+    <div class="row"><span class="sample app-time">-4:13</span><span class="label">11 regular</span></div>
+  </div>
+
+  <hr />
+
+  <h2>4 · What this changes, and what it does not</h2>
+
+  <div class="verdict">
+    <h3>Safe to change — the budget does not move</h3>
+    <ul>
+      <li>
+        <span class="swatch" style="background:#7fd18b"></span>
+        <b>Face and weight are free.</b> <code>LyricRowBudget.height(rows:)</code> is pure arithmetic —
+        <code>rows × font + (rows−1) × lineSpacing</code> — so swapping the face, or the weight,
+        cannot invalidate a single height assertion in <code>Tests/main.swift</code>.
+      </li>
+      <li>
+        <span class="swatch" style="background:#7fd18b"></span>
+        <b>Rounded sets a little wider than SF Pro Text at the same size.</b> A long line wraps
+        perhaps one word sooner; the three-row hero allowance the surfaces already carry absorbs
+        that, which is why 18 pt did not need to move.
+      </li>
+      <li>
+        <span class="swatch" style="background:#7fd18b"></span>
+        <b>Every surface picks it up at once.</b> One <code>LyricType.font(size:weight:)</code> helper
+        is now the only way a lyric font gets built — the rows, the placeholder lines, "No lyrics
+        found for this song" and the Dynamic Island's expanded hero all go through it.
+      </li>
+      <li>
+        <span class="swatch" style="background:#7fd18b"></span>
+        <b>Dynamic Type still works.</b> A system font scales; a bundled font would not. Rounded is a
+        <code>Font.Design</code> on the system font, not a different typeface — it keeps every
+        accessibility behaviour, including the larger accessibility sizes.
+      </li>
+    </ul>
+  </div>
+
+  <div class="verdict" style="border-color:var(--border);">
+    <h3 style="color:var(--muted)">Left alone deliberately</h3>
+    <ul>
+      <li>
+        <span class="swatch" style="background:#e0a33e"></span>
+        <b>Size.</b> 18 pt is what makes <code>layoutFontIs18</code> pass, and the row budgets are
+        asserted against it. The face change is the one that alters the feel; moving the size at the
+        same time would confound the two and only a device could tell them apart.
+      </li>
+      <li>
+        <span class="swatch" style="background:#e0a33e"></span>
+        <b>Chrome, controls and metrics.</b> Standard San Francisco throughout. The rounded face is a
+        content marker, not a theme — the same split Apple Music Sing and Podcasts use.
+      </li>
+      <li>
+        <span class="swatch" style="background:#e0a33e"></span>
+        <b>Icon glyphs.</b> SF Symbols carry their own optical weight; they are not type and are
+        untouched.
+      </li>
+    </ul>
+  </div>
+
+  <p class="note" style="margin-top:22px;">
+    Measurement note: the point sizes above are real — 18 pt, 14 pt, 158 pt — because a browser
+    at default zoom maps 1 px to 1 pt on a non-Retina logical grid. If the comparison is being read
+    on a scaled display, set the page to 100% before judging the weights.
+  </p>
+
+</div>
+</body>
+</html>

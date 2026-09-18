@@ -176,7 +176,7 @@ struct CaraokeWidgetEntryView: View {
                 )
                 .widgetURL(URL(string: "caraoke://lyrics"))
                 .containerBackground(for: .widget) {
-                    WidgetArtworkBackground(theme: theme, artworkColorHex: entry.artworkColorHex)
+                    WidgetArtworkBackground(theme: theme, artworkData: entry.artworkData)
                 }
             }
         }
