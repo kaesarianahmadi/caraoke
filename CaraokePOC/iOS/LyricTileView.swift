@@ -210,8 +210,9 @@ struct LyricTileView: View {
         }
     }
 
-    /// The tile shows a progress bar unless disabled or in the terminal stale state.
-    private var showsProgress: Bool { showsProgressBar && status != .stale }
+    /// The tile shows a progress bar unless disabled or in a terminal state —
+    /// there is no live position to report in either.
+    private var showsProgress: Bool { showsProgressBar && status != .stale && status != .expired }
 
     init(title: String, artist: String, currentLine: String,
          previousLines: [String] = [],
@@ -440,6 +441,28 @@ struct LyricTileView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Lyrics return when a song plays")
+                    .font(LyricType.font(size: spec.font))
+                    .foregroundColor(colors.metaText)
+                    .multilineTextAlignment(.center)
+            }, spec: spec, alignment: .center)
+        case .expired:
+            // The payload outlived the song it describes — the app stopped
+            // reloading and the baked timeline is spent. Saying so beats
+            // freezing on a line that is no longer playing: the user gets a
+            // signal and a way out instead of assuming the app is broken. The
+            // cover is the resync button (`ResyncWidgetIntent`), which is what
+            // `needsResync` already lights up.
+            boxed(VStack(alignment: .center, spacing: LyricType.lyricRowSpacing) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: spec.font, weight: .bold))
+                        .foregroundColor(colors.heroText)
+                    Text("Out of date")
+                        .font(LyricType.font(size: spec.font, weight: LyricType.lyricHeroWeight))
+                        .foregroundColor(colors.heroText)
+                        .lineLimit(1)
+                }
+                Text("Tap the cover to resync")
                     .font(LyricType.font(size: spec.font))
                     .foregroundColor(colors.metaText)
                     .multilineTextAlignment(.center)

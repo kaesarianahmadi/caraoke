@@ -751,7 +751,9 @@ final class TestRunner {
             func payload(lines: [SharedLyricLine],
                          playing: Bool = true,
                          status: String = LyricStatus.playing.rawValue,
-                         startedSecondsAgo: Double = 6) -> SharedWidgetPayload {
+                         startedSecondsAgo: Double = 6,
+                         nextStartMs: Int = 0,
+                         nextDurationMs: Int = 0) -> SharedWidgetPayload {
                 SharedWidgetPayload(
                     title: "T", artist: "A", currentLine: "ignored",
                     isPlaying: playing, progress: 0,
@@ -759,7 +761,9 @@ final class TestRunner {
                     trackStartEpochMs: Int((start.timeIntervalSince1970 - startedSecondsAgo) * 1000),
                     durationMs: 30_000,
                     lines: lines,
-                    source: "spotify"
+                    source: "spotify",
+                    nextStartMs: nextStartMs,
+                    nextDurationMs: nextDurationMs
                 )
             }
             let lines = [
@@ -814,6 +818,80 @@ final class TestRunner {
             let capped = WidgetTimelineBuilder.entries(for: payload(lines: many, startedSecondsAgo: 10), now: start)
             checkEqual("widgetCappedCount", capped.count, WidgetTimelineBuilder.maxEntries)
             checkEqual("widgetCappedStart", capped.first?.lineIndex, 10)
+
+            // Build 56 — the chained next song.
+            //
+            // The app asks Spotify's queue what plays next and appends those
+            // lines to the same array past this song's boundary. One timeline
+            // then crosses the song change with no reload, no wake and no
+            // WidgetKit budget — which is the only way an uninterrupted drive
+            // stays in sync without the app being alive.
+            let chainedLines = lines + [
+                SharedLyricLine(timeMs: 30_000, text: "next-one"),
+                SharedLyricLine(timeMs: 34_000, text: "next-two"),
+            ]
+            let chained = payload(lines: chainedLines, startedSecondsAgo: 28,
+                                  nextStartMs: 30_000, nextDurationMs: 20_000)
+            checkEqual("widgetChainedSpan", chained.chainedSpanMs, 50_000)
+            checkEqual("widgetUnchainedSpan", payload(lines: lines).chainedSpanMs, 30_000)
+
+            let chainedEntries = WidgetTimelineBuilder.entries(for: chained, now: start, includeOutro: true)
+            let acrossBoundary = chainedEntries.filter { $0.currentLine.hasPrefix("next-") }
+            checkEqual("widgetChainedCrossesBoundary", acrossBoundary.count, 2)
+            check("widgetChainedMarksNextTrack", acrossBoundary.allSatisfy { $0.isNextTrack })
+            check("widgetChainedKeepsCurrentTrackCurrent",
+                  chainedEntries.filter { !$0.currentLine.isEmpty && !$0.currentLine.hasPrefix("next-") }
+                      .allSatisfy { !$0.isNextTrack })
+            // WidgetKit plays entries in date order; a non-monotonic timeline
+            // would render the boundary out of order.
+            check("widgetChainedDatesAscend",
+                  zip(chainedEntries, chainedEntries.dropFirst()).allSatisfy { $0.date <= $1.date })
+            // The bar belongs to the song playing, so it restarts at the
+            // boundary instead of sitting pinned at 100 %.
+            checkEqual("widgetChainedProgressRestarts", acrossBoundary.first?.progress, 0)
+            checkEqual("widgetChainedProgressAtBoundaryEnd", acrossBoundary.last?.progress, 0.2)
+            checkEqual("widgetProgressUnchained",
+                       WidgetTimelineBuilder.progressFraction(for: 15_000, payload: payload(lines: lines)), 0.5)
+
+            // The terminal entry: built while the payload is still valid, dated
+            // past the end of everything it covers, so the tile flips itself to
+            // the resync affordance with no reload and no budget spend.
+            let expiredEntry = chainedEntries.last
+            check("widgetExpiredEntryIsLast", expiredEntry?.isExpired == true)
+            checkEqual("widgetExpiredEntryDate", expiredEntry?.date,
+                       Date(timeIntervalSince1970: start.timeIntervalSince1970 + 42))
+            // Dated strictly past the end of the span, never inside it: a tile
+            // must not claim to be out of date while the song is still playing.
+            let plannedExpiry = WidgetTimelineBuilder.entries(for: payload(lines: lines), now: start, includeOutro: true)
+                .first { $0.isExpired }
+            checkEqual("widgetExpiredEntrySitsPastSpan", plannedExpiry?.date,
+                       Date(timeIntervalSince1970: start.timeIntervalSince1970 + 44))
+            // Snapshots are built without the outro, so they never carry it.
+            check("widgetSnapshotHasNoExpiredEntry",
+                  !WidgetTimelineBuilder.entries(for: payload(lines: lines), now: start)
+                      .contains { $0.isExpired })
+            // A timeline truncated by the entry cap is refilled long before this
+            // date, so claiming "out of date" on it would be a lie.
+            check("widgetCappedHasNoExpiredEntry",
+                  !WidgetTimelineBuilder.entries(for: payload(lines: many, startedSecondsAgo: 10),
+                                                 now: start, includeOutro: true).contains { $0.isExpired })
+
+            // `isExpired` is what gates the provider's self-repair, so it must
+            // be false for a song still playing and false for a payload with no
+            // clock to reason about.
+            check("widgetExpiredGatesSelfFetch",
+                  WidgetTimelineBuilder.isExpired(payload: payload(lines: chainedLines, startedSecondsAgo: 90,
+                                                                  nextStartMs: 30_000, nextDurationMs: 20_000),
+                                                  now: start))
+            check("widgetNotExpiredMidSong",
+                  !WidgetTimelineBuilder.isExpired(payload: payload(lines: lines), now: start))
+            check("widgetNotExpiredAtSongStart",
+                  !WidgetTimelineBuilder.isExpired(payload: payload(lines: lines, startedSecondsAgo: 0), now: start))
+            var noClock = payload(lines: lines)
+            noClock.trackStartEpochMs = 0
+            check("widgetNotExpiredWithoutStart", !WidgetTimelineBuilder.isExpired(payload: noClock, now: start))
+            check("widgetNotExpiredPaused",
+                  !WidgetTimelineBuilder.isExpired(payload: payload(lines: lines, playing: false), now: start))
         }
 
         // MARK: Lyric layout budget (build 41, revised build 46)

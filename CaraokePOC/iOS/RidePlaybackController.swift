@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import UIKit
 import WidgetKit
+import os
 
 // The REAL playback pipeline, wired end-to-end:
 //
@@ -71,6 +72,20 @@ final class RidePlaybackController: ObservableObject {
     private var syncHeartbeatTask: Task<Void, Never>?
     /// Drift beyond this triggers a widget payload rewrite + timeline reload.
     private static let syncDriftThresholdMs = 2000
+    /// Set when a correction must reach the widget even though nothing about
+    /// the track, play state or status changed — the reload gate below only
+    /// opens on a visible change, so a drift correction would otherwise be
+    /// written to the shared store and never picked up.
+    private var forceWidgetReload = false
+    /// What the player says plays next, plus its lyrics, resolved on every
+    /// track change and baked into the same widget timeline as the current
+    /// song. Spotify only: MusicKit exposes no public queue.
+    private var chainedTrack: LyricTrack?
+    private var chainedNext: TransportControl.QueuedTrack?
+    private var chainTask: Task<Void, Never>?
+    /// Boundary diagnostics — the only way to tell "the app stopped reloading"
+    /// from "the reload was throttled", which look identical on screen.
+    private static let log = Logger(subsystem: "com.caraoke.poc", category: "ride")
 
     init(activity: CaraokeActivityController,
          provider: any LyricsRepository = FallbackLyricsProvider(),
@@ -138,6 +153,11 @@ final class RidePlaybackController: ObservableObject {
         relay.end()
         lyricsFetchTask?.cancel()
         lyricsFetchTask = nil
+        chainTask?.cancel()
+        chainTask = nil
+        chainedTrack = nil
+        chainedNext = nil
+        forceWidgetReload = false
         lastLyricsKey = nil
         lastTrack = nil
         currentArtworkData = nil
@@ -216,6 +236,10 @@ final class RidePlaybackController: ObservableObject {
             lastLyricsKey = key
             lastTrack = nil
             lyricsFetchTask?.cancel()
+            chainTask?.cancel()
+            chainedTrack = nil
+            chainedNext = nil
+            Self.log.info("track change → \(state.title, privacy: .public)")
             engine.setLyrics([])
             currentLine = ""
             currentTranslation = nil
@@ -274,6 +298,40 @@ final class RidePlaybackController: ObservableObject {
             )
             self.armRelay(track: track)
             self.lyricState = .playing
+            self.render(self.engine.positionSubject.value)
+            Self.log.info("lyrics landed → \(track.lines.count, privacy: .public) lines, widget write follows")
+            self.startChainFetch()
+        }
+    }
+
+    /// Asks the player what follows this track and resolves its lyrics, so the
+    /// widget's next timeline carries the song change instead of waiting for a
+    /// wake that iOS is free to refuse (build 56).
+    ///
+    /// Speculative by design: a skip invalidates the guess, and the app's own
+    /// reload on the real track change replaces it. The upside is the case that
+    /// matters on a drive — an uninterrupted song change needs no reload, no
+    /// wake, and no budget at all.
+    private func startChainFetch() {
+        chainTask?.cancel()
+        chainedTrack = nil
+        chainedNext = nil
+        guard engine.anchor?.source == .spotify else { return }
+        chainTask = Task { [weak self] in
+            guard let self else { return }
+            guard let queued = await TransportControl.spotifyNextInQueue(),
+                  !Task.isCancelled, queued.durationMs > 0 else { return }
+            let signature = TrackSignature(title: queued.title, artist: queued.artist,
+                                           album: queued.album, durationMs: queued.durationMs)
+            guard let next = try? await self.provider.lyrics(for: signature),
+                  !Task.isCancelled, !next.lines.isEmpty else { return }
+            self.chainedNext = queued
+            self.chainedTrack = next
+            Self.log.info("chained next → \(queued.title, privacy: .public) (\(next.lines.count, privacy: .public) lines)")
+            // The payload now knows the future: rewrite and reload so the
+            // widget picks up a timeline that crosses the boundary on its own.
+            self.lastWidgetSignature = nil
+            self.forceWidgetReload = true
             self.render(self.engine.positionSubject.value)
         }
     }
@@ -369,13 +427,19 @@ final class RidePlaybackController: ObservableObject {
 
     /// Writes the shared payload and asks WidgetKit to rebuild the timeline.
     ///
-    /// Two deliberate limits, both learned from build 38's dead widgets:
+    /// Three deliberate limits, all learned from dead widgets:
+    /// - a track change clears the lyrics before the fetch returns, and writing
+    ///   that empty payload is what froze the tile on the new song's blank
+    ///   state — the outgoing song is held until there are real lines, and the
+    ///   reload then carries them;
     /// - the write is skipped unless the rendered state actually changed
     ///   (`render` runs 4×/s, and keychain writes are not free);
     /// - the reload is skipped unless the track, play state or lyric status
     ///   changed. The widget's own timeline already advances line by line, so
     ///   reloading on a timer only burned WidgetKit's daily budget.
     private func syncWidget(snapshot: LyricSnapshot) {
+        guard snapshot.status != .loading else { return }
+
         let anchor = engine.anchor
         let key = TrackMatcher.signature(
             title: snapshot.title, artist: snapshot.artist, durationMs: snapshot.durationMs
@@ -386,9 +450,29 @@ final class RidePlaybackController: ObservableObject {
             trackStartKey = key
         }
 
-        let widgetLines = lastTrack?.lines.map {
+        var widgetLines = lastTrack?.lines.map {
             SharedLyricLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation)
         } ?? []
+        // Chain the song the player says comes next into the same array, offset
+        // by this song's length, so one timeline crosses the boundary with no
+        // reload. Only meaningful when this song's own lines end before the
+        // boundary — otherwise the offsets would land out of order.
+        let spanMs = snapshot.durationMs ?? 0
+        var nextStartMs = 0
+        var nextDurationMs = 0
+        var nextTitle = ""
+        var nextArtist = ""
+        if let chained = chainedTrack, let queued = chainedNext,
+           spanMs > 0, queued.durationMs > 0,
+           let lastLine = widgetLines.last, lastLine.timeMs < spanMs {
+            widgetLines += chained.lines.map {
+                SharedLyricLine(timeMs: spanMs + $0.startMs, text: $0.text, translation: $0.translation)
+            }
+            nextStartMs = spanMs
+            nextDurationMs = queued.durationMs
+            nextTitle = queued.title
+            nextArtist = queued.artist
+        }
 
         let signature = [
             key,
@@ -397,6 +481,7 @@ final class RidePlaybackController: ObservableObject {
             snapshot.status.rawValue,
             String(trackStartEpochMs / 1000),
             String(widgetLines.count),
+            String(nextStartMs),
             artworkColorHex ?? "-",
         ].joined(separator: "|")
         guard signature != lastWidgetSignature else { return }
@@ -418,7 +503,12 @@ final class RidePlaybackController: ObservableObject {
             lines: widgetLines,
             artworkData: currentArtworkData,
             artworkColorHex: artworkColorHex,
-            source: anchor?.source.rawValue ?? "appleMusic"
+            source: anchor?.source.rawValue ?? "appleMusic",
+            resyncingUntilMs: 0,
+            nextStartMs: nextStartMs,
+            nextDurationMs: nextDurationMs,
+            nextTitle: nextTitle,
+            nextArtist: nextArtist
         )
         SharedWidgetStore.write(payload)
 
@@ -429,12 +519,19 @@ final class RidePlaybackController: ObservableObject {
         // Spotify serves it over the network — so the widget must reload again
         // or it keeps the artwork-less timeline it was first handed.
         let isArtworkChanged = artworkColorHex != lastWidgetArtworkHex
-        guard isTitleChanged || isPlayStateChanged || isStatusChanged || isArtworkChanged else { return }
+        // A drift correction has to be able to reach the widget on its own:
+        // nothing about the track, play state or status changed, so without
+        // this the heartbeat's fix was written to the shared store and never
+        // picked up until the next song.
+        let forced = forceWidgetReload
+        forceWidgetReload = false
+        guard forced || isTitleChanged || isPlayStateChanged || isStatusChanged || isArtworkChanged else { return }
         lastWidgetTitle = snapshot.title
         lastWidgetIsPlaying = snapshot.isPlaying
         lastWidgetStatus = snapshot.status.rawValue
         lastWidgetArtworkHex = artworkColorHex
         WidgetCenter.shared.reloadAllTimelines()
+        Self.log.info("widget reload: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
     }
 
     // MARK: - Artwork
@@ -500,6 +597,11 @@ final class RidePlaybackController: ObservableObject {
                 } ?? 0
                 if widgetMs > 0, abs(extrapolatedMs - widgetMs) > Self.syncDriftThresholdMs {
                     self.lastWidgetSignature = nil
+                    // Without this the corrected payload is written and the
+                    // reload gate below refuses it — the drift fix never
+                    // reached the tile.
+                    self.forceWidgetReload = true
+                    Self.log.info("drift \(extrapolatedMs - widgetMs, privacy: .public)ms → forcing widget reload")
                     self.render(self.engine.positionSubject.value)
                 }
             }

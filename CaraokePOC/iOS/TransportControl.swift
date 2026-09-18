@@ -234,6 +234,42 @@ enum TransportControl {
         return (active ?? devices.first)?["id"] as? String
     }
 
+    // MARK: - Queue lookahead
+
+    /// The next track Spotify says will play, used to bake the song change into
+    /// the widget's timeline so it needs no reload at the boundary.
+    struct QueuedTrack: Equatable, Sendable {
+        let title: String
+        let artist: String
+        let album: String?
+        let durationMs: Int
+    }
+
+    /// What follows the current track, per Spotify's own queue. Needs the
+    /// `user-read-playback-state` scope the ride pipeline already polls with, so
+    /// it costs no extra consent. Nil when nothing is queued, the token is gone,
+    /// or the player is driving something else.
+    static func spotifyNextInQueue(timeout: TimeInterval = 6) async -> QueuedTrack? {
+        guard let token = await accessToken(),
+              let url = URL(string: "https://api.spotify.com/v1/me/player/queue") else { return nil }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = timeout
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let next = (json["queue"] as? [[String: Any]])?.first,
+              let title = next["name"] as? String else { return nil }
+        let artists = (next["artists"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
+        let album = (next["album"] as? [String: Any])?["name"] as? String
+        let queued = QueuedTrack(title: title,
+                                 artist: artists.joined(separator: ", "),
+                                 album: album,
+                                 durationMs: next["duration_ms"] as? Int ?? 0)
+        log("queue lookahead: \(queued.title)")
+        return queued
+    }
+
     private static func send(_ request: URLRequest) async -> Result<Void, TransportFailure> {
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse else {

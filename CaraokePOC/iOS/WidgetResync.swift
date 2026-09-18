@@ -1,8 +1,9 @@
 import Foundation
 import WidgetKit
 
-/// Widget-side resync, run by `ResyncWidgetIntent` when the user taps a
-/// widget's record/cover.
+/// Widget-side resync. One repair, two triggers: `ResyncWidgetIntent` when the
+/// user taps a widget's record/cover, and the widget provider itself when a
+/// timeline wake finds its payload spent.
 ///
 /// The tap must not be a no-op and must not merely open the app. So: pulse the
 /// cover immediately (the widget has no animation, the pulse rides the
@@ -30,12 +31,31 @@ enum WidgetResync {
         SharedWidgetStore.write(payload)
         WidgetCenter.shared.reloadAllTimelines()
 
+        await refreshNowPlaying()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Asks the player what is on right now and rewrites the shared payload
+    /// from the answer. Two triggers share this one repair (build 56): the
+    /// cover tap, and the widget's own timeline wake when it finds its payload
+    /// spent. The self-fetch is what keeps the tile following the music when
+    /// the app has been suspended and cannot reload us.
+    ///
+    /// `timeout` is per request — the timeline wake runs on WidgetKit's clock
+    /// and must not outlive it, because an overrunning extension is killed and
+    /// the old timeline is kept.
+    @discardableResult
+    static func refreshNowPlaying(timeout: TimeInterval = 8) async -> SharedWidgetPayload? {
+        guard var payload = SharedWidgetStore.read() else { return nil }
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+
         guard payload.source == "spotify",
               let token = await TransportControl.accessToken(),
-              let playing = await spotifyNowPlaying(token: token) else { return }
+              let playing = await spotifyNowPlaying(token: token, timeout: timeout) else { return nil }
 
         // Same song with lyrics already loaded: the only thing that drifts is
-        // the clock, so re-anchor it and keep everything else.
+        // the clock, so re-anchor it and keep everything else — including a
+        // chained next song, which is still the one that follows this track.
         if playing.title == payload.title, !payload.lines.isEmpty {
             payload.trackStartEpochMs = nowMs - playing.progressMs
             payload.durationMs = playing.durationMs
@@ -44,12 +64,11 @@ enum WidgetResync {
             payload.status = (playing.isPlaying ? LyricStatus.playing : LyricStatus.paused).rawValue
             payload.resyncingUntilMs = 0
             SharedWidgetStore.write(payload)
-            WidgetCenter.shared.reloadAllTimelines()
-            return
+            return payload
         }
 
         let lines = await syncedLyrics(title: playing.title, artist: playing.artist,
-                                       durationMs: playing.durationMs)
+                                       durationMs: playing.durationMs, timeout: timeout)
         let position = SyncEngine.position(atMs: playing.progressMs, lines: lines,
                                            durationMs: playing.durationMs,
                                            isPlaying: playing.isPlaying)
@@ -59,6 +78,9 @@ enum WidgetResync {
         } else {
             status = playing.isPlaying ? .playing : .paused
         }
+        // Built fresh, so the previous chain is dropped: this payload describes
+        // a different song now, and nothing has looked ahead for it yet. The
+        // app re-chains on its next track change.
         let refreshed = SharedWidgetPayload(
             title: playing.title,
             artist: playing.artist,
@@ -75,7 +97,7 @@ enum WidgetResync {
             source: "spotify"
         )
         SharedWidgetStore.write(refreshed)
-        WidgetCenter.shared.reloadAllTimelines()
+        return refreshed
     }
 
     private static func fraction(_ positionMs: Int, _ durationMs: Int) -> Double {
@@ -85,11 +107,11 @@ enum WidgetResync {
 
     // MARK: - Spotify
 
-    private static func spotifyNowPlaying(token: String) async -> NowPlaying? {
+    private static func spotifyNowPlaying(token: String, timeout: TimeInterval) async -> NowPlaying? {
         guard let url = URL(string: "https://api.spotify.com/v1/me/player") else { return nil }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 8
+        request.timeoutInterval = timeout
         guard let (data, _) = try? await URLSession.shared.data(for: request),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let item = json["item"] as? [String: Any],
@@ -106,7 +128,8 @@ enum WidgetResync {
 
     // MARK: - LRCLIB (free, keyless — same endpoint the app's provider uses)
 
-    private static func syncedLyrics(title: String, artist: String, durationMs: Int) async -> [LRCLine] {
+    private static func syncedLyrics(title: String, artist: String, durationMs: Int,
+                                     timeout: TimeInterval) async -> [LRCLine] {
         var components = URLComponents(string: "https://lrclib.net/api/get")
         components?.queryItems = [
             URLQueryItem(name: "track_name", value: title),
@@ -116,7 +139,7 @@ enum WidgetResync {
         guard let url = components?.url else { return [] }
         var request = URLRequest(url: url)
         request.setValue("Caraoke/0.1 (https://github.com/caraoke/caraoke)", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 10
+        request.timeoutInterval = timeout
         guard let (data, _) = try? await URLSession.shared.data(for: request),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let synced = json["syncedLyrics"] as? String else { return [] }
