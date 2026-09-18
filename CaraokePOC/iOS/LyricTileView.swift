@@ -385,6 +385,7 @@ struct LyricTileView: View {
     /// never shrinks below its nominal size, fixing the "active line in first
     /// row instead of middle" defect. `maxHeight:` is removed for the lock
     /// banner too — the ceiling was letting the block collapse.
+    @ViewBuilder
     private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
         let boxH = customBoxHeight ?? spec.boxHeight
         if (surface == .lockBanner || surface == .carPlaySmall || surface == .home), let h = boxH {
