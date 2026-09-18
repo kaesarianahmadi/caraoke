@@ -1,0 +1,56 @@
+name: Remote CarPlay Simulator
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-simulator:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Xcode Project
+        working-directory: CaraokePOC
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build Caraoke for Simulator
+        working-directory: CaraokePOC
+        run: |
+          xcodebuild -project Caraoke.xcodeproj -scheme Caraoke \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: Boot Simulator with CarPlay Display
+        working-directory: CaraokePOC
+        run: |
+          DEVICE_UDID=$(xcrun simctl list devices available | grep -E "iPhone 16|iPhone 15" | head -n 1 | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/')
+          if [ -z "$DEVICE_UDID" ]; then
+            DEVICE_UDID=$(xcrun simctl list devices available | grep -m 1 "iPhone" | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/')
+          fi
+          echo "Selected Device: $DEVICE_UDID"
+          xcrun simctl boot "$DEVICE_UDID"
+          defaults write com.apple.CoreSimulator.IndigoSimulatorVideo ExternalDisplayType CarPlay
+          open -a Simulator
+          sleep 5
+          APP_PATH=$(find .build/DerivedData -name "Caraoke.app" -type d | head -n 1)
+          xcrun simctl install "$DEVICE_UDID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_UDID" app.caraoke.ios "caraoke://ride?demo=true" || true
+
+      - name: Enable macOS Screen Sharing (VNC)
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate -configure -access -on \
+            -clientopts -setvnclegacy -vnclegacy yes \
+            -setvncpw -vncpw caraoke \
+            -restart -agent -privs -all
+
+      - name: Start Interactive Tunnel
+        uses: mxschmitt/action-tmate@v3
+        with:
+          detached: false
