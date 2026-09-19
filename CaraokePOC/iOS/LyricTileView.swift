@@ -53,6 +53,9 @@ struct LyricTileLayout {
     /// Gap between wrapped lines of one lyric. Same default-and-override story
     /// as `rowSpacing`.
     var lineSpacing: CGFloat = LyricType.lyricLineSpacing
+    /// Maximum width of the lyric column. Enforces a slim, compact column so
+    /// long lines wrap into 2-3 short, punchy lines rather than stretching horizontally.
+    var maxLyricWidth: CGFloat? = nil
 }
 
 struct LyricTilePalette {
@@ -156,15 +159,16 @@ struct LyricTileView: View {
             return LyricTileLayout(boxHeight: LyricSurface.lockBanner.blockHeight,
                                    showsHeader: false, showsHeaderOnIntro: true,
                                    edgeFade: true,
-                                   padding: customPadding ?? 5,
+                                   padding: customPadding ?? 16,
                                    chromeHeight: LyricSurface.lockBanner.chromeHeight,
                                    rowSpacing: customRowSpacing ?? 5,
-                                   lineSpacing: customLineSpacing ?? 1.5)
+                                   lineSpacing: customLineSpacing ?? 1.5,
+                                   maxLyricWidth: 250)
         case .carPlaySmall:
-            // CarPlay Stack / Dashboard mirror. Text-only features use 1 pt padding
-            // and full container height; features with controls/progress use 5 pt.
+            // CarPlay Stack / Dashboard mirror. Slim 135 pt column forces
+            // long lines to wrap into 2-3 short, punchy lines without stretching.
             let isTextOnly = !showsProgressBar
-            let defaultPadding: CGFloat = isTextOnly ? 1 : 5
+            let defaultPadding: CGFloat = isTextOnly ? 8 : 8
             return LyricTileLayout(boxHeight: isTextOnly ? nil : (customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight),
                                    maxBoxHeight: isTextOnly ? nil : (customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight),
                                    headerCompact: true,
@@ -172,37 +176,43 @@ struct LyricTileView: View {
                                    padding: customPadding ?? defaultPadding,
                                    chromeHeight: LyricSurface.carPlaySmall.chromeHeight,
                                    font: customFont ?? LyricSurface.carPlaySmall.lyricFont,
-                                   rowSpacing: customRowSpacing ?? 4,
-                                   lineSpacing: customLineSpacing ?? 1.5)
+                                   rowSpacing: customRowSpacing ?? 5,
+                                   lineSpacing: customLineSpacing ?? 1.5,
+                                   maxLyricWidth: 135)
         case .widgetSmall:
-            // Apple's 158×158 grid. 5 pt padding maximizes width for lyrics.
+            // Apple's 158×158 grid. Slim 130 pt column wraps lines naturally.
             return LyricTileLayout(boxHeight: LyricSurface.widgetSmall.blockHeight,
                                    headerCompact: true,
                                    edgeFade: true,
-                                   padding: customPadding ?? 5,
+                                   padding: customPadding ?? 10,
                                    chromeHeight: LyricSurface.widgetSmall.chromeHeight,
                                    rowSpacing: customRowSpacing ?? 4,
-                                   lineSpacing: customLineSpacing ?? 1.5)
+                                   lineSpacing: customLineSpacing ?? 1.5,
+                                   maxLyricWidth: 130)
         case .widgetMedium:
             // 338×158: the vinyl/cover takes the right half, lyrics the left.
             return LyricTileLayout(boxHeight: LyricSurface.widgetMedium.blockHeight,
                                    headerCompact: true,
                                    edgeFade: true,
-                                   padding: customPadding ?? 5,
+                                   padding: customPadding ?? 12,
                                    chromeHeight: LyricSurface.widgetMedium.chromeHeight,
                                    rowSpacing: customRowSpacing ?? 5,
-                                   lineSpacing: customLineSpacing ?? 1.5)
+                                   lineSpacing: customLineSpacing ?? 1.5,
+                                   maxLyricWidth: 135)
         case .widgetLarge:
+            // 4x4 grid. Slim 225 pt centered column leaves 80+ pt breathing room
+            // for the bottom player bar and card corners.
             return LyricTileLayout(
-                boxHeight: nil, maxBoxHeight: 332,
+                boxHeight: nil, maxBoxHeight: 240,
                 showsHeader: false, showsHeaderOnIntro: true,
                 edgeFade: true, showsBottomBar: true,
                 centersVertically: true,
-                padding: customPadding ?? 5,
+                padding: customPadding ?? 16,
                 chromeHeight: LyricSurface.widgetLarge.chromeHeight,
                 font: LyricSurface.widgetLarge.lyricFont,
                 rowSpacing: customRowSpacing ?? 6,
-                lineSpacing: customLineSpacing ?? 2)
+                lineSpacing: customLineSpacing ?? 2,
+                maxLyricWidth: 225)
         case .home:
             // The in-app player card — the Live Activity's in-app twin.
             return LyricTileLayout(
@@ -210,10 +220,11 @@ struct LyricTileView: View {
                 headerCompact: true,
                 edgeFade: true,
                 centersVertically: true,
-                padding: customPadding ?? 5,
+                padding: customPadding ?? 14,
                 chromeHeight: LyricSurface.home.chromeHeight,
                 rowSpacing: customRowSpacing ?? 5,
-                lineSpacing: customLineSpacing ?? 1.5)
+                lineSpacing: customLineSpacing ?? 1.5,
+                maxLyricWidth: 250)
         }
     }
 
@@ -644,7 +655,7 @@ struct LyricTileView: View {
             .lineLimit(allowance)
             .lineSpacing(customLineSpacing ?? spec.lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .center)
+            .frame(maxWidth: spec.maxLyricWidth ?? .infinity, alignment: .center)
     }
 
     private var displayUpcomingLines: [String] {

@@ -15,20 +15,20 @@ struct VinylWidgetView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            // 5 pt padding maximizes width for lyrics and cover.
-            let inner = CGSize(width: geometry.size.width - 10,
-                               height: geometry.size.height - 10)
+            // 12 pt padding gives clean widget margins while preserving space for lyrics and disc.
+            let inner = CGSize(width: geometry.size.width - 24,
+                               height: geometry.size.height - 24)
             let lyricsWidth = inner.width * 0.60
-            let disc = min(inner.height, inner.width - lyricsWidth - 6)
+            let disc = min(inner.height, inner.width - lyricsWidth - 8)
 
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 lyricsSection
                     .frame(width: lyricsWidth, alignment: .leading)
                 cover(diameter: disc)
                     .frame(width: disc, height: disc)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .padding(5)
+            .padding(12)
         }
         .foregroundStyle(theme.textColor)
         .containerBackground(for: .widget) {
@@ -79,14 +79,16 @@ struct VinylWidgetView: View {
                     .lineLimit(3)
                     .lineSpacing(LyricType.lyricLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 135, alignment: .leading)
             }
             if let next, !next.isEmpty {
                 Text(next)
                     .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.82))
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .lineSpacing(LyricType.lyricLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 135, alignment: .leading)
             }
         }
         .lyricEdgeFade(active: true)

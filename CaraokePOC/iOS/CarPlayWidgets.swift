@@ -224,7 +224,7 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
             needsResync: entry.status != .playing || entry.resyncPulse < 1,
             showsProgressBar: false,
             customFont: 15,
-            customPadding: 1,
+            customPadding: 8,
             customRowSpacing: 5,
             customLineSpacing: 2
         )
@@ -239,8 +239,8 @@ private struct CaraokeCarPlayHybridWidgetView: View {
     var body: some View {
         let t = entry.theme
         GeometryReader { geo in
-            // Lyrics allocate 68% of the tile height.
-            let lyricHeight = geo.size.height * 0.68
+            // Lyrics allocate 65% of the tile height.
+            let lyricHeight = geo.size.height * 0.65
             VStack(spacing: 0) {
                 LyricTileView(
                     title: entry.title,
@@ -259,7 +259,7 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     needsResync: entry.status != .playing || entry.resyncPulse < 1,
                     showsProgressBar: false,
                     customBoxHeight: lyricHeight,
-                    customPadding: 5
+                    customPadding: 8
                 )
                 .frame(height: lyricHeight)
 
@@ -271,7 +271,7 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
                                            buttonWidth: 26, buttonHeight: 28)
                 }
-                .padding(.horizontal, 5)
+                .padding(.horizontal, 8)
                 .padding(.top, 2)
                 .padding(.bottom, 4)
             }

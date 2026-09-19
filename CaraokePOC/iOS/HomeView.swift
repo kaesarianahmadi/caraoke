@@ -531,26 +531,28 @@ struct HomeWidgetPreview: View {
                         Text(previousLine)
                             .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                             .foregroundStyle(theme.mutedTextColor.opacity(0.42))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .minimumScaleFactor(0.8)
+                            .lineLimit(2)
+                            .lineSpacing(LyricType.lyricLineSpacing)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: 135, alignment: .leading)
                     }
                     if !currentLyricText.isEmpty {
                         Text(currentLyricText)
                             .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricHeroWeight))
                             .foregroundStyle(theme.textColor)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.85)
+                            .lineLimit(3)
                             .lineSpacing(LyricType.lyricLineSpacing)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: 135, alignment: .leading)
                     }
                     if let nextLine, !nextLine.isEmpty {
                         Text(nextLine)
                             .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                             .foregroundStyle(theme.mutedTextColor.opacity(0.62))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .minimumScaleFactor(0.8)
+                            .lineLimit(2)
+                            .lineSpacing(LyricType.lyricLineSpacing)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: 135, alignment: .leading)
                     }
                 }
                 Spacer(minLength: 6)
