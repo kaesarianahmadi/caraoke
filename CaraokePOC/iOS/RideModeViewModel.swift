@@ -106,6 +106,13 @@ final class RideModeViewModel: ObservableObject {
 
     func selectMusicSource(_ source: ActiveMusicSource) {
         activeSource = source
+        let typeStr: String
+        switch source {
+        case .auto: typeStr = "auto"
+        case .spotify: typeStr = "spotify"
+        case .appleMusic: typeStr = "apple_music"
+        }
+        Analytics.signal("playback_source", parameters: ["type": typeStr])
     }
 
     /// Single SpotifyAuth for Settings + pipeline. Exposed read-only.
@@ -280,6 +287,7 @@ final class RideModeViewModel: ObservableObject {
     func startRide() {
         guard !isOn else { return }
         isOn = true
+        Analytics.signal("ride_started")
         UserDefaults.standard.set(true, forKey: Self.rideModeKey)
         elapsedMs = 0
         rideModel.start(at: 0)

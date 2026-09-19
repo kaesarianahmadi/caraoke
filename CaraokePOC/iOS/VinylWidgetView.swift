@@ -64,32 +64,33 @@ struct VinylWidgetView: View {
         }
     }
 
-    /// Active lyric is always anchored at the first row.
-    /// When the active line wraps, it takes all available room (up to 3 rows).
-    /// Next line appears only when the active line is single-row and next line fits
-    /// without truncating (up to 2 rows). Neighbor lyrics never truncate.
+    /// Active lyric is anchored at the first row.
+    /// When upcoming line exists, active line and upcoming line each take 1 row (2 lines total).
+    /// If no upcoming line exists (e.g. final line of song), active line can wrap up to 2 rows.
     private var lyricBlock: some View {
         let text = currentLyricText
-        let heroWraps = text.count > 22
+        let next = entry.nextLine?.trimmingCharacters(in: .whitespaces)
+        let hasNext = next != nil && !next!.isEmpty
 
         return VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
             if !text.isEmpty {
                 Text(text)
                     .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricHeroWeight))
                     .foregroundStyle(theme.textColor)
-                    .lineLimit(heroWraps ? 3 : 1)
+                    .lineLimit(hasNext ? 1 : 2)
                     .lineSpacing(LyricType.lyricLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !heroWraps, let next = entry.nextLine, !next.isEmpty, next.count <= 40 {
+            if let next, !next.isEmpty {
                 Text(next)
                     .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.82))
-                    .lineLimit(2)
+                    .lineLimit(1)
                     .lineSpacing(LyricType.lyricLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .lyricEdgeFade(active: true)
         .id(entry.lineIndex)
         .transition(.push(from: .bottom))
     }

@@ -57,6 +57,11 @@ struct SharedWidgetPayload: Codable, Sendable {
     var nextDurationMs: Int
     var nextTitle: String
     var nextArtist: String
+    /// The chained song's own cover. Needed because the timeline is baked
+    /// across the boundary: without this the entry's header switches to the
+    /// next song while the art stays on the one that already ended.
+    var nextArtworkData: Data?
+    var nextArtworkColorHex: String?
 
     init(title: String,
          artist: String,
@@ -78,7 +83,9 @@ struct SharedWidgetPayload: Codable, Sendable {
          nextStartMs: Int = 0,
          nextDurationMs: Int = 0,
          nextTitle: String = "",
-         nextArtist: String = "") {
+         nextArtist: String = "",
+         nextArtworkData: Data? = nil,
+         nextArtworkColorHex: String? = nil) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -100,11 +107,22 @@ struct SharedWidgetPayload: Codable, Sendable {
         self.nextDurationMs = nextDurationMs
         self.nextTitle = nextTitle
         self.nextArtist = nextArtist
+        self.nextArtworkData = nextArtworkData
+        self.nextArtworkColorHex = nextArtworkColorHex
     }
 
     /// Total span `lines` covers: one song, or two when the next one is chained.
     var chainedSpanMs: Int {
         nextStartMs > 0 && nextDurationMs > 0 ? nextStartMs + nextDurationMs : durationMs
+    }
+
+    /// Which cover an entry paints. A chained entry belongs to the next song
+    /// and must show its art; when the queue entry carried no image the current
+    /// song's cover is a better answer than a blank — the same degradation the
+    /// tile had before chaining existed.
+    func cover(forChainedEntry chained: Bool) -> (data: Data?, hex: String?) {
+        guard chained else { return (artworkData, artworkColorHex) }
+        return (nextArtworkData ?? artworkData, nextArtworkColorHex ?? artworkColorHex)
     }
 }
 
@@ -227,7 +245,46 @@ enum WidgetTimelineBuilder {
 
         let end = min(lines.count, startIndex + limit)
         var entries: [WidgetTimelineEntry] = []
-        entries.reserveCapacity(end - startIndex)
+        entries.reserveCapacity(end - startIndex + 2)
+
+        // Intro entry for track start before first lyric
+        if let firstLine = lines.first, positionMs < firstLine.timeMs {
+            let introUpcoming = Array(lines.prefix(upcomingShown).map(\.text))
+            entries.append(WidgetTimelineEntry(
+                date: now,
+                lineIndex: nil,
+                currentLine: "",
+                currentTranslation: nil,
+                previousLines: [],
+                nextLine: introUpcoming.first,
+                upcomingLines: introUpcoming,
+                progress: 0.0,
+                isNextTrack: false
+            ))
+        }
+
+        // Chained next-track intro entry before its first lyric
+        if payload.nextStartMs > 0,
+           let nextTrackIndex = lines.firstIndex(where: { $0.timeMs >= payload.nextStartMs }) {
+            let nextLine = lines[nextTrackIndex]
+            if nextLine.timeMs > payload.nextStartMs {
+                let nextStartDate = Date(timeIntervalSince1970: startEpoch + Double(payload.nextStartMs) / 1000.0)
+                if nextStartDate > now {
+                    let nextUpcoming = Array(lines.dropFirst(nextTrackIndex).prefix(upcomingShown).map(\.text))
+                    entries.append(WidgetTimelineEntry(
+                        date: nextStartDate,
+                        lineIndex: nil,
+                        currentLine: "",
+                        currentTranslation: nil,
+                        previousLines: [],
+                        nextLine: nextUpcoming.first,
+                        upcomingLines: nextUpcoming,
+                        progress: 0.0,
+                        isNextTrack: true
+                    ))
+                }
+            }
+        }
 
         for index in startIndex..<end {
             let line = lines[index]
@@ -298,6 +355,7 @@ enum WidgetTimelineBuilder {
                 ))
             }
         }
+        entries.sort { $0.date < $1.date }
         return entries.isEmpty ? [staticEntry(payload: payload, now: now)] : entries
     }
 

@@ -853,6 +853,22 @@ final class TestRunner {
             checkEqual("widgetProgressUnchained",
                        WidgetTimelineBuilder.progressFraction(for: 15_000, payload: payload(lines: lines)), 0.5)
 
+            // The chained cover. Its failure mode is silent — the header
+            // switched to the next song while the art stayed on the one that
+            // ended — so the selection and its fallback are pinned here rather
+            // than left to the widget view.
+            var withArt = chained
+            withArt.artworkColorHex = "AAAAAA"
+            withArt.nextArtworkData = Data([0x02])
+            withArt.nextArtworkColorHex = "BBBBBB"
+            checkEqual("widgetCoverTailUsesNextArt", withArt.cover(forChainedEntry: true).hex, "BBBBBB")
+            checkEqual("widgetCoverHeadUsesCurrentArt", withArt.cover(forChainedEntry: false).hex, "AAAAAA")
+            // A queue entry with no image must not blank the tail's cover.
+            withArt.nextArtworkData = nil
+            withArt.nextArtworkColorHex = nil
+            checkEqual("widgetCoverTailFallsBackToCurrent",
+                       withArt.cover(forChainedEntry: true).hex, "AAAAAA")
+
             // The terminal entry: built while the payload is still valid, dated
             // past the end of everything it covers, so the tile flips itself to
             // the resync affordance with no reload and no budget spend.
@@ -887,6 +903,29 @@ final class TestRunner {
                   !WidgetTimelineBuilder.isExpired(payload: payload(lines: lines), now: start))
             check("widgetNotExpiredAtSongStart",
                   !WidgetTimelineBuilder.isExpired(payload: payload(lines: lines, startedSecondsAgo: 0), now: start))
+
+            // Pre-lyric intro entry: song starts at 0, first lyric at 8000 ms.
+            let introLines = [
+                SharedLyricLine(timeMs: 8_000, text: "intro-first"),
+                SharedLyricLine(timeMs: 14_000, text: "intro-second"),
+            ]
+            let introPayload = payload(lines: introLines, startedSecondsAgo: 2)
+            let introEntries = WidgetTimelineBuilder.entries(for: introPayload, now: start)
+            check("widgetIntroEntryEmitted", introEntries.first?.currentLine == "" && introEntries.first?.lineIndex == nil)
+            checkEqual("widgetIntroNextLine", introEntries.first?.nextLine, "intro-first")
+            checkEqual("widgetIntroUpcoming", introEntries.first?.upcomingLines, ["intro-first", "intro-second"])
+
+            // Chained next track with intro before first lyric
+            let chainedWithIntroLines = lines + [
+                SharedLyricLine(timeMs: 35_000, text: "next-delayed"),
+            ]
+            let chainedWithIntro = payload(lines: chainedWithIntroLines, startedSecondsAgo: 28,
+                                           nextStartMs: 30_000, nextDurationMs: 20_000)
+            let chainedIntroEntries = WidgetTimelineBuilder.entries(for: chainedWithIntro, now: start, includeOutro: true)
+            let nextIntro = chainedIntroEntries.first { $0.isNextTrack && $0.currentLine.isEmpty }
+            check("widgetChainedNextIntroEmitted", nextIntro != nil)
+            checkEqual("widgetChainedNextIntroDate", nextIntro?.date,
+                       Date(timeIntervalSince1970: start.timeIntervalSince1970 + 2))
             var noClock = payload(lines: lines)
             noClock.trackStartEpochMs = 0
             check("widgetNotExpiredWithoutStart", !WidgetTimelineBuilder.isExpired(payload: noClock, now: start))

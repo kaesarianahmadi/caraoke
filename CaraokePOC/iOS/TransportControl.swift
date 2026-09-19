@@ -243,6 +243,9 @@ enum TransportControl {
         let artist: String
         let album: String?
         let durationMs: Int
+        /// Largest cover the queue entry offers. Needed to bake the next song's
+        /// art into the same timeline as its lyrics.
+        let artworkURL: String?
     }
 
     /// What follows the current track, per Spotify's own queue. Needs the
@@ -262,10 +265,16 @@ enum TransportControl {
               let title = next["name"] as? String else { return nil }
         let artists = (next["artists"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
         let album = (next["album"] as? [String: Any])?["name"] as? String
+        // Spotify orders `images` widest-first; take the first that has a URL.
+        let artworkURL = (next["album"] as? [String: Any])
+            .flatMap { $0["images"] as? [[String: Any]] }?
+            .compactMap { $0["url"] as? String }
+            .first
         let queued = QueuedTrack(title: title,
                                  artist: artists.joined(separator: ", "),
                                  album: album,
-                                 durationMs: next["duration_ms"] as? Int ?? 0)
+                                 durationMs: next["duration_ms"] as? Int ?? 0,
+                                 artworkURL: artworkURL)
         log("queue lookahead: \(queued.title)")
         return queued
     }

@@ -118,8 +118,19 @@ struct CaraokeWidgetProvider: TimelineProvider {
             // But the timeline must still ask for a pass once the span it
             // covers runs out: `.never` here meant a single dropped reload left
             // the tile dead on the last line until the user tapped it.
+            //
+            // The date is deliberately *before* the span runs out. chronod
+            // defers a background reload by up to ~160 s, so asking for one
+            // after the last entry has already been consumed all but
+            // guarantees the tile sits dead until someone taps it — the
+            // deferred reload lands on a timeline that ran out minutes ago.
+            // Asked with lead time, the same deferral is absorbed while the
+            // song is still playing and the replacement is in place before
+            // anything expires. One request per bake (~6 min for two songs),
+            // so the extra earliness costs no meaningful budget.
+            let lead: TimeInterval = 45
             let spanEnd = Date(timeIntervalSince1970: Double(payload.trackStartEpochMs + payload.chainedSpanMs) / 1000.0)
-            policy = .after(max(spanEnd.addingTimeInterval(5), now.addingTimeInterval(60)))
+            policy = .after(max(spanEnd.addingTimeInterval(-lead), now.addingTimeInterval(30)))
         } else if let last = entries.last {
             policy = .after(last.date.addingTimeInterval(30))
         } else {
@@ -140,6 +151,10 @@ struct CaraokeWidgetProvider: TimelineProvider {
         // A chained tail belongs to the next song, so the header follows the
         // lyrics across the boundary instead of naming the song that ended.
         let chained = built.isNextTrack
+        // The baked tail carries the next song's lyrics, so it has to carry its
+        // cover too — otherwise the header switches name at the boundary while
+        // the art stays on the song that already ended.
+        let cover = payload.cover(forChainedEntry: chained)
         return CaraokeWidgetEntry(
             date: built.date,
             lineIndex: built.lineIndex,
@@ -152,8 +167,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
             artist: chained && !payload.nextArtist.isEmpty ? payload.nextArtist : payload.artist,
             isPlaying: payload.isPlaying,
             status: status,
-            artworkData: payload.artworkData,
-            artworkColorHex: payload.artworkColorHex,
+            artworkData: cover.data,
+            artworkColorHex: cover.hex,
             resyncPulse: built.resyncPulse,
             settings: settings
         )

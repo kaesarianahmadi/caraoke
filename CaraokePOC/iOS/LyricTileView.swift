@@ -151,9 +151,11 @@ struct LyricTileView: View {
         // asserts are literally the same values.
         switch surface {
         case .lockBanner:
-            // Lock Screen banner mirrors the in-app card layout and padding.
+            // Lock Screen banner: intro header before first lyric, then
+            // 3 lyric rows own the tile during playback.
             return LyricTileLayout(boxHeight: LyricSurface.lockBanner.blockHeight,
-                                   headerCompact: true, padding: 16,
+                                   showsHeader: false, showsHeaderOnIntro: true,
+                                   headerCompact: false, padding: 16,
                                    chromeHeight: LyricSurface.lockBanner.chromeHeight)
         case .carPlaySmall:
             // CarPlay Stack / Dashboard mirror. Default renders at 14 pt with 6 pt
@@ -528,26 +530,17 @@ struct LyricTileView: View {
 
     private func rows(spec: LyricTileLayout, budget: LyricRowBudget) -> [LyricRow] {
         var seen: [String: Int] = [:]
-        func uniqueID(_ kind: String, _ text: String) -> String {
-            let key = kind + "\u{1}" + text
-            let count = seen[key, default: 0]
-            seen[key] = count + 1
-            return count == 0 ? "\(kind):\(text)" : "\(kind):\(text)#\(count)"
+        func uniqueID(_ text: String) -> String {
+            let count = seen[text, default: 0]
+            seen[text] = count + 1
+            return count == 0 ? text : "\(text)#\(count)"
         }
         let hero: String
         if !currentLine.isEmpty {
             hero = currentLine
-        } else if surface == .carPlaySmall {
-            // CarPlay intro: the identity row above is already showing the
-            // title and artist, so the body stays empty until the song's first
-            // real line lands. (Without this the tile printed the identity
-            // twice.)
-            hero = ""
-        } else if currentLine.isEmpty && layout.showsHeaderOnIntro {
-            // Same rule for the 4x4 widget's intro header (build 54): the
-            // identity is already in the header AND the bottom bar, so the
-            // lyric body stays empty until the first real line arrives. The
-            // song's upcoming lines still fill the block underneath.
+        } else if surface == .carPlaySmall || surface == .lockBanner || layout.showsHeaderOnIntro {
+            // CarPlay, Lock Screen, and 4x4 intro: identity header shows title & artist,
+            // so hero stays empty and opening lyrics preview underneath.
             hero = ""
         } else if !previousLines.isEmpty && isPlaying {
             // Outro transition: current line cleared so previous line rolls off
@@ -559,57 +552,62 @@ struct LyricTileView: View {
         }
 
         // Dynamic eviction across surfaces:
-        // If active hero line wraps to 2 lines, evict upcoming lines to preserve line 2 active anchor.
-        // If active hero line wraps to 3 lines, evict both neighbors so hero gets full height without truncation.
+        // Always showcase 3 rows of lines unless active hero line wraps to 3 lines (> 70 chars).
         let heroLength = hero.count
+        let heroTooLong = heroLength > 70
         let evictUpcoming: Bool
         let evictPrevious: Bool
         switch surface {
+        case .widgetLarge:
+            evictUpcoming = false
+            evictPrevious = false
+        case .widgetSmall, .widgetMedium:
+            evictUpcoming = heroLength > 26
+            evictPrevious = heroLength > 52
         case .carPlaySmall:
             if let customFont, customFont >= 16 {
                 evictUpcoming = heroLength > 30
                 evictPrevious = heroLength > 56
             } else {
-                evictUpcoming = heroLength > 38
-                evictPrevious = heroLength > 68
+                evictUpcoming = heroLength > 42
+                evictPrevious = heroLength > 70
             }
-        case .widgetSmall, .widgetMedium:
-            evictUpcoming = heroLength > 26
-            evictPrevious = heroLength > 52
         case .lockBanner, .home:
-            evictUpcoming = heroLength > 36
-            evictPrevious = heroLength > 70
-        case .widgetLarge:
-            evictUpcoming = false
-            evictPrevious = false
+            // Lock Screen Live Activity & in-app card:
+            // Always showcase 3 rows; evict neighbors only if active lyric is too long (> 70 chars).
+            evictUpcoming = heroTooLong
+            evictPrevious = heroTooLong
         }
 
-        // Active lyric is ALWAYS in the second row or middle row unless standalone.
-        // If there are no previous lines, evict upcoming so hero renders standalone.
         let hasPreviousLines = !previousLines.isEmpty && status != .idle
         let showPrevious = hasPreviousLines && !evictPrevious && budget.previousShown > 0
-        // Normally the upcoming lines are context AROUND the active line, so they
-        // only appear once there is one. The 4x4 widget's intro is the exception:
-        // the active line is deliberately empty while the header holds the
-        // identity, and the song's opening lines are exactly what the tile should
-        // be showing underneath it.
-        let introPreviewsUpcoming = hero.isEmpty && !displayUpcomingLines.isEmpty && status == .playing
-        let showUpcoming = (showPrevious || introPreviewsUpcoming) && status != .idle
-            && !evictUpcoming && budget.upcomingShown > 0
+        let isIntro = hero.isEmpty && !displayUpcomingLines.isEmpty && status == .playing
+        let showUpcoming = (showPrevious || isIntro || !hasPreviousLines) && status != .idle
+            && !evictUpcoming && (budget.upcomingShown > 0 || isIntro)
 
         var rows: [LyricRow] = []
         if showPrevious {
             for (idx, line) in previousLines.suffix(budget.previousShown).enumerated() {
-                rows.append(LyricRow(id: uniqueID("p", line), text: line,
+                rows.append(LyricRow(id: uniqueID(line), text: line,
                                      kind: .previous, opacity: fade(previousIndex: idx)))
             }
         }
         if !hero.isEmpty {
-            rows.append(LyricRow(id: uniqueID("h", hero), text: hero, kind: .hero, opacity: 1))
+            rows.append(LyricRow(id: uniqueID(hero), text: hero, kind: .hero, opacity: 1))
         }
         if showUpcoming {
-            for (idx, line) in displayUpcomingLines.prefix(budget.upcomingShown).enumerated() {
-                rows.append(LyricRow(id: uniqueID("u", line), text: line,
+            // When there are no previous lines (song start), show up to 2 upcoming lines so 3 rows are always showcased.
+            // On intro, preview up to 3 opening lines.
+            let upcomingCount: Int
+            if !hasPreviousLines && !hero.isEmpty {
+                upcomingCount = max(budget.upcomingShown, 2)
+            } else if isIntro {
+                upcomingCount = max(budget.upcomingShown, 3)
+            } else {
+                upcomingCount = budget.upcomingShown
+            }
+            for (idx, line) in displayUpcomingLines.prefix(upcomingCount).enumerated() {
+                rows.append(LyricRow(id: uniqueID(line), text: line,
                                      kind: .upcoming, opacity: upcomingOpacity(index: idx)))
             }
         }
@@ -846,7 +844,7 @@ struct LyricTileView: View {
 /// `active: false` applies no mask at all, which is what lets the shared
 /// `boxed(_:spec:alignment:)` path call this unconditionally without changing
 /// any other surface's rendering.
-private struct LyricEdgeFade: ViewModifier {
+struct LyricEdgeFade: ViewModifier {
     let active: Bool
 
     func body(content: Content) -> some View {
@@ -869,7 +867,7 @@ private struct LyricEdgeFade: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func lyricEdgeFade(active: Bool) -> some View {
         modifier(LyricEdgeFade(active: active))
     }

@@ -52,8 +52,14 @@ struct LyricTrack: Equatable, Sendable {
 
     /// Lines following the current one, used for previews.
     func upcomingLines(after positionMs: Int, limit: Int = 8) -> [String] {
-        guard let i = lineIndex(at: positionMs) else { return [] }
-        let nextIndex = i + 1
+        let nextIndex: Int
+        if let i = lineIndex(at: positionMs) {
+            nextIndex = i + 1
+        } else if positionMs >= 0 {
+            nextIndex = 0
+        } else {
+            return []
+        }
         guard nextIndex < lines.count else { return [] }
         let endIndex = min(nextIndex + limit, lines.count)
         return lines[nextIndex..<endIndex].map(\.text).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
