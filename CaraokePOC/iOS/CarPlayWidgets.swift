@@ -223,10 +223,10 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
             resyncPulse: entry.resyncPulse,
             needsResync: entry.status != .playing || entry.resyncPulse < 1,
             showsProgressBar: false,
-            customFont: 16,
-            customPadding: 4,
-            customRowSpacing: 9,
-            customLineSpacing: 4
+            customFont: 15,
+            customPadding: 1,
+            customRowSpacing: 5,
+            customLineSpacing: 2
         )
     }
 }
@@ -258,7 +258,8 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     resyncPulse: entry.resyncPulse,
                     needsResync: entry.status != .playing || entry.resyncPulse < 1,
                     showsProgressBar: false,
-                    customBoxHeight: lyricHeight
+                    customBoxHeight: lyricHeight,
+                    customPadding: 5
                 )
                 .frame(height: lyricHeight)
 
@@ -270,7 +271,7 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
                                            buttonWidth: 26, buttonHeight: 28)
                 }
-                .padding(.horizontal, 6)
+                .padding(.horizontal, 5)
                 .padding(.top, 2)
                 .padding(.bottom, 4)
             }

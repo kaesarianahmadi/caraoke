@@ -20,6 +20,7 @@ AuthKey_*.p8
 *.swp
 .tmpgh/
 .dsh-vision-router/
+App Screenshots/
 
 # Xcode
 xcuserdata/

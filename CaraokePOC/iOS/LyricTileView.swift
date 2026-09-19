@@ -152,63 +152,67 @@ struct LyricTileView: View {
         switch surface {
         case .lockBanner:
             // Lock Screen banner: intro header before first lyric, then
-            // 3 lyric rows own the tile during playback.
+            // lyric rows own the tile during playback.
             return LyricTileLayout(boxHeight: LyricSurface.lockBanner.blockHeight,
                                    showsHeader: false, showsHeaderOnIntro: true,
-                                   padding: 16,
-                                   chromeHeight: LyricSurface.lockBanner.chromeHeight)
+                                   edgeFade: true,
+                                   padding: customPadding ?? 5,
+                                   chromeHeight: LyricSurface.lockBanner.chromeHeight,
+                                   rowSpacing: customRowSpacing ?? 5,
+                                   lineSpacing: customLineSpacing ?? 1.5)
         case .carPlaySmall:
-            // CarPlay Stack / Dashboard mirror. Default renders at 14 pt with 6 pt
-            // padding; pure lyrics stack can pass customFont (16 pt) and customPadding (4 pt).
-            return LyricTileLayout(boxHeight: LyricSurface.carPlaySmall.blockHeight,
+            // CarPlay Stack / Dashboard mirror. Text-only features use 1 pt padding
+            // and full container height; features with controls/progress use 5 pt.
+            let isTextOnly = !showsProgressBar
+            let defaultPadding: CGFloat = isTextOnly ? 1 : 5
+            return LyricTileLayout(boxHeight: isTextOnly ? nil : (customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight),
+                                   maxBoxHeight: isTextOnly ? nil : (customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight),
                                    headerCompact: true,
-                                   padding: customPadding ?? 6,
+                                   edgeFade: true,
+                                   padding: customPadding ?? defaultPadding,
                                    chromeHeight: LyricSurface.carPlaySmall.chromeHeight,
-                                   font: customFont ?? LyricSurface.carPlaySmall.lyricFont)
+                                   font: customFont ?? LyricSurface.carPlaySmall.lyricFont,
+                                   rowSpacing: customRowSpacing ?? 4,
+                                   lineSpacing: customLineSpacing ?? 1.5)
         case .widgetSmall:
-            // Apple's 158×158 grid. Compact 6 pt padding gives lyrics max width.
+            // Apple's 158×158 grid. 5 pt padding maximizes width for lyrics.
             return LyricTileLayout(boxHeight: LyricSurface.widgetSmall.blockHeight,
-                                   headerCompact: true, padding: 6,
-                                   chromeHeight: LyricSurface.widgetSmall.chromeHeight)
+                                   headerCompact: true,
+                                   edgeFade: true,
+                                   padding: customPadding ?? 5,
+                                   chromeHeight: LyricSurface.widgetSmall.chromeHeight,
+                                   rowSpacing: customRowSpacing ?? 4,
+                                   lineSpacing: customLineSpacing ?? 1.5)
         case .widgetMedium:
             // 338×158: the vinyl/cover takes the right half, lyrics the left.
             return LyricTileLayout(boxHeight: LyricSurface.widgetMedium.blockHeight,
-                                   headerCompact: true, padding: 14,
-                                   chromeHeight: LyricSurface.widgetMedium.chromeHeight)
+                                   headerCompact: true,
+                                   edgeFade: true,
+                                   padding: customPadding ?? 5,
+                                   chromeHeight: LyricSurface.widgetMedium.chromeHeight,
+                                   rowSpacing: customRowSpacing ?? 5,
+                                   lineSpacing: customLineSpacing ?? 1.5)
         case .widgetLarge:
-            // 4x4 grid. Lyrics own the block, identity + transport move to the
-            // bottom row. Build 40 asked for a 3-row hero plus 6 neighbours
-            // (≈450 pt) against a 262 pt ceiling, then clipped whatever did not
-            // fit.
-            //
-            // Build 54, in one place:
-            // - ceiling 262 → 300: the old number left roughly a third of the
-            //   379 pt canvas as dead space under the block;
-            // - the block gets a vertical edge fade;
-            // - the identity shows as a header during the intro, before the
-            //   first lyric line lands;
-            // - both gaps open up — 4 pt inside a wrapped line, 10 pt between
-            //   lines, against the shared scale's 2 and 6. This is the surface
-            //   the user compared against the competitor, and it is the only one
-            //   with height to spend: raising either gap on the shared scale
-            //   pushed the small widget, Lock Screen and in-app card past their
-            //   boxes, which `layoutFits_*` fails on;
-            // - and it renders one size up, at `LyricType.widgetLargeLyric`.
             return LyricTileLayout(
-                boxHeight: nil, maxBoxHeight: 300,
+                boxHeight: nil, maxBoxHeight: 332,
                 showsHeader: false, showsHeaderOnIntro: true,
                 edgeFade: true, showsBottomBar: true,
-                centersVertically: true, padding: 16,
+                centersVertically: true,
+                padding: customPadding ?? 5,
                 chromeHeight: LyricSurface.widgetLarge.chromeHeight,
                 font: LyricSurface.widgetLarge.lyricFont,
-                rowSpacing: 10, lineSpacing: 4)
+                rowSpacing: customRowSpacing ?? 6,
+                lineSpacing: customLineSpacing ?? 2)
         case .home:
-            // The in-app player card — the Live Activity's in-app twin: same
-            // compact one-line identity, same fixed box, same 167 pt total.
+            // The in-app player card — the Live Activity's in-app twin.
             return LyricTileLayout(
                 boxHeight: LyricSurface.home.blockHeight,
-                headerCompact: true, centersVertically: true, padding: 12,
-                chromeHeight: LyricSurface.home.chromeHeight)
+                headerCompact: true, centersVertically: true,
+                edgeFade: true,
+                padding: customPadding ?? 5,
+                chromeHeight: LyricSurface.home.chromeHeight,
+                rowSpacing: customRowSpacing ?? 5,
+                lineSpacing: customLineSpacing ?? 1.5)
         }
     }
 
@@ -551,39 +555,16 @@ struct LyricTileView: View {
             hero = "Play a song to see lyrics"
         }
 
-        // Dynamic eviction across surfaces:
-        // Always showcase 3 rows of lines unless active hero line wraps to 3 lines (> 70 chars).
-        let heroLength = hero.count
-        let heroTooLong = heroLength > 70
-        let evictUpcoming: Bool
-        let evictPrevious: Bool
-        switch surface {
-        case .widgetLarge:
-            evictUpcoming = false
-            evictPrevious = false
-        case .widgetSmall, .widgetMedium:
-            evictUpcoming = heroLength > 26
-            evictPrevious = heroLength > 52
-        case .carPlaySmall:
-            if let customFont, customFont >= 16 {
-                evictUpcoming = heroLength > 30
-                evictPrevious = heroLength > 56
-            } else {
-                evictUpcoming = heroLength > 42
-                evictPrevious = heroLength > 70
-            }
-        case .lockBanner, .home:
-            // Lock Screen Live Activity & in-app card:
-            // Always showcase 3 rows; evict neighbors only if active lyric is too long (> 70 chars).
-            evictUpcoming = heroTooLong
-            evictPrevious = heroTooLong
-        }
+        // Dynamic eviction removed: with edge fade active on all surfaces,
+        // lines dissolve softly at vertical boundaries without character-count eviction.
+        let evictUpcoming = false
+        let evictPrevious = false
 
         let hasPreviousLines = !previousLines.isEmpty && status != .idle
-        let showPrevious = hasPreviousLines && !evictPrevious && budget.previousShown > 0
+        let showPrevious = hasPreviousLines && budget.previousShown > 0
         let isIntro = hero.isEmpty && !displayUpcomingLines.isEmpty && status == .playing
         let showUpcoming = (showPrevious || isIntro || !hasPreviousLines) && status != .idle
-            && !evictUpcoming && (budget.upcomingShown > 0 || isIntro)
+            && (budget.upcomingShown > 0 || isIntro)
 
         var rows: [LyricRow] = []
         if showPrevious {
@@ -596,16 +577,7 @@ struct LyricTileView: View {
             rows.append(LyricRow(id: uniqueID(hero), text: hero, kind: .hero, opacity: 1))
         }
         if showUpcoming {
-            // When there are no previous lines (song start), show up to 2 upcoming lines so 3 rows are always showcased.
-            // On intro, preview up to 3 opening lines.
-            let upcomingCount: Int
-            if !hasPreviousLines && !hero.isEmpty {
-                upcomingCount = max(budget.upcomingShown, 2)
-            } else if isIntro {
-                upcomingCount = max(budget.upcomingShown, 3)
-            } else {
-                upcomingCount = budget.upcomingShown
-            }
+            let upcomingCount = isIntro ? max(budget.upcomingShown, 3) : max(budget.upcomingShown, 2)
             for (idx, line) in displayUpcomingLines.prefix(upcomingCount).enumerated() {
                 rows.append(LyricRow(id: uniqueID(line), text: line,
                                      kind: .upcoming, opacity: upcomingOpacity(index: idx)))
@@ -662,7 +634,8 @@ struct LyricTileView: View {
     @ViewBuilder
     private func rowView(_ row: LyricRow, budget: LyricRowBudget, spec: LyricTileLayout) -> some View {
         let weight: Font.Weight = row.kind == .hero ? LyricType.lyricHeroWeight : LyricType.lyricNeighborWeight
-        let allowance = row.kind == .hero ? budget.heroRows : budget.neighborRows
+        // Eliminate truncation: hero wraps up to 5 lines, neighbors up to 3 lines.
+        let allowance = row.kind == .hero ? max(budget.heroRows, 5) : max(budget.neighborRows, 3)
         Text(row.text)
             .font(LyricType.font(size: spec.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
@@ -853,8 +826,8 @@ struct LyricEdgeFade: ViewModifier {
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0),
-                        .init(color: .black, location: 0.055),
-                        .init(color: .black, location: 0.945),
+                        .init(color: .black, location: 0.12),
+                        .init(color: .black, location: 0.88),
                         .init(color: .clear, location: 1),
                     ],
                     startPoint: .top,
