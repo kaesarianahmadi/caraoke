@@ -26,10 +26,6 @@ struct LyricTileLayout {
 
     var headerCompact: Bool = false // one identity row instead of title+artist stack
     var showsHeader: Bool = true
-    /// Shows the header only while the song has not reached its first lyric yet
-    /// (the 4x4 widget's intro). Distinct from `showsCarPlayIntroHeader`, which
-    /// is a CarPlay-only rule with the opposite intent — see `showsIdentityHeader`.
-    var showsHeaderOnIntro: Bool = false
     /// Fades the outermost lyric rows into the background instead of cutting
     /// them off at the frame edge.
     var edgeFade: Bool = false
@@ -154,10 +150,11 @@ struct LyricTileView: View {
         // asserts are literally the same values.
         switch surface {
         case .lockBanner:
-            // Lock Screen banner: intro header before first lyric, then
-            // lyric rows own the tile during playback.
+            // Lock Screen banner: no separate intro header. During intro the
+            // hero line in the lyric stream shows title — artist, matching
+            // the 4x4 widget behaviour and avoiding layout jumps.
             return LyricTileLayout(boxHeight: LyricSurface.lockBanner.blockHeight,
-                                   showsHeader: false, showsHeaderOnIntro: true,
+                                   showsHeader: false,
                                    edgeFade: true,
                                    padding: customPadding ?? 16,
                                    chromeHeight: LyricSurface.lockBanner.chromeHeight,
@@ -200,11 +197,12 @@ struct LyricTileView: View {
                                    lineSpacing: customLineSpacing ?? 1.5,
                                    maxLyricWidth: 135)
         case .widgetLarge:
-            // 4x4 grid. Slim 225 pt centered column leaves 80+ pt breathing room
-            // for the bottom player bar and card corners.
+            // 4x4 grid. No intro header — the bottom player bar permanently
+            // shows title/artist/transport, so a top-left header is redundant
+            // and causes a layout jump when the first lyric arrives.
             return LyricTileLayout(
                 boxHeight: nil, maxBoxHeight: 240,
-                showsHeader: false, showsHeaderOnIntro: true,
+                showsHeader: false,
                 edgeFade: true, showsBottomBar: true,
                 centersVertically: true,
                 padding: customPadding ?? 16,
@@ -294,30 +292,22 @@ struct LyricTileView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// CarPlay's identity row is conditional, every other surface always shows
-    /// it. On the dashboard tile the title and artist are an INTRO: they hold
-    /// the tile from the moment the song starts until its first lyric line
-    /// arrives, then give up the row so the lyrics own the whole tile and the
-    /// active line stays centred. (User direction, build 46 — the identity was
-    /// previously pinned at the top for the entire song.)
-    private var showsCarPlayIntroHeader: Bool {
-        surface != .carPlaySmall || currentLine.isEmpty
-    }
-
     /// Whether the identity row renders at all.
     ///
-    /// - CarPlay: always, except once real lyrics are on screen.
-    /// - 4x4 widget: only during the intro, and that is a different motive than
-    ///   CarPlay's. With no lyric playing the tile would otherwise open on its
-    ///   title set as a 20 pt lyric (`rows(spec:budget:)` falls back to
-    ///   "Title — Artist"), which is a big centred block of text with no
-    ///   identity above it. User direction (build 54): show the song's title and
-    ///   artist as a proper header while the song has not started, then hand the
-    ///   tile to the lyrics the moment the first line lands. The bottom bar
-    ///   keeps the compact identity either way, exactly as on other widgets.
+    /// Every surface that shows a header keeps it for the whole song, with one
+    /// exception: CarPlay's dashboard tile, where the title and artist are an
+    /// INTRO. They hold the tile from the moment the song starts until its first
+    /// lyric line arrives, then give up the row so the lyrics own the whole tile
+    /// and the active line stays centred. (User direction, build 46 — the
+    /// identity was previously pinned at the top for the entire song.)
+    ///
+    /// The 4x4 widget and the Lock Screen banner take no header at all: their
+    /// title and artist arrive as the intro hero line inside the lyric stream
+    /// instead, which is also what keeps the tile from jumping when the first
+    /// line lands.
     private func showsIdentityHeader(spec: LyricTileLayout) -> Bool {
-        if spec.showsHeaderOnIntro { return currentLine.isEmpty }
-        return spec.showsHeader && showsCarPlayIntroHeader
+        guard spec.showsHeader else { return false }
+        return surface != .carPlaySmall || currentLine.isEmpty
     }
 
     /// Only non-glass surfaces paint their own card; the Lock Screen banner
@@ -340,33 +330,9 @@ struct LyricTileView: View {
 
     // MARK: - Header
 
-    /// Whether this render is the 4x4 widget's intro — true only while the
-    /// header is on screen for the intro reason, so the header can pick the
-    /// larger title/artist stack without the CarPlay path changing shape.
-    private var showsLargeIntroHeader: Bool {
-        layout.showsHeaderOnIntro && currentLine.isEmpty
-    }
-
     @ViewBuilder
     private func header(compact: Bool) -> some View {
-        if showsLargeIntroHeader {
-            // 4x4 widget, before the first lyric: the identity is the whole
-            // point of the row, so it gets its own stack at a larger size than
-            // the compact one-liner other surfaces use.
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title.isEmpty ? "Live Lyrics" : title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(colors.titleText)
-                    .lineLimit(1)
-                if !artist.isEmpty {
-                    Text(artist)
-                        .font(.system(size: 13))
-                        .foregroundColor(colors.artistText)
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else if compact {
+        if compact {
             // Small/medium widget: one identity row, badge right — the height
             // the lyric block needs back comes from here.
             HStack(spacing: 6) {
@@ -554,9 +520,9 @@ struct LyricTileView: View {
         let hero: String
         if !currentLine.isEmpty {
             hero = currentLine
-        } else if surface == .carPlaySmall || surface == .lockBanner || layout.showsHeaderOnIntro {
-            // CarPlay, Lock Screen, and 4x4 intro: identity header shows title & artist,
-            // so hero stays empty and opening lyrics preview underneath.
+        } else if surface == .carPlaySmall {
+            // CarPlay intro: identity header shows title & artist,
+            // so hero stays empty and upcoming lyrics preview underneath.
             hero = ""
         } else if !previousLines.isEmpty && isPlaying {
             // Outro transition: current line cleared so previous line rolls off
@@ -624,10 +590,12 @@ struct LyricTileView: View {
                     ))
             }
         }
-        // Fills the box and centres inside it: the box is now a ceiling rather
-        // than an exact height, so without this the stack would shrink to its
-        // content and the progress bar underneath would jump on every line.
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Fills the width and lets the enclosing box handle vertical sizing.
+        // maxHeight was .infinity here before, which told ViewThatFits the view
+        // needed infinite height — rejecting every budget except the 1-line
+        // fallback. Removed so the stack sizes to its content and
+        // ViewThatFits can actually compare it to the container.
+        .frame(maxWidth: .infinity)
         .animation(.easeInOut(duration: 0.32), value: items.map(\.id))
     }
 

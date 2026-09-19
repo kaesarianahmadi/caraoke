@@ -37,56 +37,75 @@ struct VinylWidgetView: View {
         .widgetURL(URL(string: "caraoke://lyrics"))
     }
 
+    // MARK: - Rigid 3-tier layout
+    //
+    // The 2x4 widget is 338×158 pt. After 12 pt outer padding on each side the
+    // usable height is 134 pt. Three tiers split that budget with FIXED heights
+    // so the lyric block can never push the transport buttons off the bottom:
+    //
+    //   Tier 1 — Identity header:  18 pt
+    //   Tier 2 — Lyric block:      82 pt (locked frame, edge-fade handles overflow)
+    //   Tier 3 — Transport:        34 pt (26 pt buttons + 8 pt bottom clearance)
+    //   Total:                    134 pt
+    //
+    // No Spacer. No flexible height. Buttons are permanently visible.
+
     private var lyricsSection: some View {
-        // Identity pinned to the top, transport elevated from the bottom, lyrics
-        // centred in whatever is left.
         VStack(alignment: .leading, spacing: 0) {
+            // Tier 1: identity header — fixed 18 pt
             Text(identity)
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(theme.mutedTextColor)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .minimumScaleFactor(0.75)
+                .frame(height: 18, alignment: .leading)
 
-            Spacer(minLength: 4)
-
+            // Tier 2: lyric block — locked 82 pt, edge-fade masks overflow
             lyricBlock
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 82)
+                .clipped()
 
-            Spacer(minLength: 4)
-
+            // Tier 3: transport — 26 pt buttons + 8 pt clearance = 34 pt.
+            // The clearance is part of the tier, not padding on top of it:
+            // 18 + 82 + 34 is exactly the 134 pt the widget gives us, and a
+            // separate `.padding(.bottom, 6)` made the stack 140 pt, pushing
+            // the buttons into the rounded bottom edge it was meant to clear.
             HStack(spacing: 14) {
                 intentButton("backward.fill", intent: PreviousTrackIntent(), label: "Previous song", size: 13)
                 intentButton(entry.isPlaying ? "pause.fill" : "play.fill", intent: PlayPauseIntent(), label: entry.isPlaying ? "Pause" : "Play", size: 16)
                 intentButton("forward.fill", intent: NextTrackIntent(), label: "Next song", size: 13)
             }
-            .padding(.bottom, 6)
+            .frame(height: 26)
+            .padding(.bottom, 8)
         }
     }
 
-    /// Active lyric is anchored at the first row.
-    /// When upcoming line exists, active line and upcoming line each take 1 row (2 lines total).
-    /// If no upcoming line exists (e.g. final line of song), active line can wrap up to 2 rows.
+    // ponytail: font sizes are hard-coded for the 82 pt lyric tier; if the
+    // widget grid ever changes, recalculate from (tier height / max lines).
+    private static let heroFont: CGFloat = 15
+    private static let neighborFont: CGFloat = 13
+
     private var lyricBlock: some View {
         let text = currentLyricText
         let next = entry.nextLine?.trimmingCharacters(in: .whitespaces)
 
-        return VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
+        return VStack(alignment: .leading, spacing: 5) {
             if !text.isEmpty {
                 Text(text)
-                    .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricHeroWeight))
+                    .font(LyricType.font(size: Self.heroFont, weight: .bold))
                     .foregroundStyle(theme.textColor)
                     .lineLimit(3)
-                    .lineSpacing(LyricType.lyricLineSpacing)
+                    .lineSpacing(1.5)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 135, alignment: .leading)
             }
             if let next, !next.isEmpty {
                 Text(next)
-                    .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
+                    .font(LyricType.font(size: Self.neighborFont, weight: .regular))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.82))
-                    .lineLimit(3)
-                    .lineSpacing(LyricType.lyricLineSpacing)
+                    .lineLimit(2)
+                    .lineSpacing(1.5)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 135, alignment: .leading)
             }

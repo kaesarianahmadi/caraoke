@@ -109,17 +109,31 @@ private struct IslandCompactText: View {
             .accessibilityHidden(true)
     }
 
-    /// Per-state line shown in the compact/minimal slots.
+    /// Per-state line shown in the compact/minimal slots and, via `IslandCenter`,
+    /// the expanded panel's hero — one driver so every Island slot agrees on what
+    /// is on. The default case used to answer "Play a song to see lyrics" for any
+    /// empty line, which is wrong during a song's instrumental intro: the song IS
+    /// playing, it simply has no active line yet, so the identity is what is on.
     static func text(for status: LyricStatus,
                      context: ActivityViewContext<LyricsActivityAttributes>) -> String {
+        let line = context.state.currentLine
         switch status {
         case .loading: return "Finding lyrics…"
-        case .noLyrics:
-            return context.state.currentLine.isEmpty ? context.state.title : context.state.currentLine
         case .stale: return "Ride ended"
-        default:
-            return context.state.currentLine.isEmpty ? "Play a song to see lyrics" : context.state.currentLine
+        case .idle: return "Play a song to see lyrics"
+        case .noLyrics:
+            return line.isEmpty ? context.state.title : line
+        case .playing, .paused, .expired:
+            return line.isEmpty ? identity(context) : line
         }
+    }
+
+    /// Title — artist, matching the widget header and the Lock Screen intro line.
+    static func identity(_ context: ActivityViewContext<LyricsActivityAttributes>) -> String {
+        let title = context.state.title
+        let artist = context.state.artist
+        if artist.isEmpty { return title.isEmpty ? "Caraoke" : title }
+        return title.isEmpty ? artist : "\(title) — \(artist)"
     }
 }
 
@@ -176,9 +190,9 @@ private struct IslandCenter: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         default:
             VStack(alignment: .leading, spacing: 4) {
-                Text(context.state.currentLine.isEmpty
-                     ? "Play a song to see lyrics"
-                     : context.state.currentLine)
+                // Same driver as the compact slot, so the intro reads as the
+                // identity here too instead of the "nothing playing" placeholder.
+                Text(IslandCompactText.text(for: status(of: context.state), context: context))
                     .font(LyricType.font(size: 16, weight: LyricType.lyricHeroWeight))
                     .foregroundColor(.white)
                     .lineLimit(2)

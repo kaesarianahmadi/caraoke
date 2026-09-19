@@ -258,7 +258,9 @@ enum WidgetTimelineBuilder {
                 previousLines: [],
                 nextLine: introUpcoming.first,
                 upcomingLines: introUpcoming,
-                progress: 0.0,
+                // Elapsed fraction, not 0: a long instrumental intro otherwise
+                // pins the bar at zero and then jumps when the first lyric lands.
+                progress: progressFraction(for: positionMs, payload: payload),
                 isNextTrack: false
             ))
         }

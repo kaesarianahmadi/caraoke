@@ -914,6 +914,10 @@ final class TestRunner {
             check("widgetIntroEntryEmitted", introEntries.first?.currentLine == "" && introEntries.first?.lineIndex == nil)
             checkEqual("widgetIntroNextLine", introEntries.first?.nextLine, "intro-first")
             checkEqual("widgetIntroUpcoming", introEntries.first?.upcomingLines, ["intro-first", "intro-second"])
+            // 2 s into a 30 s song: the bar tracks the intro instead of sitting
+            // pinned at zero and jumping when the first lyric lands.
+            let introProgress = introEntries.first?.progress ?? 0
+            check("widgetIntroProgressTracksIntro", introProgress > 0.05 && introProgress < 0.09)
 
             // Chained next track with intro before first lyric
             let chainedWithIntroLines = lines + [
