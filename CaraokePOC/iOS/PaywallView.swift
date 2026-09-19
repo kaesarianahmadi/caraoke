@@ -133,6 +133,9 @@ struct PaywallView: View {
                 }
             }
         }
+        .onAppear {
+            Analytics.signal("paywall_viewed")
+        }
     }
 
     private var ctaButtonText: String {
@@ -152,7 +155,10 @@ struct PaywallView: View {
         }
         Task {
             let success = await purchases.purchase(product)
-            if success { onDismiss() }
+            if success {
+                Analytics.signal("purchase_completed", parameters: ["product": selectedProductID])
+                onDismiss()
+            }
         }
     }
 

@@ -26,12 +26,20 @@ enum WidgetResync {
             WidgetCenter.shared.reloadAllTimelines()
             return
         }
-        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+        let start = Date()
+        let nowMs = Int(start.timeIntervalSince1970 * 1000)
         payload.resyncingUntilMs = nowMs + WidgetTimelineBuilder.resyncPulseWindowMs
         SharedWidgetStore.write(payload)
         WidgetCenter.shared.reloadAllTimelines()
 
         await refreshNowPlaying()
+
+        // Give the pulse at least 1.2s to visually register and prevent chronod
+        // from throttling back-to-back reloads within milliseconds.
+        let elapsed = Date().timeIntervalSince(start)
+        if elapsed < 1.2 {
+            try? await Task.sleep(for: .seconds(1.2 - elapsed))
+        }
         WidgetCenter.shared.reloadAllTimelines()
     }
 

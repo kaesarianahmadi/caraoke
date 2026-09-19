@@ -86,6 +86,13 @@ final class RidePlaybackController: ObservableObject {
     /// Boundary diagnostics — the only way to tell "the app stopped reloading"
     /// from "the reload was throttled", which look identical on screen.
     private static let log = Logger(subsystem: "com.caraoke.poc", category: "ride")
+    /// Coalesces rapid reloadAllTimelines calls (lyrics landing, artwork landing,
+    /// queue chain, seek jumps) into a trailing debounce so chronod never
+    /// penalizes the widget with a 70+ second lockout.
+    private var pendingWidgetReloadTask: Task<Void, Never>?
+    private var lastWidgetReloadDate: Date = .distantPast
+    private let minWidgetReloadInterval: TimeInterval = 2.0
+    private let widgetReloadDebounce: TimeInterval = 0.5
 
     init(activity: CaraokeActivityController,
          provider: any LyricsRepository = FallbackLyricsProvider(),
@@ -149,6 +156,8 @@ final class RidePlaybackController: ObservableObject {
         engine.stopTicking()
         syncHeartbeatTask?.cancel()
         syncHeartbeatTask = nil
+        pendingWidgetReloadTask?.cancel()
+        pendingWidgetReloadTask = nil
         audioKeeper.stop()
         relay.end()
         lyricsFetchTask?.cancel()
@@ -382,6 +391,11 @@ final class RidePlaybackController: ObservableObject {
             return
         }
         armRelay(track: track)
+        if startMoved {
+            lastWidgetSignature = nil
+            forceWidgetReload = true
+            render(engine.positionSubject.value)
+        }
     }
 
     /// Renders the extrapolated position: UI lines + Live Activity snapshot.
@@ -530,8 +544,35 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetIsPlaying = snapshot.isPlaying
         lastWidgetStatus = snapshot.status.rawValue
         lastWidgetArtworkHex = artworkColorHex
-        WidgetCenter.shared.reloadAllTimelines()
-        Self.log.info("widget reload: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
+        scheduleWidgetReload()
+        Self.log.info("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
+    }
+
+    // MARK: - Widget reload coalescing (Build 57)
+    //
+    // iOS chronod throttles aggressively when reloadAllTimelines() is called in
+    // bursts (< 1 s apart), placing the widget into a 70+ second penalty box
+    // where all reloads are ignored. We coalesce rapid triggers (lyrics landing,
+    // artwork landing, queue chain, and seeks) through a trailing debounce.
+    private func scheduleWidgetReload() {
+        pendingWidgetReloadTask?.cancel()
+        pendingWidgetReloadTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .seconds(self.widgetReloadDebounce))
+            guard !Task.isCancelled else { return }
+
+            let elapsed = Date().timeIntervalSince(self.lastWidgetReloadDate)
+            if elapsed < self.minWidgetReloadInterval {
+                let remaining = self.minWidgetReloadInterval - elapsed
+                try? await Task.sleep(for: .seconds(remaining))
+                guard !Task.isCancelled else { return }
+            }
+
+            self.lastWidgetReloadDate = Date()
+            self.pendingWidgetReloadTask = nil
+            WidgetCenter.shared.reloadAllTimelines()
+            Self.log.info("widget reload executed (coalesced)")
+        }
     }
 
     // MARK: - Artwork
@@ -546,7 +587,6 @@ final class RidePlaybackController: ObservableObject {
         // the network). Force the next widget write past the dedupe and reload,
         // or the widget keeps the artwork-less timeline it was first handed.
         lastWidgetSignature = nil
-        WidgetCenter.shared.reloadAllTimelines()
         // Re-render now: while paused the engine emits no position ticks, so
         // waiting for the next tick would leave the payload artwork-less.
         render(engine.positionSubject.value)
@@ -558,7 +598,6 @@ final class RidePlaybackController: ObservableObject {
         artworkColorHex = nil
         lastArtworkKey = key
         lastWidgetSignature = nil
-        WidgetCenter.shared.reloadAllTimelines()
         render(engine.positionSubject.value)
     }
 

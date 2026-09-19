@@ -1,11 +1,12 @@
 import Foundation
 
-/// StoreKit product identifiers — one entitlement ("Caraoke Plus"), three
-/// plans per locked decisions: $1.99/mo (3-day trial) · $9.99/yr · $14.99 lifetime (was $20 / $27).
+/// StoreKit / RevenueCat product identifiers and entitlement configuration.
 enum CaraokeProducts {
-    static let monthly = "caraoke.plus.monthly"
-    static let yearly = "caraoke.plus.yearly"
-    static let lifetime = "caraoke.plus.lifetime"
+    static let entitlementID = "caraoke_payment_plan"
+
+    static let monthly = "monthly"
+    static let yearly = "yearly"
+    static let lifetime = "lifetime"
     static let all: Set<String> = [monthly, yearly, lifetime]
 
     static func isEntitled(productIDs: Set<String>) -> Bool {

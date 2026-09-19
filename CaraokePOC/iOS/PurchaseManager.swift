@@ -20,9 +20,7 @@ final class PurchaseManager: ObservableObject {
 
     init() {
         #if canImport(RevenueCat)
-        // Check for RevenueCat API key in Secrets or bundle
-        if let key = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String,
-           !key.isEmpty && !key.contains("YOUR_") {
+        if let key = SecretsLoader.revenueCatAPIKey {
             Purchases.configure(withAPIKey: key)
         }
         #endif
@@ -62,7 +60,7 @@ final class PurchaseManager: ObservableObject {
            let rcProduct = try? await Purchases.shared.products([product.id]).first {
             do {
                 let result = try await Purchases.shared.purchase(product: rcProduct)
-                if result.customerInfo.entitlements["Caraoke Plus"]?.isActive == true {
+                if result.customerInfo.entitlements[CaraokeProducts.entitlementID]?.isActive == true {
                     self.isEntitled = true
                     return true
                 }
@@ -108,7 +106,7 @@ final class PurchaseManager: ObservableObject {
     func refreshEntitlement() async {
         #if canImport(RevenueCat)
         if Purchases.isConfigured, let info = try? await Purchases.shared.customerInfo() {
-            if info.entitlements["Caraoke Plus"]?.isActive == true {
+            if info.entitlements[CaraokeProducts.entitlementID]?.isActive == true {
                 isEntitled = true
                 return
             }

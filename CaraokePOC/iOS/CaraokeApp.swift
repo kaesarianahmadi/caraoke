@@ -10,6 +10,7 @@ struct CaraokeApp: App {
 
     init() {
         CrashReporter.shared.start()
+        Analytics.initialize()
         AppearanceSettings.apply(mode: AppearanceSettings.mode)
         // The widget extension refreshes the Spotify token with this ID, and
         // it only ships in the app bundle.

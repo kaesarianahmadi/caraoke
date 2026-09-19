@@ -64,6 +64,36 @@ enum SecretsLoader {
         }
         return id
     }
+
+    /// Reads RevenueCat API Key from Secrets.plist or Info.plist.
+    static var revenueCatAPIKey: String? {
+        if let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+           let dict = NSDictionary(contentsOf: url) as? [String: Any],
+           let key = dict["REVENUECAT_API_KEY"] as? String,
+           !key.isEmpty, !key.contains("YOUR_") {
+            return key
+        }
+        if let key = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String,
+           !key.isEmpty, !key.contains("YOUR_") {
+            return key
+        }
+        return nil
+    }
+
+    /// Reads TelemetryDeck App ID from Secrets.plist or Info.plist.
+    static var telemetryAppID: String? {
+        if let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+           let dict = NSDictionary(contentsOf: url) as? [String: Any],
+           let id = dict["TELEMETRYDECK_APP_ID"] as? String,
+           !id.isEmpty, !id.contains("YOUR_") {
+            return id
+        }
+        if let id = Bundle.main.object(forInfoDictionaryKey: "TELEMETRYDECK_APP_ID") as? String,
+           !id.isEmpty, !id.contains("YOUR_") {
+            return id
+        }
+        return nil
+    }
 }
 
 // MARK: - Auth manager
