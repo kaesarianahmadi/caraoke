@@ -155,7 +155,7 @@ struct LyricTileView: View {
             // 3 lyric rows own the tile during playback.
             return LyricTileLayout(boxHeight: LyricSurface.lockBanner.blockHeight,
                                    showsHeader: false, showsHeaderOnIntro: true,
-                                   headerCompact: false, padding: 16,
+                                   padding: 16,
                                    chromeHeight: LyricSurface.lockBanner.chromeHeight)
         case .carPlaySmall:
             // CarPlay Stack / Dashboard mirror. Default renders at 14 pt with 6 pt
