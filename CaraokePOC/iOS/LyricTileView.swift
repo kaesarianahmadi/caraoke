@@ -207,8 +207,9 @@ struct LyricTileView: View {
             // The in-app player card — the Live Activity's in-app twin.
             return LyricTileLayout(
                 boxHeight: LyricSurface.home.blockHeight,
-                headerCompact: true, centersVertically: true,
+                headerCompact: true,
                 edgeFade: true,
+                centersVertically: true,
                 padding: customPadding ?? 5,
                 chromeHeight: LyricSurface.home.chromeHeight,
                 rowSpacing: customRowSpacing ?? 5,
