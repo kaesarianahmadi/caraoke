@@ -963,17 +963,27 @@ final class TestRunner {
             checkEqual("layoutFontIs18", LyricType.lyric, 18)
             checkEqual("layoutWidgetLargeFontIs20", LyricType.widgetLargeLyric, 20)
 
-            // There are exactly two exceptions to the shared size, and they pull
-            // in opposite directions: CarPlay drops to 14, the 4x4 widget rises
-            // to 20. Every other surface renders the shared 18.
+            // There are exactly three exceptions to the shared size, and they pull
+            // in opposite directions: the two CarPlay surfaces use their own sizes
+            // (14 for the mirrored activity, 15 for the Lyrics tile, which spends
+            // its whole box on lyrics) and the 4x4 widget rises to 20. Every other
+            // surface renders the shared 18.
+            //
+            // Per-surface sizing is the INTENT. What would be a regression is two
+            // sizes visible inside one surface at one instant — which is what
+            // `layoutSingleFont_*` above and the `budget.font` plumbing exist to
+            // prevent.
             checkEqual("layoutCarPlayFontIs14", LyricType.carPlayLyric, 14)
             checkEqual("layoutCarPlaySurfaceFont",
                        LyricSurface.carPlaySmall.lyricFont, LyricType.carPlayLyric)
+            checkEqual("layoutCarPlayTileFontIs15", LyricType.carPlayLyricTile, 15)
+            checkEqual("layoutCarPlayTileSurfaceFont",
+                       LyricSurface.carPlayLyrics.lyricFont, LyricType.carPlayLyricTile)
             checkEqual("layoutWidgetLargeSurfaceFont",
                        LyricSurface.widgetLarge.lyricFont, LyricType.widgetLargeLyric)
-            checkEqual("layoutOnlyTwoSurfacesLeaveScale",
+            checkEqual("layoutOnlyThreeSurfacesLeaveScale",
                   LyricSurface.allCases.filter { $0.lyricFont != LyricType.lyric },
-                  [.carPlaySmall, .widgetLarge])
+                  [.carPlaySmall, .carPlayLyrics, .widgetLarge])
 
             // The active line carries emphasis, and the dimmed context lines
             // carry none. Build 53 records the direction this replaces: the
@@ -1018,6 +1028,50 @@ final class TestRunner {
                 check("layoutFits_\(surface.rawValue)",
                       richest.worstCaseHeight <= surface.blockHeight)
             }
+
+            // The block may not outgrow the surface it sits in. `hostHeight` is the
+            // host's height where that height is a documented size, and this is the
+            // check that would have caught the table it replaces: a `chromeHeight`
+            // that was read by nobody and that claimed 119 pt of block plus 53 pt of
+            // chrome against a 158 pt CarPlay tile.
+            for surface in LyricSurface.allCases {
+                guard let host = surface.hostHeight else { continue }
+                check("layoutBlockFitsHost_\(surface.rawValue)",
+                      surface.blockHeight <= host)
+            }
+
+            // The CarPlay Lyrics tile is the whole padded tile: 158 pt of widget
+            // minus 8 pt of padding top and bottom. Spelled out because that is
+            // where the number comes from — it is NOT the banner's inherited 119,
+            // which left a quarter of the car's tile unused.
+            checkEqual("layoutCarPlayTileFillsHost",
+                       LyricSurface.carPlayLyrics.blockHeight + 16,
+                       LyricSurface.carPlayLyrics.hostHeight ?? 0)
+            check("layoutCarPlayTileOutgrowsBannerBlock",
+                  LyricSurface.carPlayLyrics.blockHeight > LyricSurface.lockBanner.blockHeight)
+            // Same three-row shape as the banner, at this tile's own size.
+            check("layoutCarPlayTileShowsThreeRows",
+                  (LyricSurface.carPlayLyrics.budgets.first?.rowCount ?? 0) >= 3)
+
+            // The 2x4 Home Screen widget is its own layout (`VinylWidgetView`), not
+            // a `LyricTileView`, so its tiers need their own arithmetic. Both halves
+            // matter: the tiers must sum to the tile exactly (or the transport row is
+            // pushed off the bottom), and the lyric tier must hold the worst case (or
+            // the clip eats the bottom line — which is exactly what a 135 pt width
+            // cap plus a 3-line hero allowance produced).
+            checkEqual("mediumTiersExactlyFillTile",
+                       MediumWidgetTiers.declaredHeight, MediumWidgetTiers.innerHeight)
+            check("mediumLyricWorstCaseFitsTier",
+                  MediumWidgetTiers.lyricWorstCaseHeight <= MediumWidgetTiers.lyricHeight)
+            checkEqual("mediumTierFonts",
+                       [MediumWidgetTiers.heroFont, MediumWidgetTiers.neighborFont], [15, 13])
+            check("mediumLyricColumnIsMostOfTheTile",
+                  MediumWidgetTiers.lyricColumnFraction > 0.55
+                      && MediumWidgetTiers.lyricColumnFraction < 0.70)
+            // Two rows each. Three hero rows plus two next rows is 95 pt against an
+            // 82 pt tier, so raising either cap has to move this check with it.
+            check("mediumAllowancesStayInsideTheTier",
+                  MediumWidgetTiers.heroRows == 2 && MediumWidgetTiers.neighborRows == 2)
 
             // Not just fits — useful. The large widget must beat build 40's two
             // visible lines; the small widget and the Lock Screen must reach

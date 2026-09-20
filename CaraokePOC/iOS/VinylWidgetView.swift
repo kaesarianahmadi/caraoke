@@ -15,10 +15,13 @@ struct VinylWidgetView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            // 12 pt padding gives clean widget margins while preserving space for lyrics and disc.
-            let inner = CGSize(width: geometry.size.width - 24,
-                               height: geometry.size.height - 24)
-            let lyricsWidth = inner.width * 0.60
+            // Tier geometry comes from `MediumWidgetTiers` (CaraokeCore) so the
+            // widget, the in-app preview and the budget checks all read one
+            // declaration. 12 pt padding gives clean widget margins while
+            // preserving space for lyrics and disc.
+            let inner = CGSize(width: geometry.size.width - MediumWidgetTiers.padding * 2,
+                               height: geometry.size.height - MediumWidgetTiers.padding * 2)
+            let lyricsWidth = inner.width * MediumWidgetTiers.lyricColumnFraction
             let disc = min(inner.height, inner.width - lyricsWidth - 8)
 
             HStack(spacing: 8) {
@@ -28,7 +31,7 @@ struct VinylWidgetView: View {
                     .frame(width: disc, height: disc)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .padding(12)
+            .padding(MediumWidgetTiers.padding)
         }
         .foregroundStyle(theme.textColor)
         .containerBackground(for: .widget) {
@@ -39,75 +42,70 @@ struct VinylWidgetView: View {
 
     // MARK: - Rigid 3-tier layout
     //
-    // The 2x4 widget is 338×158 pt. After 12 pt outer padding on each side the
-    // usable height is 134 pt. Three tiers split that budget with FIXED heights
-    // so the lyric block can never push the transport buttons off the bottom:
-    //
-    //   Tier 1 — Identity header:  18 pt
-    //   Tier 2 — Lyric block:      82 pt (locked frame, edge-fade handles overflow)
-    //   Tier 3 — Transport:        34 pt (26 pt buttons + 8 pt bottom clearance)
-    //   Total:                    134 pt
-    //
-    // No Spacer. No flexible height. Buttons are permanently visible.
+    // The tiers, their heights and the wrap allowances all come from
+    // `MediumWidgetTiers` (CaraokeCore) — see that type for the arithmetic. Fixed
+    // heights mean the lyric block can never push the transport buttons off the
+    // bottom: no Spacer, no flexible height, buttons permanently visible.
 
     private var lyricsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Tier 1: identity header — fixed 18 pt
+            // Tier 1: identity header
             Text(identity)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: MediumWidgetTiers.identityFont, weight: .semibold))
                 .foregroundStyle(theme.mutedTextColor)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(height: 18, alignment: .leading)
+                .frame(height: MediumWidgetTiers.identityHeight, alignment: .leading)
 
-            // Tier 2: lyric block — locked 82 pt, edge-fade masks overflow
+            // Tier 2: lyric block — locked, edge-fade masks overflow
             lyricBlock
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 82)
+                .frame(height: MediumWidgetTiers.lyricHeight)
                 .clipped()
 
-            // Tier 3: transport — 26 pt buttons + 8 pt clearance = 34 pt.
-            // The clearance is part of the tier, not padding on top of it:
-            // 18 + 82 + 34 is exactly the 134 pt the widget gives us, and a
-            // separate `.padding(.bottom, 6)` made the stack 140 pt, pushing
-            // the buttons into the rounded bottom edge it was meant to clear.
+            // Tier 3: transport — the clearance is part of the tier, not padding
+            // on top of it: 18 + 82 + 34 is exactly the inner height, and a
+            // separate bottom padding made the stack taller than the tile and
+            // pushed the buttons into the rounded bottom edge it meant to clear.
             HStack(spacing: 14) {
-                intentButton("backward.fill", intent: PreviousTrackIntent(), label: "Previous song", size: 13)
-                intentButton(entry.isPlaying ? "pause.fill" : "play.fill", intent: PlayPauseIntent(), label: entry.isPlaying ? "Pause" : "Play", size: 16)
-                intentButton("forward.fill", intent: NextTrackIntent(), label: "Next song", size: 13)
+                intentButton("backward.fill", intent: PreviousTrackIntent(),
+                             label: "Previous song", size: MediumWidgetTiers.transportFont)
+                intentButton(entry.isPlaying ? "pause.fill" : "play.fill",
+                             intent: PlayPauseIntent(),
+                             label: entry.isPlaying ? "Pause" : "Play",
+                             size: MediumWidgetTiers.playGlyphFont)
+                intentButton("forward.fill", intent: NextTrackIntent(),
+                             label: "Next song", size: MediumWidgetTiers.transportFont)
             }
-            .frame(height: 26)
-            .padding(.bottom, 8)
+            .frame(height: MediumWidgetTiers.transportButtonRowHeight)
+            .padding(.bottom, MediumWidgetTiers.transportClearance)
         }
     }
-
-    // ponytail: font sizes are hard-coded for the 82 pt lyric tier; if the
-    // widget grid ever changes, recalculate from (tier height / max lines).
-    private static let heroFont: CGFloat = 15
-    private static let neighborFont: CGFloat = 13
 
     private var lyricBlock: some View {
         let text = currentLyricText
         let next = entry.nextLine?.trimmingCharacters(in: .whitespaces)
 
-        return VStack(alignment: .leading, spacing: 5) {
+        // No width cap on either row. At a 135 pt cap inside a ~188 pt column the
+        // text wrapped roughly a quarter early, and that extra wrapping is what
+        // pushed the block past its tier — the tier clips, so the bottom line was
+        // cut. The column width IS the cap.
+        return VStack(alignment: .leading, spacing: MediumWidgetTiers.rowSpacing) {
             if !text.isEmpty {
                 Text(text)
-                    .font(LyricType.font(size: Self.heroFont, weight: .bold))
+                    .font(LyricType.font(size: MediumWidgetTiers.heroFont, weight: .bold))
                     .foregroundStyle(theme.textColor)
-                    .lineLimit(3)
-                    .lineSpacing(1.5)
+                    .lineLimit(MediumWidgetTiers.heroRows)
+                    .lineSpacing(MediumWidgetTiers.lineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 135, alignment: .leading)
             }
             if let next, !next.isEmpty {
                 Text(next)
-                    .font(LyricType.font(size: Self.neighborFont, weight: .regular))
+                    .font(LyricType.font(size: MediumWidgetTiers.neighborFont, weight: .regular))
                     .foregroundStyle(theme.mutedTextColor.opacity(0.82))
-                    .lineLimit(2)
-                    .lineSpacing(1.5)
+                    .lineLimit(MediumWidgetTiers.neighborRows)
+                    .lineSpacing(MediumWidgetTiers.lineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 135, alignment: .leading)
             }
         }
         .lyricEdgeFade(active: true)

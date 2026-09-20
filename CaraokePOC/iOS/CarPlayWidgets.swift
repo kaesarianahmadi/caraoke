@@ -217,16 +217,12 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
             isPlaying: entry.isPlaying,
             progress: entry.progress,
             status: entry.status,
-            surface: .carPlaySmall,
+            surface: .carPlayLyrics,
             palette: entry.widgetPalette,
             artworkData: entry.artworkData,
             resyncPulse: entry.resyncPulse,
             needsResync: entry.status != .playing || entry.resyncPulse < 1,
-            showsProgressBar: false,
-            customFont: 15,
-            customPadding: 8,
-            customRowSpacing: 5,
-            customLineSpacing: 2
+            showsProgressBar: false
         )
     }
 }

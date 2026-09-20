@@ -186,7 +186,7 @@ struct HomeView: View {
                     .foregroundStyle(AppTheme.muted(scheme))
                 HomeWidgetPreview(title: model.trackTitle, artist: model.trackArtist,
                                   currentLine: model.currentLine, nextLine: model.nextLine,
-                                  previousLine: model.previousLines.last,
+                                  hasPreviousLines: !model.previousLines.isEmpty,
                                   artworkData: model.artworkData,
                                   artworkColorHex: model.artworkColorHex,
                                   isSpinning: model.isPlaybackActive)
@@ -496,7 +496,10 @@ struct HomeWidgetPreview: View {
     let artist: String
     let currentLine: String
     let nextLine: String?
-    var previousLine: String?
+    /// Whether the track already has lines behind it — the widget's outro
+    /// transition (`!previousLines.isEmpty && isPlaying`). The preview draws no
+    /// previous line, because the widget never draws one.
+    var hasPreviousLines: Bool = false
     var artworkData: Data?
     var artworkColorHex: String?
     /// Spins the record while the active source is playing (app preview only).
@@ -518,59 +521,65 @@ struct HomeWidgetPreview: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
+                // The same three tiers as `VinylWidgetView`, read from the same
+                // declaration (`MediumWidgetTiers`): identity 18, lyric block 82,
+                // transport 26 + 8 clearance, inside 12 pt of padding. Rigid, and
+                // no Spacers — that is what stops the preview drifting from the
+                // widget again. It used to render 18 pt rows, a previous line the
+                // widget never draws, and flexible spacers where the widget has
+                // fixed heights.
                 Text(identity)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: MediumWidgetTiers.identityFont, weight: .semibold))
                     .foregroundStyle(theme.mutedTextColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .minimumScaleFactor(0.75)
-                Spacer(minLength: 6)
-                // Same 18 pt rows and same weight rule as the real widget.
-                VStack(alignment: .leading, spacing: LyricType.lyricRowSpacing) {
-                    if let previousLine, !previousLine.isEmpty {
-                        Text(previousLine)
-                            .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
-                            .foregroundStyle(theme.mutedTextColor.opacity(0.42))
-                            .lineLimit(2)
-                            .lineSpacing(LyricType.lyricLineSpacing)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: 135, alignment: .leading)
-                    }
+                    .frame(height: MediumWidgetTiers.identityHeight, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: MediumWidgetTiers.rowSpacing) {
                     if !currentLyricText.isEmpty {
                         Text(currentLyricText)
-                            .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricHeroWeight))
+                            .font(LyricType.font(size: MediumWidgetTiers.heroFont, weight: .bold))
                             .foregroundStyle(theme.textColor)
-                            .lineLimit(3)
-                            .lineSpacing(LyricType.lyricLineSpacing)
+                            .lineLimit(MediumWidgetTiers.heroRows)
+                            .lineSpacing(MediumWidgetTiers.lineSpacing)
                             .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: 135, alignment: .leading)
                     }
                     if let nextLine, !nextLine.isEmpty {
                         Text(nextLine)
-                            .font(LyricType.font(size: LyricType.lyric, weight: LyricType.lyricNeighborWeight))
-                            .foregroundStyle(theme.mutedTextColor.opacity(0.62))
-                            .lineLimit(2)
-                            .lineSpacing(LyricType.lyricLineSpacing)
+                            .font(LyricType.font(size: MediumWidgetTiers.neighborFont, weight: .regular))
+                            .foregroundStyle(theme.mutedTextColor.opacity(0.82))
+                            .lineLimit(MediumWidgetTiers.neighborRows)
+                            .lineSpacing(MediumWidgetTiers.lineSpacing)
                             .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: 135, alignment: .leading)
                     }
                 }
-                Spacer(minLength: 6)
-                HStack(spacing: 18) {
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: MediumWidgetTiers.lyricHeight)
+                .clipped()
+
+                // The widget's transport is `AppIntent` buttons; the preview keeps
+                // images at the same sizes, footprints and spacing, because the
+                // whole preview card is already one tap target into the Widget
+                // section and nested buttons would fight it.
+                HStack(spacing: 14) {
                     Image(systemName: "backward.fill")
+                        .frame(width: 30, height: MediumWidgetTiers.transportButtonRowHeight)
                     Image(systemName: isSpinning ? "pause.fill" : "play.fill")
+                        .font(.system(size: MediumWidgetTiers.playGlyphFont, weight: .semibold))
+                        .frame(width: 30, height: MediumWidgetTiers.transportButtonRowHeight)
                     Image(systemName: "forward.fill")
+                        .frame(width: 30, height: MediumWidgetTiers.transportButtonRowHeight)
                 }
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: MediumWidgetTiers.transportFont, weight: .semibold))
                 .foregroundStyle(theme.textColor)
-                .padding(.bottom, 6)
+                .padding(.bottom, MediumWidgetTiers.transportClearance)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             cover
         }
-        .padding(14)
-        .frame(height: 158)
+        .padding(MediumWidgetTiers.padding)
+        .frame(height: MediumWidgetTiers.hostHeight)
         // The same recipe `WidgetArtworkBackground` paints on the real widget:
         // the song's own cover, blurred, when the theme follows the artwork.
         // It is a View, not a ShapeStyle, so it goes through the ViewBuilder
@@ -592,7 +601,7 @@ struct HomeWidgetPreview: View {
         if !currentLine.isEmpty {
             return currentLine
         }
-        if previousLine != nil && isSpinning {
+        if hasPreviousLines && isSpinning {
             return "" // outro transition
         }
         if !title.isEmpty {

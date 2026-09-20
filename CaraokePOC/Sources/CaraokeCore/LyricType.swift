@@ -17,13 +17,17 @@ import SwiftUI
 // surface's budget actually fits the height Apple gives it.
 
 enum LyricType {
-    /// Every lyric row on every surface, at every wrap level. There is no
-    /// per-surface override and no minimumScaleFactor anywhere.
+    /// The shared scale: every lyric row on the surfaces that do not declare
+    /// their own size, at every wrap level.
     ///
-    /// Build 54 note: the 4x4 widget renders one size up from this (see
-    /// `widgetLargeLyric`). The size itself stays 18 for every other surface —
-    /// the small and medium widgets, the Lock Screen banner and the in-app card
-    /// are all pinned to heights budgeted at this number.
+    /// Per-SURFACE sizing is the intent — CarPlay renders at 14 or 15 depending
+    /// on which tile it is, the 4x4 widget at 20, the lyrics page at 28 — and
+    /// each of those lives in `LyricSurface.lyricFont` so the budget math and the
+    /// renderer read one number. What is forbidden is two sizes inside ONE tile at
+    /// one instant: that was build 40's defect (`minimumScaleFactor` shrinking a
+    /// line, and `ViewThatFits` dropping to a rung that carried a different font),
+    /// and it is what `budget.font` on every rung and `layoutSingleFont_*` in
+    /// `Tests/main.swift` exist to prevent.
     static let lyric: CGFloat = 18
 
     /// The lyric face, and only the lyric face.
@@ -111,6 +115,15 @@ enum LyricType {
     /// from ~1 m in a moving car (14 pt).
     static let carPlayLyric: CGFloat = 14
 
+    /// The CarPlay **Lyrics tile** — the standalone widget that is nothing but
+    /// lyrics, sized for the widget stack.
+    ///
+    /// One point above the mirrored activity: this tile spends its whole box on
+    /// lyrics (no progress bar, no cover, no transport) and the user tuned this
+    /// value on the vehicle. Per-layer sizes are the intent — what is forbidden
+    /// is two sizes inside one tile at one instant.
+    static let carPlayLyricTile: CGFloat = 15
+
     /// The 4x4 Home Screen widget — the one surface that renders ABOVE the
     /// shared scale, and the second deliberate exception after CarPlay.
     ///
@@ -171,6 +184,73 @@ struct LyricRowBudget {
     }
 }
 
+/// The 2x4 Home Screen widget's rigid tier budget.
+///
+/// This widget does not render through `LyricTileView` — it is its own layout
+/// (lyrics left, record right) — so its geometry had no home in the surface
+/// table and lived as literals inside `VinylWidgetView`. That is how it drifted
+/// out of sync with the in-app preview, and how a 3-line hero plus a 2-line next
+/// line (95 pt) came to overflow an 82 pt tier that clips.
+///
+/// The numbers live here so three consumers read one declaration: the widget,
+/// the in-app preview (`HomeWidgetPreview`, app target) and the budget checks in
+/// `Tests/main.swift`. Both targets compile this file, which is what makes it
+/// the single source.
+enum MediumWidgetTiers {
+    /// Apple's documented 2x4 grid size — the tile this budget is drawn against.
+    static let hostWidth: CGFloat = 338
+    static let hostHeight: CGFloat = 158
+    static let padding: CGFloat = 12
+    /// What is left for the three tiers after the outer padding.
+    static var innerHeight: CGFloat { hostHeight - padding * 2 }
+
+    /// The tiers, top to bottom. They sum to `innerHeight` exactly: no Spacer and
+    /// no flexible height, so the transport row cannot be pushed off the tile.
+    /// `transportHeight` is 26 pt of buttons plus the 8 pt bottom clearance —
+    /// the clearance belongs to the tier, not on top of it.
+    static let identityHeight: CGFloat = 18
+    static let lyricHeight: CGFloat = 82
+    static let transportButtonRowHeight: CGFloat = 26
+    static let transportClearance: CGFloat = 8
+    static var transportHeight: CGFloat { transportButtonRowHeight + transportClearance }
+    static var declaredHeight: CGFloat { identityHeight + lyricHeight + transportHeight }
+
+    /// The lyric column takes this share of the inner width. The remainder holds
+    /// the record. Text is NOT capped below the column width, which is what made
+    /// long lines wrap early and then overflow the lyric tier.
+    static let lyricColumnFraction: CGFloat = 0.60
+
+    static let identityFont: CGFloat = 12
+    static let heroFont: CGFloat = 15
+    static let neighborFont: CGFloat = 13
+    static let transportFont: CGFloat = 13
+    static let playGlyphFont: CGFloat = 16
+
+    /// Wrap allowances. Two and two, not three and two: the worst case has to fit
+    /// `lyricHeight`, and 3 hero rows + 2 next rows is 95 pt against 82. Two
+    /// lines cover roughly 55 characters at the shared column width, and the
+    /// read-ahead line keeps both of its rows — which matters more on this widget
+    /// than a third row of the current line.
+    static let heroRows: Int = 2
+    static let neighborRows: Int = 2
+    static let rowSpacing: CGFloat = 5
+    static let lineSpacing: CGFloat = 1.5
+
+    /// One text row holding `rows` wrapped lines — the same model as
+    /// `LyricRowBudget.height`, so the two budgets are checked the same way.
+    static func height(rows: Int, font: CGFloat) -> CGFloat {
+        guard rows > 0 else { return 0 }
+        return CGFloat(rows) * font + CGFloat(rows - 1) * lineSpacing
+    }
+
+    /// Worst case: the hero at its full allowance plus the next line at its own.
+    static var lyricWorstCaseHeight: CGFloat {
+        height(rows: heroRows, font: heroFont)
+            + rowSpacing
+            + height(rows: neighborRows, font: neighborFont)
+    }
+}
+
 // MARK: - Per-surface budget table
 
 /// One lyric-rendering surface and the height its host actually grants.
@@ -183,21 +263,36 @@ struct LyricRowBudget {
 /// surface the way build 40 did.
 enum LyricSurface: String, CaseIterable, Sendable {
     case lockBanner
+    /// The mirrored small Live Activity — CarPlay dashboard and the Watch Smart
+    /// Stack. Carries a progress bar and an identity row.
     case carPlaySmall
+    /// The CarPlay **Lyrics tile**: the standalone widget in the CarPlay stack
+    /// (kind `CaraokeLyricsWidget`). Separate from `carPlaySmall` because it is a
+    /// different host — a widget tile that spends its entire box on lyrics, with
+    /// no progress bar, no cover and no transport.
+    case carPlayLyrics
     case widgetSmall
     case widgetMedium
     case widgetLarge
     case home
 
-    /// Everything that is not the lyric block, in points.
-    var chromeHeight: CGFloat {
+    /// The height of the host surface, where that height is a documented size.
+    /// `nil` means the host sizes the view itself and there is nothing to assert.
+    ///
+    /// Replaces a `chromeHeight` field that was set on all six surfaces and read
+    /// by none, and that did not add up where it could be checked: CarPlay and the
+    /// Lock Screen banner each claimed 119 + 53 = 172 pt against a 158 pt tile.
+    /// `layoutBlockFitsHost_*` in `Tests/main.swift` asserts the block against
+    /// these, so a block that outgrows its surface cannot ship unnoticed again.
+    var hostHeight: CGFloat? {
         switch self {
-        case .lockBanner: return 53
-        case .carPlaySmall: return 53
-        case .widgetSmall: return 37
-        case .widgetMedium: return 45
-        case .widgetLarge: return 140.5
-        case .home: return 91
+        case .lockBanner: return 167      // the height the banner tile is tuned to
+        case .carPlaySmall: return nil    // the activity's small box is system-sized
+        case .carPlayLyrics: return MediumWidgetTiers.hostHeight
+        case .widgetSmall: return MediumWidgetTiers.hostHeight
+        case .widgetMedium: return MediumWidgetTiers.hostHeight
+        case .widgetLarge: return 379     // the 4x4 canvas
+        case .home: return 167
         }
     }
 
@@ -209,6 +304,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
     var lyricFont: CGFloat {
         switch self {
         case .carPlaySmall: return LyricType.carPlayLyric
+        case .carPlayLyrics: return LyricType.carPlayLyricTile
         case .widgetLarge: return LyricType.widgetLargeLyric
         default: return LyricType.lyric
         }
@@ -230,6 +326,12 @@ enum LyricSurface: String, CaseIterable, Sendable {
         switch self {
         case .lockBanner: return 119
         case .carPlaySmall: return 119
+        // The CarPlay Lyrics tile: the whole padded tile, with nothing else in it.
+        // 158 pt (Apple's documented small grid) − 8 pt padding top and bottom.
+        // It is NOT the banner's 119: that number was inherited when this tile
+        // shared a table row with the Lock Screen banner, and it left 23 pt of the
+        // car's tile unused. `layoutCarPlayTileFillsHost` pins the derivation.
+        case .carPlayLyrics: return MediumWidgetTiers.hostHeight - 16
         case .widgetSmall: return 115
         case .widgetMedium: return 132
         // Content-sized. Build 54 moved it to 300 + 32: the 4x4 canvas is
@@ -266,6 +368,20 @@ enum LyricSurface: String, CaseIterable, Sendable {
                 LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0,
                                neighborRows: 1, font: font),
             ]
+        case .carPlayLyrics:
+            // The CarPlay Lyrics tile. Same three-row shape as the banner — the
+            // active line with a neighbour above or below — at this tile's own
+            // size, inside the whole padded tile. `spacing` matches the layout
+            // case in `LyricTileView` so the budget model is the render model:
+            // 89 pt worst case against 142 pt of box.
+            let font = LyricType.carPlayLyricTile
+            func rung(previous: Int, upcoming: Int) -> LyricRowBudget {
+                LyricRowBudget(heroRows: 3, previousShown: previous, upcomingShown: upcoming,
+                               neighborRows: 1, font: font, lineSpacing: 2, rowSpacing: 5)
+            }
+            return [rung(previous: 1, upcoming: 1),
+                    rung(previous: 1, upcoming: 0),
+                    rung(previous: 0, upcoming: 0)]
         case .widgetSmall:
             // Centred active line (1 previous + 1 hero + 1 upcoming) with 3-line wrap allowance.
             return [

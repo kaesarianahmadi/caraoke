@@ -9,14 +9,15 @@ import WidgetKit
 /// the persistent Home Screen widgets, and the in-app player card.
 /// Renders the dark karaoke lyric block with static anti-flicker container.
 
-/// Layout capacity per surface. Every lyric row renders at `LyricType.lyric`
-/// (18 pt) on every surface — there is no per-surface font override, because
-/// that is exactly what made build 40's widgets inconsistent.
+/// Layout capacity per surface. Every number here — box height, font, row
+/// spacing, wrap allowance — comes from `LyricSurface` in CaraokeCore. Sizes are
+/// allowed to differ BETWEEN surfaces (that is the design: 20 pt on the 4x4
+/// widget, 15 on the CarPlay Lyrics tile, 18 elsewhere); what may never differ is
+/// the size of two lines inside one tile at one instant.
 ///
-/// The row budgets come from `LyricSurface` in CaraokeCore (one table, also
-/// asserted by `Tests/main.swift`). The tile tries them richest-first and
-/// renders the most generous set that fits, so a cramped surface shows fewer
-/// lines instead of smaller ones.
+/// The row budgets come from the same table (also asserted by `Tests/main.swift`).
+/// The tile tries them richest-first and renders the most generous set that fits,
+/// so a cramped surface shows fewer lines instead of smaller ones.
 struct LyricTileLayout {
     /// Fixed anti-flicker box height for surfaces that cannot reflow (Lock
     /// Screen banner, CarPlay, the in-app card). nil = size to content.
@@ -36,9 +37,6 @@ struct LyricTileLayout {
     /// space" defect.
     var centersVertically: Bool = true
     var padding: CGFloat = 16
-    /// Height the surface reserves for everything that is not the lyric block:
-    /// padding, the header row, the progress bar, the large widget's player bar.
-    var chromeHeight: CGFloat = 0
     /// Size lyrics render at on this surface. Comes from `LyricSurface`, so it
     /// is the same number the budget math uses. Text is NEVER scaled below it.
     var font: CGFloat = LyricType.lyric
@@ -107,6 +105,7 @@ struct LyricTileView: View {
     enum Surface {
         case lockBanner       // Lock Screen Live Activity (system glass)
         case carPlaySmall     // CarPlay mirror of the activity (own card)
+        case carPlayLyrics    // CarPlay Lyrics tile — the whole box is lyrics
         case widgetSmall      // Home Screen 2x2
         case widgetMedium     // Home Screen 2x4 ("regular")
         case widgetLarge      // Home Screen 4x4 ("huge square")
@@ -119,6 +118,7 @@ struct LyricTileView: View {
             switch self {
             case .lockBanner: return .lockBanner
             case .carPlaySmall: return .carPlaySmall
+            case .carPlayLyrics: return .carPlayLyrics
             case .widgetSmall: return .widgetSmall
             case .widgetMedium: return .widgetMedium
             case .widgetLarge: return .widgetLarge
@@ -157,32 +157,50 @@ struct LyricTileView: View {
                                    showsHeader: false,
                                    edgeFade: true,
                                    padding: customPadding ?? 16,
-                                   chromeHeight: LyricSurface.lockBanner.chromeHeight,
                                    rowSpacing: customRowSpacing ?? 5,
                                    lineSpacing: customLineSpacing ?? 1.5,
                                    maxLyricWidth: 250)
         case .carPlaySmall:
-            // CarPlay Stack / Dashboard mirror. Slim 135 pt column forces
-            // long lines to wrap into 2-3 short, punchy lines without stretching.
-            let isTextOnly = !showsProgressBar
-            let defaultPadding: CGFloat = isTextOnly ? 8 : 8
-            return LyricTileLayout(boxHeight: isTextOnly ? nil : (customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight),
-                                   maxBoxHeight: isTextOnly ? nil : (customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight),
+            // CarPlay Stack / Dashboard mirror of the Live Activity.
+            //
+            // The box is ALWAYS pinned. It used to be nilled out whenever the
+            // progress bar was hidden ("text-only"), which was the only path in
+            // this file that reached `boxed()` with neither a pin nor a ceiling:
+            // the ladder then measured itself against whatever the tile happened
+            // to leave — a number nothing certified and that changes with the
+            // head unit — and the block's footprint moved every time the row
+            // count did. The tile that needs the full box now declares its own
+            // surface (`.carPlayLyrics`) instead of switching this one off.
+            return LyricTileLayout(boxHeight: customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight,
+                                   maxBoxHeight: customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight,
                                    headerCompact: true,
                                    edgeFade: true,
-                                   padding: customPadding ?? defaultPadding,
-                                   chromeHeight: LyricSurface.carPlaySmall.chromeHeight,
+                                   padding: customPadding ?? 8,
                                    font: customFont ?? LyricSurface.carPlaySmall.lyricFont,
                                    rowSpacing: customRowSpacing ?? 5,
                                    lineSpacing: customLineSpacing ?? 1.5,
                                    maxLyricWidth: 135)
+        case .carPlayLyrics:
+            // The CarPlay Lyrics tile: lyrics only, so the block owns the whole
+            // padded tile (142 pt of 158). No header — the identity rides the hero
+            // line until the first lyric arrives, the same way the Lock Screen
+            // banner and the 4x4 widget do it. That is what keeps this tile from
+            // jumping at the intro: the block's height never depends on whether
+            // the title is showing.
+            return LyricTileLayout(boxHeight: customBoxHeight ?? LyricSurface.carPlayLyrics.blockHeight,
+                                   maxBoxHeight: customBoxHeight ?? LyricSurface.carPlayLyrics.blockHeight,
+                                   showsHeader: false,
+                                   edgeFade: true,
+                                   padding: customPadding ?? 8,
+                                   font: customFont ?? LyricSurface.carPlayLyrics.lyricFont,
+                                   rowSpacing: customRowSpacing ?? 5,
+                                   lineSpacing: customLineSpacing ?? 2)
         case .widgetSmall:
             // Apple's 158×158 grid. Slim 130 pt column wraps lines naturally.
             return LyricTileLayout(boxHeight: LyricSurface.widgetSmall.blockHeight,
                                    headerCompact: true,
                                    edgeFade: true,
                                    padding: customPadding ?? 10,
-                                   chromeHeight: LyricSurface.widgetSmall.chromeHeight,
                                    rowSpacing: customRowSpacing ?? 4,
                                    lineSpacing: customLineSpacing ?? 1.5,
                                    maxLyricWidth: 130)
@@ -192,7 +210,6 @@ struct LyricTileView: View {
                                    headerCompact: true,
                                    edgeFade: true,
                                    padding: customPadding ?? 12,
-                                   chromeHeight: LyricSurface.widgetMedium.chromeHeight,
                                    rowSpacing: customRowSpacing ?? 5,
                                    lineSpacing: customLineSpacing ?? 1.5,
                                    maxLyricWidth: 135)
@@ -206,7 +223,6 @@ struct LyricTileView: View {
                 edgeFade: true, showsBottomBar: true,
                 centersVertically: true,
                 padding: customPadding ?? 16,
-                chromeHeight: LyricSurface.widgetLarge.chromeHeight,
                 font: LyricSurface.widgetLarge.lyricFont,
                 rowSpacing: customRowSpacing ?? 6,
                 lineSpacing: customLineSpacing ?? 2,
@@ -219,7 +235,6 @@ struct LyricTileView: View {
                 edgeFade: true,
                 centersVertically: true,
                 padding: customPadding ?? 14,
-                chromeHeight: LyricSurface.home.chromeHeight,
                 rowSpacing: customRowSpacing ?? 5,
                 lineSpacing: customLineSpacing ?? 1.5,
                 maxLyricWidth: 250)
@@ -482,7 +497,8 @@ struct LyricTileView: View {
         // same way and the tile does not change its edge treatment on a state
         // change.
         Group {
-            if (surface == .lockBanner || surface == .carPlaySmall || surface == .home), let h = boxH {
+            if (surface == .lockBanner || surface == .carPlaySmall || surface == .carPlayLyrics
+                || surface == .home), let h = boxH {
                 // Strict fixed height: never shrinks when lines drop to 2, never
                 // expands when lines wrap. Prevents container jump across all surfaces.
                 content.frame(maxWidth: .infinity,
@@ -533,11 +549,6 @@ struct LyricTileView: View {
             hero = "Play a song to see lyrics"
         }
 
-        // Dynamic eviction removed: with edge fade active on all surfaces,
-        // lines dissolve softly at vertical boundaries without character-count eviction.
-        let evictUpcoming = false
-        let evictPrevious = false
-
         let hasPreviousLines = !previousLines.isEmpty && status != .idle
         let showPrevious = hasPreviousLines && budget.previousShown > 0
         let isIntro = hero.isEmpty && !displayUpcomingLines.isEmpty && status == .playing
@@ -555,8 +566,12 @@ struct LyricTileView: View {
             rows.append(LyricRow(id: uniqueID(hero), text: hero, kind: .hero, opacity: 1))
         }
         if showUpcoming {
-            let upcomingCount = isIntro ? max(budget.upcomingShown, 3) : max(budget.upcomingShown, 2)
-            for (idx, line) in displayUpcomingLines.prefix(upcomingCount).enumerated() {
+            // The table is the dial, not a floor. This was
+            // `max(budget.upcomingShown, 3)` during an intro and `max(…, 2)`
+            // otherwise, which made every rung of the ladder render the SAME rows:
+            // `ViewThatFits` had nothing left to step down to, so an over-long set
+            // overflowed the box instead of shedding a row.
+            for (idx, line) in displayUpcomingLines.prefix(budget.upcomingShown).enumerated() {
                 rows.append(LyricRow(id: uniqueID(line), text: line,
                                      kind: .upcoming, opacity: upcomingOpacity(index: idx)))
             }
@@ -614,8 +629,15 @@ struct LyricTileView: View {
     @ViewBuilder
     private func rowView(_ row: LyricRow, budget: LyricRowBudget, spec: LyricTileLayout) -> some View {
         let weight: Font.Weight = row.kind == .hero ? LyricType.lyricHeroWeight : LyricType.lyricNeighborWeight
-        // Eliminate truncation: hero wraps up to 5 lines, neighbors up to 3 lines.
-        let allowance = row.kind == .hero ? max(budget.heroRows, 5) : max(budget.neighborRows, 3)
+        // Wrap allowances come straight from the table. They used to be floors —
+        // `max(budget.heroRows, 5)` for the hero and `max(budget.neighborRows, 3)`
+        // for its neighbours — which made every rung taller than the budget it was
+        // built from: the ladder then rejected the richer sets and shed the
+        // neighbour lines instead, so a surface showed less than the table (and
+        // `layoutFits_*`) promised. If a surface needs more room before a line
+        // ellipsizes, raise its `heroRows` in the table — that check says whether
+        // it still fits.
+        let allowance = row.kind == .hero ? budget.heroRows : budget.neighborRows
         Text(row.text)
             .font(LyricType.font(size: spec.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
