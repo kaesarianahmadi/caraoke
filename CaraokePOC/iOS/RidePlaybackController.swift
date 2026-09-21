@@ -20,6 +20,7 @@ import os
 final class RidePlaybackController: ObservableObject {
 
     @Published private(set) var currentLine = ""
+    @Published private(set) var currentLineIndex: Int? = nil
     @Published private(set) var currentTranslation: String?
     @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
@@ -155,7 +156,6 @@ final class RidePlaybackController: ObservableObject {
     private var lastWidgetStatus: String?
     private var lastWidgetSignature: String?
     private var lastWidgetArtworkHex: String?
-    private var lastWidgetLineIndex: Int?
     /// Track start in wall-clock epoch ms — only recomputed while playing, so
     /// a paused track keeps the true start the widget extrapolates from.
     private var trackStartEpochMs = 0
@@ -193,7 +193,7 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetArtworkHex = nil
         lastWidgetTitle = nil
         lastWidgetIsPlaying = nil
-        lastWidgetLineIndex = nil
+        lastWidgetStatus = nil
         trackStartEpochMs = 0
         trackStartKey = nil
         lastRelayStartMs = nil
@@ -451,6 +451,7 @@ final class RidePlaybackController: ObservableObject {
     private func render(_ position: LyricsPosition?) {
         guard let position else { return }
         currentLine = position.currentLine ?? ""
+        currentLineIndex = position.lineIndex
         currentTranslation = position.currentTranslation
         previousLines = position.previousLines
         nextLine = position.nextLine
@@ -465,6 +466,7 @@ final class RidePlaybackController: ObservableObject {
         default:
             state = position.isPlaying ? .playing : .paused
         }
+        lyricState = state
         let snapshot = LyricSnapshot(
             title: anchor?.title ?? "",
             artist: anchor?.artist ?? "",
@@ -497,9 +499,11 @@ final class RidePlaybackController: ObservableObject {
     ///   reload then carries them;
     /// - the write is skipped unless the rendered state actually changed
     ///   (`render` runs 4×/s, and keychain writes are not free);
-    /// - the reload is skipped unless the track, play state or lyric status
-    ///   changed. The widget's own timeline already advances line by line, so
-    ///   reloading on a timer only burned WidgetKit's daily budget.
+    /// - the reload is skipped unless something the baked timeline cannot know
+    ///   by itself changed: the track, the play state, the lyric status or the
+    ///   artwork. Line advance is not one of those — the widget walks the
+    ///   payload's timed line list on its own, and reloading per line is what
+    ///   burned WidgetKit's daily reload budget.
     private func syncWidget(snapshot: LyricSnapshot) {
         guard snapshot.status != .loading else { return }
 
@@ -581,7 +585,12 @@ final class RidePlaybackController: ObservableObject {
         let isTitleChanged = snapshot.title != lastWidgetTitle
         let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
         let isStatusChanged = snapshot.status.rawValue != lastWidgetStatus
-        let isLineChanged = snapshot.lineIndex != lastWidgetLineIndex && snapshot.isPlaying
+        // Line changes deliberately reload nothing: the payload just written
+        // already carries the full timed lyric list plus `trackStartEpochMs`,
+        // and the widget's baked timeline walks it entry by entry on its own.
+        // Reloading per line spent the whole daily budget in two tracks and
+        // left chronod ignoring the reloads that mattered — the song change,
+        // the seek, the artwork landing.
         // Artwork (and its colour) often lands a beat AFTER the track change —
         // Spotify serves it over the network — so the widget must reload again
         // or it keeps the artwork-less timeline it was first handed.
@@ -592,12 +601,11 @@ final class RidePlaybackController: ObservableObject {
         // picked up until the next song.
         let forced = forceWidgetReload
         forceWidgetReload = false
-        guard forced || isTitleChanged || isPlayStateChanged || isStatusChanged || isArtworkChanged || isLineChanged else { return }
+        guard forced || isTitleChanged || isPlayStateChanged || isStatusChanged || isArtworkChanged else { return }
         lastWidgetTitle = snapshot.title
         lastWidgetIsPlaying = snapshot.isPlaying
         lastWidgetStatus = snapshot.status.rawValue
         lastWidgetArtworkHex = artworkColorHex
-        lastWidgetLineIndex = snapshot.lineIndex
         scheduleWidgetReload()
         Self.log.info("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
     }

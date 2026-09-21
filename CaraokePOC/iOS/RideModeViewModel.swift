@@ -27,6 +27,7 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var isOn = false
     @Published private(set) var elapsedMs = 0
     @Published private(set) var currentLine = ""
+    @Published private(set) var currentLineIndex: Int? = nil
     @Published private(set) var currentTranslation: String?
     @Published private(set) var previousLines: [String] = []
     @Published private(set) var nextLine: String?
@@ -156,6 +157,9 @@ final class RideModeViewModel: ObservableObject {
         case .appleMusic: source = "appleMusic"
         case .auto: source = nil // let the running pipeline decide
         }
+        if action == .playPause {
+            lyricStatus = (lyricStatus == .playing) ? .paused : .playing
+        }
         let outcome = await TransportControl.perform(action, source: source, isPlaying: isPlaybackActive)
         switch outcome {
         case .failed(let msg), .noActivePlayer(let msg):
@@ -193,6 +197,14 @@ final class RideModeViewModel: ObservableObject {
             .sink { [weak self] val in
                 guard let self, self.isOn else { return }
                 self.currentLine = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$currentLineIndex
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                guard let self, self.isOn else { return }
+                self.currentLineIndex = val
             }
             .store(in: &playbackCancellables)
 
@@ -350,6 +362,7 @@ final class RideModeViewModel: ObservableObject {
         trackTitle = ""
         trackArtist = ""
         currentLine = ""
+        currentLineIndex = nil
         previousLines = []
         nextLine = nil
         upcomingLines = []

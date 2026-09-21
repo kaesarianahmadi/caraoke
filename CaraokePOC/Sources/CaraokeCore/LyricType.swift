@@ -324,7 +324,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
     /// pin the fixed-box surfaces stay meaningful.
     var blockHeight: CGFloat {
         switch self {
-        case .lockBanner: return 119
+        case .lockBanner: return 135
         case .carPlaySmall: return 119
         // The CarPlay Lyrics tile: the whole padded tile, with nothing else in it.
         // 158 pt (Apple's documented small grid) − 8 pt padding top and bottom.
@@ -342,7 +342,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
         // gap ≈ 300), so `ViewThatFits` can now pick a richer row set when a
         // song has one, and the extra room becomes air between rows.
         case .widgetLarge: return 300 + 32
-        case .home: return 119
+        case .home: return 135
         }
     }
 
@@ -350,13 +350,13 @@ enum LyricSurface: String, CaseIterable, Sendable {
     /// `ViewThatFits`, and the last entry is the guaranteed minimum.
     var budgets: [LyricRowBudget] {
         switch self {
-        case .lockBanner:
+        case .lockBanner, .home:
             // Active line anchored in row 2 / middle row unless standalone.
-            // Allows up to 3 rap lines for hero.
+            // Allows up to 4 rap lines for hero.
             return [
-                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 1, neighborRows: 1),
-                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 0, neighborRows: 1),
-                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 4, previousShown: 1, upcomingShown: 1, neighborRows: 1),
+                LyricRowBudget(heroRows: 4, previousShown: 1, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 4, previousShown: 0, upcomingShown: 0, neighborRows: 1),
             ]
         case .carPlaySmall:
             let font = LyricType.carPlayLyric
@@ -412,14 +412,6 @@ enum LyricSurface: String, CaseIterable, Sendable {
                 LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 1, font: font),
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 1, font: font),
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0, font: font),
-            ]
-        case .home:
-            // Identical to lockBanner: active line in row 2 / middle row unless standalone.
-            // Allows up to 3 rap lines for hero.
-            return [
-                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 1, neighborRows: 1),
-                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 0, neighborRows: 1),
-                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0, neighborRows: 1),
             ]
         }
     }

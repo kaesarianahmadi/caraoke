@@ -35,6 +35,19 @@ struct LyricsPageView: View {
 
                 lyricStage
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .black, location: 0.05),
+                                .init(color: .black, location: 0.88),
+                                .init(color: .clear, location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .clipped()
                     .layoutPriority(0)
 
                 VStack(spacing: 8) {
@@ -43,6 +56,7 @@ struct LyricsPageView: View {
                     transportFeedback
                 }
                 .padding(.horizontal, 24)
+                .padding(.top, 8)
                 .padding(.bottom, 20)
                 .layoutPriority(1)
             }
@@ -132,7 +146,7 @@ struct LyricsPageView: View {
 
                     if !model.allLines.isEmpty {
                         ForEach(Array(model.allLines.enumerated()), id: \.offset) { index, line in
-                            let isHero = !model.currentLine.isEmpty && line.text == model.currentLine
+                            let isHero = isLineHero(index: index, lineText: line.text)
                             let isPast = isLineInPast(index: index)
                             Text(line.text)
                                 .font(LyricType.font(size: LyricType.pageLyric, weight: isHero ? LyricType.lyricHeroWeight : .regular))
@@ -170,24 +184,43 @@ struct LyricsPageView: View {
                 }
                 .padding(.horizontal, 24)
             }
+            .onChange(of: model.currentLineIndex) { _, newIndex in
+                scrollToActiveLine(proxy: proxy, lineIndex: newIndex, lineText: model.currentLine)
+            }
             .onChange(of: model.currentLine) { _, newLine in
-                scrollToActiveLine(proxy: proxy, lineText: newLine)
+                if model.currentLineIndex == nil {
+                    scrollToActiveLine(proxy: proxy, lineIndex: nil, lineText: newLine)
+                }
             }
             .onAppear {
-                scrollToActiveLine(proxy: proxy, lineText: model.currentLine)
+                scrollToActiveLine(proxy: proxy, lineIndex: model.currentLineIndex, lineText: model.currentLine)
             }
         }
     }
 
+    private func isLineHero(index: Int, lineText: String) -> Bool {
+        if let currentIdx = model.currentLineIndex {
+            return index == currentIdx
+        }
+        return !model.currentLine.isEmpty && lineText == model.currentLine
+    }
+
     private func isLineInPast(index: Int) -> Bool {
+        if let currentIdx = model.currentLineIndex {
+            return index < currentIdx
+        }
         guard let heroIndex = model.allLines.firstIndex(where: { $0.text == model.currentLine }) else {
             return false
         }
         return index < heroIndex
     }
 
-    private func scrollToActiveLine(proxy: ScrollViewProxy, lineText: String) {
-        if let index = model.allLines.firstIndex(where: { $0.text == lineText }) {
+    private func scrollToActiveLine(proxy: ScrollViewProxy, lineIndex: Int?, lineText: String) {
+        if let lineIndex {
+            withAnimation(.easeInOut(duration: 0.42)) {
+                proxy.scrollTo("line_\(lineIndex)", anchor: UnitPoint(x: 0.5, y: 0.45))
+            }
+        } else if let index = model.allLines.firstIndex(where: { $0.text == lineText }) {
             withAnimation(.easeInOut(duration: 0.42)) {
                 proxy.scrollTo("line_\(index)", anchor: UnitPoint(x: 0.5, y: 0.45))
             }

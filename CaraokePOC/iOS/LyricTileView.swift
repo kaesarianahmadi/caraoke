@@ -150,51 +150,39 @@ struct LyricTileView: View {
         // asserts are literally the same values.
         switch surface {
         case .lockBanner:
-            // Lock Screen banner: no separate intro header. During intro the
-            // hero line in the lyric stream shows title — artist, matching
-            // the 4x4 widget behaviour and avoiding layout jumps.
+            // Lock Screen banner: no separate intro header or progress bar.
+            // 100% of height dedicated to lyrics with edge fade.
             return LyricTileLayout(boxHeight: LyricSurface.lockBanner.blockHeight,
                                    showsHeader: false,
                                    edgeFade: true,
-                                   padding: customPadding ?? 16,
+                                   padding: customPadding ?? 14,
                                    rowSpacing: customRowSpacing ?? 5,
                                    lineSpacing: customLineSpacing ?? 1.5,
-                                   maxLyricWidth: 250)
+                                   maxLyricWidth: 280)
         case .carPlaySmall:
             // CarPlay Stack / Dashboard mirror of the Live Activity.
-            //
-            // The box is ALWAYS pinned. It used to be nilled out whenever the
-            // progress bar was hidden ("text-only"), which was the only path in
-            // this file that reached `boxed()` with neither a pin nor a ceiling:
-            // the ladder then measured itself against whatever the tile happened
-            // to leave — a number nothing certified and that changes with the
-            // head unit — and the block's footprint moved every time the row
-            // count did. The tile that needs the full box now declares its own
-            // surface (`.carPlayLyrics`) instead of switching this one off.
+            // Dedicated lyric stage with edge fade.
             return LyricTileLayout(boxHeight: customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight,
                                    maxBoxHeight: customBoxHeight ?? LyricSurface.carPlaySmall.blockHeight,
-                                   headerCompact: true,
+                                   showsHeader: false,
                                    edgeFade: true,
                                    padding: customPadding ?? 8,
                                    font: customFont ?? LyricSurface.carPlaySmall.lyricFont,
                                    rowSpacing: customRowSpacing ?? 5,
                                    lineSpacing: customLineSpacing ?? 1.5,
-                                   maxLyricWidth: 135)
+                                   maxLyricWidth: 142)
         case .carPlayLyrics:
-            // The CarPlay Lyrics tile: lyrics only, so the block owns the whole
-            // padded tile (142 pt of 158). No header — the identity rides the hero
-            // line until the first lyric arrives, the same way the Lock Screen
-            // banner and the 4x4 widget do it. That is what keeps this tile from
-            // jumping at the intro: the block's height never depends on whether
-            // the title is showing.
-            return LyricTileLayout(boxHeight: customBoxHeight ?? LyricSurface.carPlayLyrics.blockHeight,
-                                   maxBoxHeight: customBoxHeight ?? LyricSurface.carPlayLyrics.blockHeight,
+            // The CarPlay Lyrics tile: lyrics only, maximizing the full height of the tile.
+            return LyricTileLayout(boxHeight: customBoxHeight,
+                                   maxBoxHeight: customBoxHeight,
                                    showsHeader: false,
                                    edgeFade: true,
-                                   padding: customPadding ?? 8,
+                                   centersVertically: true,
+                                   padding: customPadding ?? 4,
                                    font: customFont ?? LyricSurface.carPlayLyrics.lyricFont,
                                    rowSpacing: customRowSpacing ?? 5,
-                                   lineSpacing: customLineSpacing ?? 2)
+                                   lineSpacing: customLineSpacing ?? 2,
+                                   maxLyricWidth: 142)
         case .widgetSmall:
             // Apple's 158×158 grid. Slim 130 pt column wraps lines naturally.
             return LyricTileLayout(boxHeight: LyricSurface.widgetSmall.blockHeight,
@@ -228,22 +216,25 @@ struct LyricTileView: View {
                 lineSpacing: customLineSpacing ?? 2,
                 maxLyricWidth: 225)
         case .home:
-            // The in-app player card — the Live Activity's in-app twin.
+            // The in-app player card — pure lyrics without duplicate header or progress bar.
             return LyricTileLayout(
                 boxHeight: LyricSurface.home.blockHeight,
-                headerCompact: true,
+                showsHeader: false,
                 edgeFade: true,
                 centersVertically: true,
                 padding: customPadding ?? 14,
                 rowSpacing: customRowSpacing ?? 5,
                 lineSpacing: customLineSpacing ?? 1.5,
-                maxLyricWidth: 250)
+                maxLyricWidth: 280)
         }
     }
 
-    /// The tile shows a progress bar unless disabled or in a terminal state —
-    /// there is no live position to report in either.
-    private var showsProgress: Bool { showsProgressBar && status != .stale && status != .expired }
+    /// The tile shows a progress bar unless disabled, in a terminal state, or on dedicated lyric stages.
+    private var showsProgress: Bool {
+        showsProgressBar && status != .stale && status != .expired
+            && surface != .lockBanner && surface != .home
+            && surface != .carPlaySmall && surface != .carPlayLyrics
+    }
 
     init(title: String, artist: String, currentLine: String,
          previousLines: [String] = [],
@@ -322,7 +313,10 @@ struct LyricTileView: View {
     /// line lands.
     private func showsIdentityHeader(spec: LyricTileLayout) -> Bool {
         guard spec.showsHeader else { return false }
-        return surface != .carPlaySmall || currentLine.isEmpty
+        if surface == .lockBanner || surface == .home || surface == .carPlaySmall || surface == .carPlayLyrics {
+            return false
+        }
+        return currentLine.isEmpty
     }
 
     /// Only non-glass surfaces paint their own card; the Lock Screen banner
@@ -585,10 +579,16 @@ struct LyricTileView: View {
     /// the SAME 18 pt, instead of squeezing four lines into a smaller font.
     @ViewBuilder
     private func lyricRows(spec: LyricTileLayout) -> some View {
-        let budgets = surface.profile.budgets
-        ViewThatFits(in: .vertical) {
-            ForEach(Array(budgets.enumerated()), id: \.offset) { _, budget in
+        if surface == .lockBanner || surface == .home || surface == .carPlaySmall || surface == .carPlayLyrics {
+            if let budget = surface.profile.budgets.first {
                 rowsStack(spec: spec, budget: budget)
+            }
+        } else {
+            let budgets = surface.profile.budgets
+            ViewThatFits(in: .vertical) {
+                ForEach(Array(budgets.enumerated()), id: \.offset) { _, budget in
+                    rowsStack(spec: spec, budget: budget)
+                }
             }
         }
     }
@@ -599,10 +599,7 @@ struct LyricTileView: View {
         VStack(alignment: .center, spacing: customRowSpacing ?? spec.rowSpacing) {
             ForEach(items) { row in
                 rowView(row, budget: budget, spec: spec)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
+                    .transition(.opacity)
             }
         }
         // Fills the width and lets the enclosing box handle vertical sizing.
@@ -629,15 +626,15 @@ struct LyricTileView: View {
     @ViewBuilder
     private func rowView(_ row: LyricRow, budget: LyricRowBudget, spec: LyricTileLayout) -> some View {
         let weight: Font.Weight = row.kind == .hero ? LyricType.lyricHeroWeight : LyricType.lyricNeighborWeight
-        // Wrap allowances come straight from the table. They used to be floors —
-        // `max(budget.heroRows, 5)` for the hero and `max(budget.neighborRows, 3)`
-        // for its neighbours — which made every rung taller than the budget it was
-        // built from: the ladder then rejected the richer sets and shed the
-        // neighbour lines instead, so a surface showed less than the table (and
-        // `layoutFits_*`) promised. If a surface needs more room before a line
-        // ellipsizes, raise its `heroRows` in the table — that check says whether
-        // it still fits.
-        let allowance = row.kind == .hero ? budget.heroRows : budget.neighborRows
+        let allowance: Int = {
+            if surface == .lockBanner || surface == .home || surface == .widgetLarge {
+                return row.kind == .hero ? 5 : 4
+            } else if surface == .carPlaySmall || surface == .carPlayLyrics {
+                return row.kind == .hero ? 4 : 3
+            } else {
+                return row.kind == .hero ? budget.heroRows : budget.neighborRows
+            }
+        }()
         Text(row.text)
             .font(LyricType.font(size: spec.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))

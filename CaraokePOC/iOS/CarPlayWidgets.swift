@@ -28,11 +28,12 @@ private struct CaraokeCarPlayTransport: View {
     let entry: CaraokeWidgetEntry
     let tint: Color
     var size: CGFloat = 15
+    var spacing: CGFloat = 2
     var buttonWidth: CGFloat = 34
     var buttonHeight: CGFloat = 34
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: spacing) {
             button("backward.fill", PreviousTrackIntent(), "Previous song", size)
             button(entry.isPlaying ? "pause.fill" : "play.fill",
                    PlayPauseIntent(), entry.isPlaying ? "Pause" : "Play", size + 2)
@@ -186,16 +187,17 @@ private struct CaraokePlayerWidgetView: View {
             let cover = min(geo.size.width, geo.size.height) * 0.52
             VStack(spacing: 0) {
                 CaraokeCarPlayCover(entry: entry, size: cover)
-                Spacer(minLength: 4)
+                    .padding(.top, 6)
+                Spacer(minLength: 2)
                 CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
                                        mutedColor: t.mutedTextColor, titleSize: 13)
                 Spacer(minLength: 4)
                 CaraokeCarPlayProgress(progress: entry.progress, tint: t.textColor)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 4)
-                CaraokeCarPlayTransport(entry: entry, tint: t.textColor)
+                    .frame(width: 130)
+                    .padding(.bottom, 6)
+                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, spacing: 10, buttonWidth: 38, buttonHeight: 32)
+                    .padding(.bottom, 6)
             }
-            .padding(8)
             .frame(width: geo.size.width, height: geo.size.height)
         }
     }

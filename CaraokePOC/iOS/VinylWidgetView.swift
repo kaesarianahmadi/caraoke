@@ -86,10 +86,8 @@ struct VinylWidgetView: View {
         let text = currentLyricText
         let next = entry.nextLine?.trimmingCharacters(in: .whitespaces)
 
-        // No width cap on either row. At a 135 pt cap inside a ~188 pt column the
-        // text wrapped roughly a quarter early, and that extra wrapping is what
-        // pushed the block past its tier — the tier clips, so the bottom line was
-        // cut. The column width IS the cap.
+        // 160 pt cap leaves a clean ~28 pt buffer before the spinning vinyl disc,
+        // preventing long lines from overlapping the artwork.
         return VStack(alignment: .leading, spacing: MediumWidgetTiers.rowSpacing) {
             if !text.isEmpty {
                 Text(text)
@@ -98,6 +96,7 @@ struct VinylWidgetView: View {
                     .lineLimit(MediumWidgetTiers.heroRows)
                     .lineSpacing(MediumWidgetTiers.lineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 160, alignment: .leading)
             }
             if let next, !next.isEmpty {
                 Text(next)
@@ -106,6 +105,7 @@ struct VinylWidgetView: View {
                     .lineLimit(MediumWidgetTiers.neighborRows)
                     .lineSpacing(MediumWidgetTiers.lineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 160, alignment: .leading)
             }
         }
         .lyricEdgeFade(active: true)

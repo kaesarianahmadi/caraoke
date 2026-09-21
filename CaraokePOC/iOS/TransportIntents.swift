@@ -34,6 +34,10 @@ struct PlayPauseIntent: AppIntent {
     static let description = IntentDescription("Plays or pauses the current song.")
 
     func perform() async throws -> some IntentResult {
+        if var payload = SharedWidgetStore.read() {
+            payload.isPlaying.toggle()
+            SharedWidgetStore.write(payload)
+        }
         await TransportControl.perform(.playPause)
         WidgetCenter.shared.reloadAllTimelines()
         return .result()

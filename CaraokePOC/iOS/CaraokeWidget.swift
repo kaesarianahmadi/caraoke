@@ -254,7 +254,7 @@ struct CaraokeWidget: Widget {
         }
         .configurationDisplayName("Caraoke Lyrics")
         .description("Synced lyrics widget for Home Screen and CarPlay dashboard.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemMedium, .systemLarge])
         .contentMarginsDisabled()
         // StandBy and CarPlay drop the background and render the tile on
         // black; the widget palette is card-free so the content survives it.
