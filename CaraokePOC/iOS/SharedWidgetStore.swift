@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import os
 
 // The one cross-process store: app ⇄ widget extension ⇄ Live Activity.
 //
@@ -33,14 +34,27 @@ enum SharedKeychain {
         return out as? Data
     }
 
+    /// A failed write here strands the widget extension on stale data with no
+    /// trace, so every status is checked: update falls back to add (item
+    /// missing), add falls back to update (item already there), and a final
+    /// failure is logged rather than silently dropped.
+    private static let log = Logger(subsystem: "com.caraoke.poc", category: "keychain")
+
     static func set(_ data: Data, service: String, account: String) {
         let query = base(service: service, account: account)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
         ]
-        if SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecItemNotFound {
-            SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status != errSecSuccess {
+            status = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+        }
+        if status != errSecSuccess {
+            status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        }
+        if status != errSecSuccess {
+            log.error("keychain write failed service=\(service, privacy: .public) account=\(account, privacy: .public) status=\(status)")
         }
     }
 

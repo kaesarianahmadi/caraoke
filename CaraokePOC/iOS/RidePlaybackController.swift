@@ -106,6 +106,31 @@ final class RidePlaybackController: ObservableObject {
     /// still rendering a timeline baked from the old anchor. That is what made
     /// a seek invisible: the payload was corrected and the tile was not.
     private var lastReloadedTrackStartMs = 0
+    /// What one widget bake contains. Recorded at payload-write time and
+    /// promoted to `reloadedBake` when a reload actually executes — the
+    /// heartbeat self-heals against what the tile was last HANDED, the same
+    /// discipline as `lastReloadedTrackStartMs`.
+    private struct Bake {
+        /// Date of the bake's last entry (0 when the bake is static — a
+        /// single entry covers nothing to run out of).
+        var coverageEndMs = 0
+        /// The bake came back as one static entry while the payload says the
+        /// song is playing — FIX's fallback state, a tile that never slides.
+        var staticWhilePlaying = false
+        /// (date ms, lyric line index) per baked entry: "which line does the
+        /// tile show at time T" reads straight off these.
+        var stamps: [(dateMs: Int, lineIndex: Int)] = []
+    }
+    private var pendingBake = Bake()
+    private var reloadedBake = Bake()
+    /// Self-heal triggers fire once per episode each (chronod's budget is
+    /// ~40-70 reloads per widget per day; bursts under a second apart earn a
+    /// 70 s penalty box).
+    private var selfHealFiredCoverageMs = 0
+    private var selfHealFiredStatic = false
+    private var selfHealFiredDivergence = false
+    /// Last bold-text value written to the shared widget settings.
+    private var lastWidgetBoldText: Bool?
 
     init(activity: CaraokeActivityController,
          provider: any LyricsRepository = FallbackLyricsProvider(),
@@ -196,6 +221,13 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetStatus = nil
         trackStartEpochMs = 0
         trackStartKey = nil
+        lastReloadedTrackStartMs = 0
+        pendingBake = Bake()
+        reloadedBake = Bake()
+        selfHealFiredCoverageMs = 0
+        selfHealFiredStatic = false
+        selfHealFiredDivergence = false
+        lastWidgetBoldText = nil
         lastRelayStartMs = nil
         lastRelayIsPlaying = nil
         lastRelayRegisterAt = nil
@@ -253,8 +285,12 @@ final class RidePlaybackController: ObservableObject {
             engine.apply(nil)
             return
         }
+        // Duration deliberately excluded from the key: its 5 s bucket
+        // flipped on identical now-playing noise (a nil or wobbling
+        // duration_ms), re-keyed the same track mid-song, and wiped the
+        // lyrics to "No lyrics".
         let key = TrackMatcher.signature(
-            title: state.title, artist: state.artist, durationMs: state.durationMs
+            title: state.title, artist: state.artist, durationMs: nil
         )
         let isNewTrack = key != lastLyricsKey
         if isNewTrack {
@@ -311,23 +347,47 @@ final class RidePlaybackController: ObservableObject {
         )
         lyricsFetchTask = Task { [weak self] in
             guard let self else { return }
-            guard let track = try? await self.provider.lyrics(for: signature) else {
-                if !Task.isCancelled {
-                    self.lyricState = .noLyrics
+            // Transient failures (network, rate limit) retry instead of
+            // downgrading to "No lyrics" — that downgrade wiped mid-song
+            // lyrics on a blip. Three attempts, 5 s apart, cancelled with
+            // the task on track change.
+            for attempt in 0..<3 {
+                if Task.isCancelled { return }
+                let fetched: LyricTrack?
+                do {
+                    fetched = try await self.provider.lyrics(for: signature)
+                } catch {
+                    if attempt < 2 {
+                        try? await Task.sleep(for: .seconds(5))
+                        continue
+                    }
+                    // Out of retries: claim "No lyrics" only when this track
+                    // never had any — last-good lyrics stay on screen.
+                    if self.lastTrack == nil {
+                        self.lyricState = .noLyrics
+                    }
+                    return
                 }
+                guard !Task.isCancelled else { return }
+                guard let track = fetched else {
+                    // Definitive: the provider says no synced lyrics exist.
+                    if self.lastTrack == nil {
+                        self.lyricState = .noLyrics
+                    }
+                    return
+                }
+                self.lastTrack = track
+                self.allLines = track.lines
+                self.engine.setLyrics(
+                    track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation) }
+                )
+                self.armRelay(track: track)
+                self.lyricState = .playing
+                self.render(self.engine.positionSubject.value)
+                Self.log.info("lyrics landed → \(track.lines.count, privacy: .public) lines, widget write follows")
+                self.startChainFetch()
                 return
             }
-            guard !Task.isCancelled else { return }
-            self.lastTrack = track
-            self.allLines = track.lines
-            self.engine.setLyrics(
-                track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation) }
-            )
-            self.armRelay(track: track)
-            self.lyricState = .playing
-            self.render(self.engine.positionSubject.value)
-            Self.log.info("lyrics landed → \(track.lines.count, privacy: .public) lines, widget write follows")
-            self.startChainFetch()
         }
     }
 
@@ -507,9 +567,21 @@ final class RidePlaybackController: ObservableObject {
     private func syncWidget(snapshot: LyricSnapshot) {
         guard snapshot.status != .loading else { return }
 
+        // Widget settings ride the shared store: the appearance UI owns
+        // `appearance.boldText` in UserDefaults and the widget reads boldText
+        // from here. Written only when the value changes.
+        let boldText = UserDefaults.standard.object(forKey: "appearance.boldText") as? Bool ?? true
+        if boldText != lastWidgetBoldText {
+            var settings = SharedWidgetStore.readSettings()
+            settings.boldText = boldText
+            SharedWidgetStore.writeSettings(settings)
+            lastWidgetBoldText = boldText
+        }
+
         let anchor = engine.anchor
+        // Same duration-free key as `handle` — see the comment there.
         let key = TrackMatcher.signature(
-            title: snapshot.title, artist: snapshot.artist, durationMs: snapshot.durationMs
+            title: snapshot.title, artist: snapshot.artist, durationMs: nil
         )
         if anchor?.isPlaying == true || trackStartKey != key {
             trackStartEpochMs = (Int((anchor?.capturedAt.timeIntervalSince1970 ?? Date().timeIntervalSince1970) * 1000))
@@ -582,6 +654,25 @@ final class RidePlaybackController: ObservableObject {
         )
         SharedWidgetStore.write(payload)
 
+        // Record what the widget's bake of this payload will contain. The
+        // heartbeat self-heals against the copy a reload actually delivered
+        // (see `scheduleWidgetReload`) — the store is rewritten every tick
+        // and would always read as up to date while a stale tile freezes.
+        let baked = WidgetTimelineBuilder.entries(for: payload, now: Date(), includeOutro: true)
+        var stamps: [(dateMs: Int, lineIndex: Int)] = []
+        for entry in baked {
+            if let index = entry.lineIndex, (0..<widgetLines.count).contains(index) {
+                stamps.append((dateMs: Int(entry.date.timeIntervalSince1970 * 1000), lineIndex: index))
+            }
+        }
+        pendingBake = Bake(
+            coverageEndMs: baked.count > 1
+                ? Int((baked.last?.date ?? Date()).timeIntervalSince1970 * 1000)
+                : 0,
+            staticWhilePlaying: payload.isPlaying && baked.count == 1,
+            stamps: stamps
+        )
+
         let isTitleChanged = snapshot.title != lastWidgetTitle
         let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
         let isStatusChanged = snapshot.status.rawValue != lastWidgetStatus
@@ -590,7 +681,9 @@ final class RidePlaybackController: ObservableObject {
         // and the widget's baked timeline walks it entry by entry on its own.
         // Reloading per line spent the whole daily budget in two tracks and
         // left chronod ignoring the reloads that mattered — the song change,
-        // the seek, the artwork landing.
+        // the seek, the artwork landing. When that self-advancing timeline
+        // runs out or drifts anyway, the heartbeat's bounded self-heal below
+        // reloads on its own — still never per line.
         // Artwork (and its colour) often lands a beat AFTER the track change —
         // Spotify serves it over the network — so the widget must reload again
         // or it keeps the artwork-less timeline it was first handed.
@@ -636,7 +729,9 @@ final class RidePlaybackController: ObservableObject {
             // the engine against *this* value — what the widget was last
             // actually handed — because nothing else in the process can see
             // whether a timeline that was written ever became one that renders.
+            // The bake rides along for the same reason.
             self.lastReloadedTrackStartMs = self.trackStartEpochMs
+            self.reloadedBake = self.pendingBake
             WidgetCenter.shared.reloadAllTimelines()
             Self.log.info("widget reload executed (coalesced)")
         }
@@ -686,13 +781,16 @@ final class RidePlaybackController: ObservableObject {
 
     /// Every 15 s while playing, check if the widget-extrapolated position
     /// has drifted more than 2 s from the engine anchor. If so, force a
-    /// widget payload rewrite + timeline reload to re-sync.
+    /// widget payload rewrite + timeline reload to re-sync. The same beat
+    /// runs the bounded self-heal below, which is what un-freezes a CarPlay
+    /// tile whose baked timeline ran out or arrived stale.
     private func startSyncHeartbeat() {
         syncHeartbeatTask?.cancel()
         syncHeartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(15))
                 guard let self, let anchor = self.engine.anchor, anchor.isPlaying else { continue }
+                self.selfHealWidgetTimeline()
                 // Both sides are track anchors, so this is engine-vs-widget and
                 // not the app against itself. Reading `SharedWidgetStore` here
                 // measured a payload the app had already re-anchored the instant
@@ -715,5 +813,38 @@ final class RidePlaybackController: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Bounded self-healing reloads — the fix for "the widget shows one
+    /// picture and never slides". A baked timeline advances on its own until
+    /// it runs out, and on the CarPlay host the `.after` refill does not
+    /// always arrive. Three repairs on the 15 s beat, each firing at most
+    /// once per episode so chronod's daily budget survives: the delivered
+    /// bake is about to run out, it came back static while playing, or the
+    /// tile's line has diverged from the app's by more than one.
+    private func selfHealWidgetTimeline() {
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+        let bake = reloadedBake
+        if !bake.staticWhilePlaying { selfHealFiredStatic = false }
+        let shownLine = bake.stamps.last(where: { $0.dateMs <= nowMs })?.lineIndex ?? -1
+        let diverged = abs((currentLineIndex ?? -1) - shownLine) > 1
+        if !diverged { selfHealFiredDivergence = false }
+
+        let cause: String
+        if bake.coverageEndMs > 0, nowMs >= bake.coverageEndMs - 10_000,
+           selfHealFiredCoverageMs != bake.coverageEndMs {
+            selfHealFiredCoverageMs = bake.coverageEndMs
+            cause = "coverage end at \(bake.coverageEndMs - nowMs)ms"
+        } else if bake.staticWhilePlaying, !selfHealFiredStatic {
+            selfHealFiredStatic = true
+            cause = "static entry while playing"
+        } else if diverged, !selfHealFiredDivergence {
+            selfHealFiredDivergence = true
+            cause = "line divergence app \(currentLineIndex ?? -1) vs tile \(shownLine)"
+        } else {
+            return
+        }
+        Self.log.info("widget self-heal: \(cause, privacy: .public) → reload")
+        scheduleWidgetReload()
     }
 }

@@ -77,7 +77,8 @@ private struct FamilyAdaptiveTile: View {
             status: status(of: context.state),
             positionMs: context.state.positionMs ?? 0,
             durationMs: context.state.durationMs,
-            surface: activityFamily == .small ? .carPlaySmall : .lockBanner
+            surface: activityFamily == .small ? .carPlaySmall : .lockBanner,
+            boldText: context.state.boldText ?? true
         )
     }
 }
@@ -100,10 +101,14 @@ private struct IslandLeadingGlyph: View {
 /// (or its per-state stand-in) in 13px semibold white, ellipsized.
 private struct IslandCompactText: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
+    /// ANDed with Bold Text accessibility: our faces already carry bold,
+    /// so a system bold drops ours instead of stacking (build 66).
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { (context.state.boldText ?? true) && legibilityWeight != .bold }
 
     var body: some View {
         Text(Self.text(for: status(of: context.state), context: context))
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 13, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
             .foregroundColor(.white)
             .lineLimit(1)
             .accessibilityHidden(true)
@@ -141,13 +146,15 @@ private struct IslandCompactText: View {
 /// (11px medium at 0.85, matching the tiny single-capsule width).
 private struct IslandMinimal: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { (context.state.boldText ?? true) && legibilityWeight != .bold }
 
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: "music.note")
                 .font(.system(size: 10, weight: .medium))
             Text(IslandCompactText.text(for: status(of: context.state), context: context))
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 11, weight: LyricType.chromeWeight(.medium, boldText: bold)))
         }
         .foregroundColor(.white.opacity(0.85))
         .lineLimit(1)
@@ -159,6 +166,8 @@ private struct IslandMinimal: View {
 /// `.ix-next` with the 55 % neighbor fade).
 private struct IslandCenter: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { (context.state.boldText ?? true) && legibilityWeight != .bold }
 
     var body: some View {
         switch status(of: context.state) {
@@ -174,7 +183,7 @@ private struct IslandCenter: View {
                     Image(systemName: "music.note")
                         .font(.caption2)
                     Text(context.state.title)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 15, weight: LyricType.chromeWeight(.bold, boldText: bold)))
                         .foregroundColor(.white)
                         .lineLimit(1)
                 }
@@ -185,7 +194,7 @@ private struct IslandCenter: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         case .stale:
             Text("Ride ended")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 16, weight: LyricType.chromeWeight(.bold, boldText: bold)))
                 .foregroundColor(.white.opacity(0.5))
                 .frame(maxWidth: .infinity, alignment: .leading)
         default:
@@ -193,7 +202,7 @@ private struct IslandCenter: View {
                 // Same driver as the compact slot, so the intro reads as the
                 // identity here too instead of the "nothing playing" placeholder.
                 Text(IslandCompactText.text(for: status(of: context.state), context: context))
-                    .font(LyricType.font(size: 16, weight: LyricType.lyricHeroWeight))
+                    .font(LyricType.font(size: 16, weight: LyricType.heroWeight(boldText: bold)))
                     .foregroundColor(.white)
                     .lineLimit(2)
                 if let nextLine = context.state.nextLine, !nextLine.isEmpty {
@@ -226,14 +235,17 @@ private struct IslandCenter: View {
 /// Zero transport buttons per user direction.
 private struct IslandBottom: View {
     let context: ActivityViewContext<LyricsActivityAttributes>
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { (context.state.boldText ?? true) && legibilityWeight != .bold }
 
     var body: some View {
-        HStack(spacing: 10) {
+        let safeProgress: CGFloat = context.state.progress.isFinite ? max(0, min(1, CGFloat(context.state.progress))) : 0
+        return HStack(spacing: 10) {
             HStack(spacing: 4) {
                 Image(systemName: "music.note")
                     .font(.system(size: 8))
                 Text("Caraoke")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10, weight: LyricType.chromeWeight(.medium, boldText: bold)))
             }
             .foregroundColor(.white.opacity(0.66))
             .padding(.horizontal, 8)
@@ -244,7 +256,7 @@ private struct IslandBottom: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.18))
                     Capsule().fill(Color.white.opacity(0.75))
-                        .frame(width: max(3, geo.size.width * CGFloat(context.state.progress)))
+                        .frame(width: max(3, geo.size.width * safeProgress))
                 }
             }
             .frame(height: 3)

@@ -12,6 +12,12 @@ struct VinylWidgetView: View {
     private var theme: WidgetTheme { WidgetTheme(rawValue: entry.settings.theme) ?? .artwork }
     private var coverStyle: WidgetCoverStyle { WidgetCoverStyle(rawValue: entry.settings.coverStyle) ?? .vinyl }
     private var artwork: UIImage? { entry.artworkData.flatMap(UIImage.init(data:)) }
+    /// Bold Text switch synced through the payload (the widget extension cannot
+    /// see the app's `@AppStorage`). Combined with the system's Bold Text
+    /// accessibility setting: our faces already carry bold, so either one drops
+    /// ours to plain instead of stacking a second bold on top.
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { entry.settings.boldText && legibilityWeight != .bold }
 
     var body: some View {
         GeometryReader { geometry in
@@ -51,10 +57,10 @@ struct VinylWidgetView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Tier 1: identity header
             Text(identity)
-                .font(.system(size: MediumWidgetTiers.identityFont, weight: .semibold))
+                .font(.system(size: MediumWidgetTiers.identityFont,
+                             weight: LyricType.chromeWeight(.semibold, boldText: bold)))
                 .foregroundStyle(theme.mutedTextColor)
                 .lineLimit(1)
-                .truncationMode(.tail)
                 .frame(height: MediumWidgetTiers.identityHeight, alignment: .leading)
 
             // Tier 2: lyric block — locked, edge-fade masks overflow
@@ -86,17 +92,21 @@ struct VinylWidgetView: View {
         let text = currentLyricText
         let next = entry.nextLine?.trimmingCharacters(in: .whitespaces)
 
-        // 160 pt cap leaves a clean ~28 pt buffer before the spinning vinyl disc,
-        // preventing long lines from overlapping the artwork.
+        // Build 66: the old 160 pt cap contradicted the tiers —
+        // `MediumWidgetTiers.lyricColumnFraction` × the inner width is ~188 pt
+        // and the tiers doc says text is NOT capped below the column width. The
+        // column is already a fixed-width frame in `lyricsSection`; the rows
+        // wrap there and stop at the tier's `heroRows` / `neighborRows`.
         return VStack(alignment: .leading, spacing: MediumWidgetTiers.rowSpacing) {
             if !text.isEmpty {
                 Text(text)
-                    .font(LyricType.font(size: MediumWidgetTiers.heroFont, weight: .bold))
+                    .font(LyricType.font(size: MediumWidgetTiers.heroFont,
+                                         weight: LyricType.heroWeight(boldText: bold)))
                     .foregroundStyle(theme.textColor)
                     .lineLimit(MediumWidgetTiers.heroRows)
                     .lineSpacing(MediumWidgetTiers.lineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 160, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             if let next, !next.isEmpty {
                 Text(next)
@@ -105,9 +115,11 @@ struct VinylWidgetView: View {
                     .lineLimit(MediumWidgetTiers.neighborRows)
                     .lineSpacing(MediumWidgetTiers.lineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 160, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .lyricBlockMeasurer()
+        .frame(maxHeight: .infinity, alignment: .center)
         .lyricEdgeFade(active: true)
         .id(entry.lineIndex)
         .transition(.push(from: .bottom))
@@ -120,10 +132,10 @@ struct VinylWidgetView: View {
         if !entry.previousLines.isEmpty && entry.isPlaying {
             return "" // outro transition
         }
-        if !entry.title.isEmpty {
-            return entry.artist.isEmpty ? entry.title : "\(entry.title) — \(entry.artist)"
-        }
-        return "Play a song to see lyrics"
+        // Build 66: the identity tier already shows "title — artist" on intro,
+        // so the hero stands empty until the first lyric line arrives — the
+        // same string is never rendered twice (regression fix).
+        return entry.title.isEmpty ? "Play a song to see lyrics" : ""
     }
 
     /// The record/cover IS the resync button — tapping it refreshes the shared

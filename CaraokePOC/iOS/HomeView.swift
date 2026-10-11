@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var showSpotifySetup = false
     @State private var showWidgetSettings = false
     @State private var showLyricsPage = false
+    @AppStorage(AppearanceSettings.boldTextKey) private var boldText = true
     @StateObject private var purchases = PurchaseManager()
     @Environment(\.colorScheme) private var scheme
 
@@ -33,16 +34,19 @@ struct HomeView: View {
                         fixesSection
                     }
                     footnote
-                        .padding(.bottom, 80) // Space for floating mini-player
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
             }
-
-            // Floating mini-player at bottom
-            floatingMiniPlayer
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+            // Floating mini-player at bottom. Hosted in the scroll view's
+            // bottom safe-area inset so the content inset IS the miniplayer's
+            // measured height — the old guessed 80/84 pt constants still let
+            // the Music-source tiles slide under the dock (build 66 fix).
+            .safeAreaInset(edge: .bottom) {
+                floatingMiniPlayer
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(model: model, presentingPaywall: $showPaywall,
@@ -239,7 +243,8 @@ struct HomeView: View {
             positionMs: isIdle ? 0 : model.positionMs,
             durationMs: isIdle ? nil : model.durationMs,
             surface: .home,
-            palette: .activity
+            palette: .activity,
+            boldText: boldText
         )
         .frame(height: 167)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))

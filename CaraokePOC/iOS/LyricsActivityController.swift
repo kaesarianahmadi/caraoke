@@ -263,18 +263,20 @@ final class CaraokeActivityController {
     }
 
     private static func content(from snapshot: LyricSnapshot) -> LyricsActivityAttributes.ContentState {
-        LyricsActivityAttributes.ContentState(
+        let safeProgress = snapshot.progress.isFinite ? max(0, min(1, snapshot.progress)) : 0
+        return LyricsActivityAttributes.ContentState(
             title: snapshot.title,
             artist: snapshot.artist,
             currentLine: snapshot.currentLine,
-            previousLines: snapshot.previousLines,
+            previousLines: Array(snapshot.previousLines.suffix(2)),
             nextLine: snapshot.nextLine,
-            upcomingLines: snapshot.upcomingLines,
+            upcomingLines: Array(snapshot.upcomingLines.prefix(2)),
             isPlaying: snapshot.isPlaying,
-            progress: snapshot.progress,
+            progress: safeProgress,
             status: snapshot.status.rawValue,
             positionMs: snapshot.positionMs,
-            durationMs: snapshot.durationMs
+            durationMs: snapshot.durationMs,
+            boldText: UserDefaults.standard.object(forKey: AppearanceSettings.boldTextKey) as? Bool ?? true
         )
     }
 }

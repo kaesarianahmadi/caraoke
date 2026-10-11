@@ -2,16 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import WebSocket from '/Users/macos/.npm/_npx/1e7f6d9597241db0/node_modules/ws/wrapper.mjs';
+import WebSocket from '/Users/macos/.npm/_npx/b86ed90107c62dab/node_modules/ws/wrapper.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 const DSH_API_BASE = process.env.DSH_WEB_URL || 'http://127.0.0.1:3080';
-const DSH_WS_URL = DSH_API_BASE.replace(/^http/, 'ws') + '/api/events.mux';
-const WORKSPACE_CWD = '/Users/macos/Documents/DSH Workspace/Caraeoke App';
-const DEFAULT_WORKSPACE_ID = '1c1b9bf4-4b21-4761-babc-47f11612b4de';
-const CURRENT_SESSION_ID = process.env.DSH_SESSION_ID || 'session-211d5028-a977-44ab-a502-413f418f458a';
+const DSH_WS_URL = DSH_API_BASE.replace(/^http/, 'ws') + '/api/remote.mux';
+const WORKSPACE_CWD = process.env.PWD || '/Users/macos/Documents/DSH Workspace/Caraoke App';
+const CURRENT_SESSION_ID = process.env.DSH_SESSION_ID || 'session-96c846ce-c673-4635-8831-7f4f78a2b0f7';
 
 if (!fs.existsSync(CONFIG_PATH)) {
   const template = {
@@ -25,82 +24,70 @@ if (!fs.existsSync(CONFIG_PATH)) {
 }
 
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+config.allowed_chat_id = Number(process.env.TELEGRAM_ALLOWED_CHAT_ID) || config.allowed_chat_id;
 
 if (!config.bot_token || config.bot_token.includes('YOUR_TELEGRAM_BOT_TOKEN')) {
   console.error('[Bridge] Error: bot_token is not configured in config.json');
   process.exit(1);
 }
 
+if (!config.allowed_chat_id) {
+  console.error('[Bridge] Error: allowed_chat_id must be configured in config.json or TELEGRAM_ALLOWED_CHAT_ID');
+  process.exit(1);
+}
+
 const TELEGRAM_API = `https://api.telegram.org/bot${config.bot_token}`;
 
 let turnCount = 0;
-const MAX_TURNS_PER_SESSION = 8; // Automatically cycle after 8 turns to keep tokens < 30k
+const MAX_TURNS_PER_SESSION = 10;
 
-let cachedWorkspaceId = null;
-
-async function getWorkspaceId() {
-  if (cachedWorkspaceId) return cachedWorkspaceId;
+function getDshCookie(authority = '127.0.0.1:3080') {
   try {
-    const res = await fetch(`${DSH_API_BASE}/api/workspace.list`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request',
-        rpcId: crypto.randomUUID(),
-        method: 'workspace.list',
-        payload: {}
-      })
-    });
-    const data = await res.json();
-    const items = data.result?.value?.items || [];
-    const ws = items.find(w => w.path === WORKSPACE_CWD || w.title === 'Caraeoke App');
-    if (ws?.workspaceId) {
-      cachedWorkspaceId = ws.workspaceId;
-      return cachedWorkspaceId;
-    }
+    const credPath = path.join(process.env.DSH_HOME || path.join(process.env.HOME, '.dsh'), '.credentials.yaml');
+    const yaml = fs.readFileSync(credPath, 'utf8');
+    const match = yaml.match(/client-connection\/browser-session:[\s\S]*?secret:\s*([^\s]+)/);
+    if (!match) return '';
+    const secretBase64Url = match[1];
+    const padding = '='.repeat((4 - secretBase64Url.length % 4) % 4);
+    const secret = Buffer.from(secretBase64Url.replaceAll('-', '+').replaceAll('_', '/') + padding, 'base64');
+    const cookieName = 'dsh-auth-' + crypto.createHash('sha256').update(authority).digest('base64url');
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + 7 * 24 * 60 * 60 * 1000;
+    const payload = { version: 1, authority, issuedAt, expiresAt };
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const sig = crypto.createHmac('sha256', secret).update(body).digest('base64url');
+    return `${cookieName}=v1.${body}.${sig}`;
   } catch (err) {
-    console.error('[Bridge] Failed to fetch workspace list:', err.message);
-  }
-  cachedWorkspaceId = DEFAULT_WORKSPACE_ID;
-  return cachedWorkspaceId;
-}
-
-async function attachSessionToWorkspace(sessionId, workspaceId) {
-  if (!sessionId || !workspaceId) return;
-  try {
-    await fetch(`${DSH_API_BASE}/api/session.create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request',
-        rpcId: crypto.randomUUID(),
-        method: 'session.create',
-        payload: {
-          sessionId,
-          workspaceId
-        }
-      })
-    });
-  } catch (err) {
-    // silent fallback
+    console.error('[Bridge] Failed to compute DSH auth cookie:', err.message);
+    return '';
   }
 }
 
 async function createFreshSession() {
   try {
-    const workspaceId = await getWorkspaceId();
+    const authority = new URL(DSH_API_BASE).host;
+    const cookie = getDshCookie(authority);
     const payload = {
       type: 'client-request',
       rpcId: crypto.randomUUID(),
-      method: 'session.create',
+      method: 'session/create',
       payload: {
-        workspaceId
+        args: {
+          request: {
+            cwd: WORKSPACE_CWD
+          }
+        }
       }
     };
 
-    const res = await fetch(`${DSH_API_BASE}/api/session.create`, {
+    const res = await fetch(`${DSH_API_BASE}/api/session/create`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookie,
+        'Host': authority,
+        'Origin': `http://${authority}`
+      },
       body: JSON.stringify(payload)
     });
 
@@ -110,7 +97,8 @@ async function createFreshSession() {
       config.session_id = newId;
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
       turnCount = 0;
-      console.log(`[Bridge] Auto-cycled to fresh session in workspace (${workspaceId}): ${newId}`);
+      console.log(`[Bridge] Switched to fresh session: ${newId}`);
+      subscribeToSession(newId);
       return newId;
     }
   } catch (err) {
@@ -138,33 +126,46 @@ async function sendTelegramMessage(chatId, text) {
   const MAX_LEN = 4000;
   for (let i = 0; i < text.length; i += MAX_LEN) {
     const chunk = text.slice(i, i + MAX_LEN);
-    await tgCall('sendMessage', {
+    // ponytail: Plaintext fallback on error. Add Telegram MarkdownV2 escape helper if markdown fidelity needed.
+    const res = await tgCall('sendMessage', {
       chat_id: chatId,
       text: chunk,
       parse_mode: 'Markdown'
-    }).catch(async () => {
-      // Fallback without parse_mode in case markdown is invalid
-      await tgCall('sendMessage', { chat_id: chatId, text: chunk });
     });
+    if (!res?.ok) {
+      await tgCall('sendMessage', { chat_id: chatId, text: chunk });
+    }
   }
 }
 
 async function postPromptToDSH(promptText) {
   const sessionId = config.session_id || CURRENT_SESSION_ID;
+  const authority = new URL(DSH_API_BASE).host;
+  const cookie = getDshCookie(authority);
   const payload = {
     type: 'client-request',
     rpcId: crypto.randomUUID(),
-    method: 'session.prompt',
+    method: 'session/prompt',
     payload: {
-      sessionId,
-      mode: 'queue',
-      content: [{ type: 'text', text: promptText }]
+      args: {
+        request: {
+          requestId: crypto.randomUUID(),
+          sessionId,
+          mode: 'queue',
+          content: [{ type: 'text', text: promptText }]
+        }
+      }
     }
   };
 
-  const res = await fetch(`${DSH_API_BASE}/api/session.prompt`, {
+  const res = await fetch(`${DSH_API_BASE}/api/session/prompt`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cookie': cookie,
+      'Host': authority,
+      'Origin': `http://${authority}`
+    },
     body: JSON.stringify(payload)
   });
 
@@ -173,28 +174,77 @@ async function postPromptToDSH(promptText) {
 
 // WebSocket listener for DSH assistant responses
 let ws = null;
+let currentFollowStreamId = null;
+let snapshotLoaded = false;
 let currentResponseBlocks = [];
 let isGenerating = false;
 
+function subscribeToSession(targetSession) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  if (currentFollowStreamId) {
+    try {
+      ws.send(JSON.stringify({ type: 'cancel', streamId: currentFollowStreamId }));
+    } catch {}
+  }
+
+  currentFollowStreamId = `follow-${targetSession}-${Date.now()}`;
+  snapshotLoaded = false;
+  currentResponseBlocks = [];
+
+  ws.send(JSON.stringify({
+    type: 'open',
+    streamId: currentFollowStreamId,
+    endpoint: 'session/follow',
+    payload: {
+      args: {
+        request: {
+          address: {
+            kind: 'session',
+            sessionId: targetSession
+          }
+        }
+      }
+    }
+  }));
+
+  console.log(`[DSH WS] Subscribed to follow session: ${targetSession}`);
+}
+
 function connectDshEvents() {
-  ws = new WebSocket(DSH_WS_URL);
+  const authority = new URL(DSH_API_BASE).host;
+  const cookie = getDshCookie(authority);
+
+  ws = new WebSocket(DSH_WS_URL, {
+    headers: {
+      'Cookie': cookie,
+      'Host': authority,
+      'Origin': `http://${authority}`
+    }
+  });
 
   ws.on('open', () => {
     console.log('[DSH WS] Connected to events downlink.');
+    subscribeToSession(config.session_id || CURRENT_SESSION_ID);
   });
 
   ws.on('message', async (data) => {
     try {
       const msg = JSON.parse(data.toString());
-      if (msg.type !== 'server-request') return;
+      if (msg.type !== 'item' || !msg.value) return;
 
-      const method = msg.method;
-      const payload = msg.payload || {};
-      const targetSession = config.session_id || CURRENT_SESSION_ID;
+      const item = msg.value;
 
-      if (method === 'session/event' && payload.sessionId === targetSession) {
-        const event = payload.event;
-        if (!event) return;
+      if (item.type === 'snapshot') {
+        snapshotLoaded = true;
+        console.log(`[DSH WS] Snapshot received (cursor: ${item.cursor}). Listening for live events.`);
+        return;
+      }
+
+      if (!snapshotLoaded) return;
+
+      if (item.type === 'event' && item.event) {
+        const event = item.event;
 
         if (event.type === 'turn/start') {
           isGenerating = true;
@@ -211,26 +261,29 @@ function connectDshEvents() {
           if (currentResponseBlocks.length > 0 && config.allowed_chat_id) {
             const fullReply = currentResponseBlocks.join('\n\n').trim();
             if (fullReply) {
-              await sendTelegramMessage(config.allowed_chat_id, `🤖 *Caraeoke Agent:*\n\n${fullReply}`);
+              await sendTelegramMessage(config.allowed_chat_id, `🤖 *Josh:*\n\n${fullReply}`);
             }
             currentResponseBlocks = [];
             turnCount++;
 
-            // Check if turn count reached auto-refresh threshold
             if (turnCount >= MAX_TURNS_PER_SESSION) {
-              console.log(`[Bridge] Turn limit reached (${turnCount}/${MAX_TURNS_PER_SESSION}). Cycling session to keep token cost minimal...`);
+              console.log(`[Bridge] Turn limit reached (${turnCount}/${MAX_TURNS_PER_SESSION}). Cycling session...`);
               const newSessionId = await createFreshSession();
               if (newSessionId) {
-                await sendTelegramMessage(config.allowed_chat_id, `🔄 *Context window refreshed automatically.*\nInput tokens reset from bloated ~250k → 4k. Full memory & codebase state preserved. Ready!`);
+                await sendTelegramMessage(
+                  config.allowed_chat_id,
+                  `🔄 *Context refreshed automatically.*\nFresh session created. Ready!`
+                );
               }
             }
           }
-        }
-      } else if (method === 'approval/requested' && payload.sessionId === targetSession) {
-        if (config.allowed_chat_id) {
-          const tool = payload.toolName || 'Unknown Tool';
-          const reason = payload.reason || 'Approval required';
-          await sendTelegramMessage(config.allowed_chat_id, `⚠️ *Approval Required*\nTool: \`${tool}\`\nReason: ${reason}\nApprove via DSH Web GUI.`);
+        } else if (event.type === 'approval/requested') {
+          if (config.allowed_chat_id) {
+            const data = event.data || {};
+            const tool = data.toolName || data.tool || 'Unknown Tool';
+            const reason = data.reason || 'Approval required';
+            await sendTelegramMessage(config.allowed_chat_id, `⚠️ *Approval Required*\nTool: \`${tool}\`\nReason: ${reason}\nApprove via DSH Web GUI.`);
+          }
         }
       }
     } catch (err) {
@@ -268,14 +321,6 @@ async function pollTelegram() {
 
           const fromChatId = msg.chat.id;
 
-          // Auto-pair if chat_id is not yet locked
-          if (!config.allowed_chat_id || config.allowed_chat_id === 0) {
-            config.allowed_chat_id = fromChatId;
-            fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
-            await sendTelegramMessage(fromChatId, `✅ *Josh Connected*\nAuthorized Chat ID locked: \`${fromChatId}\`\nYou are now speaking directly with Chief of Staff.`);
-            continue;
-          }
-
           // Strict whitelist check
           if (fromChatId !== config.allowed_chat_id) {
             console.warn(`[Security] Ignored message from unauthorized chat: ${fromChatId}`);
@@ -285,25 +330,29 @@ async function pollTelegram() {
           const text = msg.text.trim();
 
           if (text === '/start') {
-            await sendTelegramMessage(fromChatId, `👋 *Josh (Chief of Staff) online.*\nReady for commands. Send any task or message.`);
+            await sendTelegramMessage(fromChatId, `👋 *Josh online.*\nReady for commands. Send any task or message.`);
             continue;
           }
 
-          if (text === '/status' || text === '/dashboard') {
-            const msg = `📊 *Caraoke Agent Status*\nMode: Direct Senior Engineering\nWorkspace: \`Caraeoke App\`\nSession Turns: ${turnCount}/${MAX_TURNS_PER_SESSION}`;
-            await sendTelegramMessage(fromChatId, msg);
+          if (text === '/status') {
+            const statusMsg = `📊 *Josh Status*\nSession: \`${config.session_id || CURRENT_SESSION_ID}\`\nTurns: ${turnCount}/${MAX_TURNS_PER_SESSION}`;
+            await sendTelegramMessage(fromChatId, statusMsg);
             continue;
           }
 
           if (text === '/newsession' || text === '/reset') {
             const newSessionId = await createFreshSession();
-            await sendTelegramMessage(fromChatId, `🔄 *Fresh Session Spawned:*\n\`${newSessionId}\`\nInput tokens reset to minimum (~4,000). State preserved in Mnemon memory.`);
+            if (newSessionId) {
+              await sendTelegramMessage(fromChatId, `🔄 *Fresh Session Spawned:*\n\`${newSessionId}\`\nReady!`);
+            } else {
+              await sendTelegramMessage(fromChatId, `❌ Failed to create fresh session.`);
+            }
             continue;
           }
 
           // Forward user command to DSH session
           console.log(`[Telegram -> DSH] Received: ${text.slice(0, 50)}...`);
-          await sendTelegramMessage(fromChatId, `⏳ *Task received.* Working on it...`);
+          await sendTelegramMessage(fromChatId, `⏳ *Josh:* Working on it...`);
           await postPromptToDSH(text);
         }
       }
@@ -315,9 +364,6 @@ async function pollTelegram() {
 }
 
 // Start bridge
-console.log('[Bridge] Starting Chief of Staff Telegram Bridge...');
-if (config.session_id) {
-  getWorkspaceId().then(wsId => attachSessionToWorkspace(config.session_id, wsId));
-}
+console.log('[Bridge] Starting Telegram Bridge (Josh)...');
 connectDshEvents();
 pollTelegram();

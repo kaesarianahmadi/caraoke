@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var isConnectingSpotify = false
     @State private var spotifyErrorMessage: String?
     @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
+    @AppStorage(AppearanceSettings.boldTextKey) private var boldText = true
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
 
@@ -410,8 +411,19 @@ struct SettingsView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                rowDivider()
+                // Bold Text switch. The faces everywhere are already bold, so
+                // this steps them down to plain when the user wants lighter
+                // type (and whenever iOS Bold Text itself is on).
+                gRow {
+                    iconCircle("bold")
+                    Text("Bold Text").gLabel()
+                    Toggle("Bold Text", isOn: $boldText)
+                        .labelsHidden()
+                        .tint(AppTheme.accent(scheme))
+                }
             }
-            Text("Dark keeps the night-drive look; Auto follows the device setting.")
+            Text("Dark keeps the night-drive look; Auto follows the device setting. Bold Text off renders lyrics and titles at regular weight.")
                 .gNote(scheme)
         }
     }

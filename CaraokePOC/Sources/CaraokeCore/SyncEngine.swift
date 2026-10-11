@@ -47,8 +47,12 @@ struct LyricsPosition: Equatable {
 }
 
 final class SyncEngine {
-    static let jitterThresholdMs = 500
+    static let jitterThresholdMs = 150
     static let seekThresholdMs = 1000
+    /// A slew never moves less than this per report. Halving alone converges
+    /// geometrically and parks a residual inside the jitter band forever;
+    /// with this floor any slew clears in a few reports.
+    static let minSlewStepMs = 100
     static let tickInterval: TimeInterval = 0.25
 
     var now: () -> Date
@@ -68,8 +72,8 @@ final class SyncEngine {
 
     /// Adopts a new source report.
     /// - Track change: purges lines immediately to eliminate stale lyric flash.
-    /// - Jitter (<= 500 ms): ignored to preserve smooth continuous extrapolation.
-    /// - Drift (500-1000 ms): slews smoothly toward reported position without visual jumps.
+    /// - Jitter (<= 150 ms): ignored to preserve smooth continuous extrapolation.
+    /// - Drift (150-1000 ms): slews smoothly toward reported position without visual jumps.
     /// - Seek (> 1000 ms) or play/pause flip: hard snaps anchor.
     func apply(_ state: NowPlayingState?) {
         defer { tick() }
@@ -87,8 +91,12 @@ final class SyncEngine {
                     return // within jitter tolerance — keep existing smooth anchor
                 }
                 if delta <= Self.seekThresholdMs {
-                    // Slew: converge smoothly towards reported position
-                    let slewedMs = expected + (new.positionMs - expected) / 2
+                    // Slew: converge toward the reported position, halving the
+                    // residual but never below the floor, so it arrives in a
+                    // few reports instead of asymptotically.
+                    let residual = new.positionMs - expected
+                    let step = min(abs(residual), max(Self.minSlewStepMs, abs(residual) / 2))
+                    let slewedMs = expected + (residual < 0 ? -step : step)
                     anchor = NowPlayingState(
                         title: current.title, artist: current.artist, album: current.album,
                         durationMs: current.durationMs, positionMs: slewedMs,

@@ -134,10 +134,14 @@ struct SharedWidgetPayload: Codable, Sendable {
 struct SharedWidgetSettings: Codable, Sendable, Equatable {
     var theme: String
     var coverStyle: String
+    /// Hero lyric weight: bold (default) or regular. Sourced from the
+    /// appearance settings UI's `appearance.boldText` UserDefaults key.
+    var boldText: Bool
 
-    init(theme: String = "artwork", coverStyle: String = "vinyl") {
+    init(theme: String = "artwork", coverStyle: String = "vinyl", boldText: Bool = true) {
         self.theme = theme
         self.coverStyle = coverStyle
+        self.boldText = boldText
     }
 }
 
@@ -231,13 +235,12 @@ enum WidgetTimelineBuilder {
         }
         let positionMs = max(0, Int((now.timeIntervalSince1970 - startEpoch) * 1000.0))
 
-        // The payload has run past the end of everything it describes and
-        // nothing updated it (app suspended or killed) — stop advancing
-        // instead of drifting into lines that are no longer playing.
-        if payload.chainedSpanMs > 0, positionMs > payload.chainedSpanMs + 5_000 {
-            return [staticEntry(payload: payload, now: now)]
-        }
-
+        // No span cap: the lines the payload carries are baked from here to
+        // the end, whatever `chainedSpanMs` claims. A too-small span used to
+        // collapse the whole bake to one static entry mid-song — the freeze
+        // where the tile shows one picture and never slides. Staleness is
+        // `isExpired`'s job (and the provider's self-fetch), not a reason to
+        // refuse to advance.
         var startIndex = 0
         for (index, line) in lines.enumerated() {
             if line.timeMs <= positionMs { startIndex = index } else { break }

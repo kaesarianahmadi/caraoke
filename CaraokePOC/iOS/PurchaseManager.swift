@@ -15,6 +15,24 @@ final class PurchaseManager: ObservableObject {
     @Published private(set) var isEntitled = false
     @Published private(set) var loadFailed = false
     @Published private(set) var purchaseInFlight = false
+    @Published private(set) var offeringMetadata: [String: String] = [:]
+
+    var planOffers: [PlanOffer] {
+        PaywallContent.plans(metadata: offeringMetadata)
+    }
+
+    func ctaText(for productID: String, defaultText: String) -> String {
+        switch productID {
+        case CaraokeProducts.monthly:
+            return offeringMetadata["cta_monthly"] ?? defaultText
+        case CaraokeProducts.yearly:
+            return offeringMetadata["cta_yearly"] ?? defaultText
+        case CaraokeProducts.lifetime:
+            return offeringMetadata["cta_lifetime"] ?? defaultText
+        default:
+            return defaultText
+        }
+    }
 
     private var updatesTask: Task<Void, Never>?
 
@@ -41,6 +59,20 @@ final class PurchaseManager: ObservableObject {
     }
 
     func loadProducts() async {
+        #if canImport(RevenueCat)
+        if Purchases.isConfigured, let offerings = try? await Purchases.shared.offerings() {
+            if let meta = offerings.current?.metadata {
+                var strMeta: [String: String] = [:]
+                for (k, v) in meta {
+                    if let str = v as? String {
+                        strMeta[k] = str
+                    }
+                }
+                self.offeringMetadata = strMeta
+            }
+        }
+        #endif
+
         do {
             products = try await Product.products(for: CaraokeProducts.all.sorted())
             loadFailed = products.isEmpty

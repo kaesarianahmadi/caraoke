@@ -624,6 +624,10 @@ final class TestRunner {
             check("paywallThreePlans", PaywallContent.plans.count == 3)
             check("paywallYearlyRecommended", PaywallContent.plans.first?.productID == CaraokeProducts.yearly && PaywallContent.plans.first?.isRecommended == true)
             check("paywallLifetimeText", (PaywallContent.plans.first { $0.productID == CaraokeProducts.lifetime })?.fallbackPriceText.contains("$20") == true)
+            let customPlans = PaywallContent.plans(metadata: ["yearly_badge": "7-DAY FREE TRIAL", "lifetime_anchor": "$30.00"])
+            check("paywallMetadataBadge", customPlans.first?.trialBadge == "7-DAY FREE TRIAL")
+            check("paywallMetadataAnchor", (customPlans.first { $0.productID == CaraokeProducts.lifetime })?.originalPriceText == "$30.00")
+            check("paywallMetadataFallback", (customPlans.first { $0.productID == CaraokeProducts.monthly })?.trialBadge == "3-DAY FREE TRIAL")
 
             // cache clearAll
             let caDir = FileManager.default.temporaryDirectory.appendingPathComponent("cache-clear-\(UUID().uuidString)")
@@ -683,13 +687,20 @@ final class TestRunner {
             engine.tick()
             check("syncEngineTickLine", positions.last??.currentLine == "c")
 
-            let jitter = nowPlayingState(posMs: 15_500, playedAgo: 0, playing: true, at: t0)
+            let jitter = nowPlayingState(posMs: 15_100, playedAgo: 0, playing: true, at: t0)
             engine.apply(jitter)
             check("syncEngineJitterKeptAnchor", engine.anchor?.positionMs == 10_000)
 
             let drift = nowPlayingState(posMs: 15_700, playedAgo: 0, playing: true, at: t0)
             engine.apply(drift)
             check("syncEngineDriftSlewed", engine.anchor?.positionMs == 15_350)
+
+            // The slew's minimum step: 180 ms residual halves to 90 — below
+            // the 100 ms floor — so it lands 100 ms closer in one report
+            // instead of parking inside the jitter band.
+            let slowDrift = nowPlayingState(posMs: 15_530, playedAgo: 0, playing: true, at: t0)
+            engine.apply(slowDrift)
+            check("syncEngineSlewHasMinStep", engine.anchor?.positionMs == 15_450)
 
             let seek = nowPlayingState(posMs: 20_500, playedAgo: 0, playing: true, at: t0)
             engine.apply(seek)
@@ -935,6 +946,22 @@ final class TestRunner {
             check("widgetNotExpiredWithoutStart", !WidgetTimelineBuilder.isExpired(payload: noClock, now: start))
             check("widgetNotExpiredPaused",
                   !WidgetTimelineBuilder.isExpired(payload: payload(lines: lines, playing: false), now: start))
+
+            // The mid-song freeze regression: a span smaller than the lines
+            // (a wobbling player-reported duration does this) used to collapse
+            // the whole bake to one static entry the moment position passed
+            // duration+5s — the tile that shows one picture and never slides.
+            // A playing payload with timed lines must always bake one dated
+            // entry per remaining line; expiry is `isExpired`'s job.
+            let overrun = payload(lines: [
+                SharedLyricLine(timeMs: 0, text: "one"),
+                SharedLyricLine(timeMs: 20_000, text: "two"),
+                SharedLyricLine(timeMs: 40_000, text: "three"),
+            ], startedSecondsAgo: 36)
+            let midSong = WidgetTimelineBuilder.contentEntries(for: overrun, now: start)
+            check("widgetMidSongNeverCollapses", midSong.count > 1)
+            check("widgetMidSongEntriesAreDated", midSong.allSatisfy { $0.date >= start })
+            check("widgetMidSongShowsRemainingLines", midSong.map(\.currentLine).contains("three"))
         }
 
         // MARK: Lyric layout budget (build 41, revised build 46)
@@ -965,7 +992,7 @@ final class TestRunner {
 
             // There are exactly three exceptions to the shared size, and they pull
             // in opposite directions: the two CarPlay surfaces use their own sizes
-            // (14 for the mirrored activity, 15 for the Lyrics tile, which spends
+            // (13 for the mirrored activity, 15 for the Lyrics tile, which spends
             // its whole box on lyrics) and the 4x4 widget rises to 20. Every other
             // surface renders the shared 18.
             //
@@ -973,7 +1000,7 @@ final class TestRunner {
             // sizes visible inside one surface at one instant — which is what
             // `layoutSingleFont_*` above and the `budget.font` plumbing exist to
             // prevent.
-            checkEqual("layoutCarPlayFontIs14", LyricType.carPlayLyric, 14)
+            checkEqual("layoutCarPlayFontIs13", LyricType.carPlayLyric, 13)
             checkEqual("layoutCarPlaySurfaceFont",
                        LyricSurface.carPlaySmall.lyricFont, LyricType.carPlayLyric)
             checkEqual("layoutCarPlayTileFontIs15", LyricType.carPlayLyricTile, 15)

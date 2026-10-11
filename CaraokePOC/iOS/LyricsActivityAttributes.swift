@@ -24,5 +24,9 @@ struct LyricsActivityAttributes: ActivityAttributes {
         /// (background) include these; without them the row hides.
         var positionMs: Int?
         var durationMs: Int?
+        /// App Settings → "Bold Text". Crosses into the widget-extension
+        /// render process inside the state (that process's UserDefaults
+        /// cannot see the app's). Relay pushes may omit it → bold stays on.
+        var boldText: Bool?
     }
 }

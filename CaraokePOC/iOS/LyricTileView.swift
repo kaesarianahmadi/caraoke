@@ -141,6 +141,16 @@ struct LyricTileView: View {
     var customPadding: CGFloat? = nil
     var customRowSpacing: CGFloat? = nil
     var customLineSpacing: CGFloat? = nil
+    /// The app's "Bold Text" switch. Widget callers pass
+    /// `payload.settings.boldText`; in-app callers pass their `@AppStorage`.
+    var boldText: Bool = true
+    /// Bold Text accessibility — the system-level bold. It stacks on top of
+    /// faces that already carry bold, so it drops ours down the same way the
+    /// switch does (the double-bold defect).
+    @Environment(\.legibilityWeight) private var legibilityWeight
+
+    /// True when OUR bold faces may render bold.
+    private var bold: Bool { boldText && legibilityWeight != .bold }
 
     private var colors: LyricTilePalette { palette ?? .activity }
 
@@ -170,7 +180,10 @@ struct LyricTileView: View {
                                    font: customFont ?? LyricSurface.carPlaySmall.lyricFont,
                                    rowSpacing: customRowSpacing ?? 5,
                                    lineSpacing: customLineSpacing ?? 1.5,
-                                   maxLyricWidth: 142)
+                                   // User direction, build 66: the mirrored tile's lyric column was
+                                   // 142 pt inside an 804 px-wide widget — visibly narrow. Widen to
+                                   // 158, keeping a breath of margin rather than full-bleed.
+                                   maxLyricWidth: 158)
         case .carPlayLyrics:
             // The CarPlay Lyrics tile: lyrics only, maximizing the full height of the tile.
             return LyricTileLayout(boxHeight: customBoxHeight,
@@ -202,11 +215,16 @@ struct LyricTileView: View {
                                    lineSpacing: customLineSpacing ?? 1.5,
                                    maxLyricWidth: 135)
         case .widgetLarge:
-            // 4x4 grid. No intro header — the bottom player bar permanently
+            // 4x4 grid. Content-sized block whose ceiling comes from the budget
+            // table (block height minus the padding the box sits inside) —
+            // never a view literal: build 64 shipped a stale 240 against a
+            // table promising 300 and pinned the block below its own budget.
+            // No intro header — the bottom player bar permanently
             // shows title/artist/transport, so a top-left header is redundant
             // and causes a layout jump when the first lyric arrives.
             return LyricTileLayout(
-                boxHeight: nil, maxBoxHeight: 240,
+                boxHeight: nil,
+                maxBoxHeight: LyricSurface.widgetLarge.blockHeight - 2 * (customPadding ?? 16),
                 showsHeader: false,
                 edgeFade: true, showsBottomBar: true,
                 centersVertically: true,
@@ -214,7 +232,7 @@ struct LyricTileView: View {
                 font: LyricSurface.widgetLarge.lyricFont,
                 rowSpacing: customRowSpacing ?? 6,
                 lineSpacing: customLineSpacing ?? 2,
-                maxLyricWidth: 225)
+                maxLyricWidth: 275)
         case .home:
             // The in-app player card — pure lyrics without duplicate header or progress bar.
             return LyricTileLayout(
@@ -246,7 +264,8 @@ struct LyricTileView: View {
          resyncPulse: Double = 1, needsResync: Bool = false,
          showsProgressBar: Bool = true, customBoxHeight: CGFloat? = nil,
          customFont: CGFloat? = nil, customPadding: CGFloat? = nil,
-         customRowSpacing: CGFloat? = nil, customLineSpacing: CGFloat? = nil) {
+         customRowSpacing: CGFloat? = nil, customLineSpacing: CGFloat? = nil,
+         boldText: Bool = true) {
         self.title = title
         self.artist = artist
         self.currentLine = currentLine
@@ -269,6 +288,7 @@ struct LyricTileView: View {
         self.customPadding = customPadding
         self.customRowSpacing = customRowSpacing
         self.customLineSpacing = customLineSpacing
+        self.boldText = boldText
     }
 
     var body: some View {
@@ -333,7 +353,11 @@ struct LyricTileView: View {
     private func cardStroke(enabled: Bool) -> some View {
         if enabled {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(colors.cardBorder, lineWidth: 1)
+                // User direction, build 66: 1 pt read as a visible seam around
+                // the Lock Screen banner. Keep the stroke (it defines the glass
+                // card edge), halve the line so the margin dissolves the way
+                // the faded edges do.
+                .stroke(colors.cardBorder, lineWidth: 0.5)
         }
     }
 
@@ -346,17 +370,16 @@ struct LyricTileView: View {
             // the lyric block needs back comes from here.
             HStack(spacing: 6) {
                 Text(identityInline)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: 12.5, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
                     .foregroundColor(colors.titleText)
                     .lineLimit(1)
-                    .truncationMode(.tail)
                 Spacer(minLength: 4)
                 if let badge = status.badge {
                     HStack(spacing: 4) {
                         if status == .paused { pauseGlyph(size: 8) }
                         Text(badge)
                     }
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 11, weight: LyricType.chromeWeight(.medium, boldText: bold)))
                     .foregroundColor(colors.badgeText)
                     .layoutPriority(1)
                 }
@@ -365,7 +388,7 @@ struct LyricTileView: View {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title.isEmpty ? "Live Lyrics" : title)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
                         .foregroundColor(colors.titleText)
                         .lineLimit(1)
                     if !artist.isEmpty {
@@ -383,7 +406,7 @@ struct LyricTileView: View {
                         }
                         Text(badge)
                     }
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: LyricType.chromeWeight(.medium, boldText: bold)))
                     .foregroundColor(colors.badgeText)
                 }
             }
@@ -402,11 +425,26 @@ struct LyricTileView: View {
     private func lyricBody(spec: LyricTileLayout) -> some View {
         switch status {
         case .loading:
-            boxed(VStack(alignment: .center, spacing: 8) {
-                skeleton(widthFraction: 0.90)
-                skeleton(widthFraction: 0.70)
-                skeleton(widthFraction: 0.50)
-            }, spec: spec, alignment: .center)
+            if surface == .carPlaySmall || surface == .carPlayLyrics {
+                boxed(VStack(alignment: .center, spacing: 4) {
+                    Text(title.isEmpty ? "Finding lyrics…" : title)
+                        .font(LyricType.font(size: spec.font, weight: LyricType.heroWeight(boldText: bold)))
+                        .foregroundColor(colors.heroText)
+                        .lineLimit(2)
+                    if !artist.isEmpty {
+                        Text(artist)
+                            .font(LyricType.font(size: spec.font - 2))
+                            .foregroundColor(colors.artistText)
+                            .lineLimit(1)
+                    }
+                }, spec: spec, alignment: .center)
+            } else {
+                boxed(VStack(alignment: .center, spacing: 8) {
+                    skeleton(widthFraction: 0.90)
+                    skeleton(widthFraction: 0.70)
+                    skeleton(widthFraction: 0.50)
+                }, spec: spec, alignment: .center)
+            }
         case .noLyrics:
             // Every text row in the tile renders at the surface's own lyric
             // size — build 40 shrank these stand-ins to 13, which is the same
@@ -415,7 +453,7 @@ struct LyricTileView: View {
                 HStack(spacing: 6) {
                     musicNoteGlyph(size: spec.font)
                     Text(currentLine.isEmpty ? title : currentLine)
-                        .font(LyricType.font(size: spec.font, weight: LyricType.lyricHeroWeight))
+                        .font(LyricType.font(size: spec.font, weight: LyricType.heroWeight(boldText: bold)))
                         .foregroundColor(colors.heroText)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -428,7 +466,7 @@ struct LyricTileView: View {
         case .stale:
             boxed(VStack(alignment: .center, spacing: LyricType.lyricRowSpacing) {
                 Text(currentLine.isEmpty ? "Ride ended" : currentLine)
-                    .font(LyricType.font(size: spec.font, weight: LyricType.lyricHeroWeight))
+                    .font(LyricType.font(size: spec.font, weight: LyricType.heroWeight(boldText: bold)))
                     .foregroundColor(colors.heroText)
                     .opacity(0.32)
                     .lineLimit(2)
@@ -451,7 +489,7 @@ struct LyricTileView: View {
                         .font(.system(size: spec.font, weight: .bold))
                         .foregroundColor(colors.heroText)
                     Text("Out of date")
-                        .font(LyricType.font(size: spec.font, weight: LyricType.lyricHeroWeight))
+                        .font(LyricType.font(size: spec.font, weight: LyricType.heroWeight(boldText: bold)))
                         .foregroundColor(colors.heroText)
                         .lineLimit(1)
                 }
@@ -483,6 +521,10 @@ struct LyricTileView: View {
     @ViewBuilder
     private func boxed<V: View>(_ content: V, spec: LyricTileLayout, alignment: Alignment) -> some View {
         let boxH = customBoxHeight ?? spec.boxHeight
+        // The block's natural height, measured BEFORE the frame pins the box.
+        // The edge fade reads it (through the preference) so the fade can cover
+        // only the empty edge bands — never sit on top of glyphs (build 66 fix).
+        let measured = content.lyricBlockMeasurer()
         // Build 54 — the 4x4 widget's edge fade. Text that runs past the block
         // dissolves into the background instead of stopping on a hard cut, which
         // is what the competitor's widget does and what the user asked for.
@@ -495,14 +537,14 @@ struct LyricTileView: View {
                 || surface == .home), let h = boxH {
                 // Strict fixed height: never shrinks when lines drop to 2, never
                 // expands when lines wrap. Prevents container jump across all surfaces.
-                content.frame(maxWidth: .infinity,
-                              minHeight: h,
-                              maxHeight: h,
-                              alignment: alignment)
+                measured.frame(maxWidth: .infinity,
+                               minHeight: h,
+                               maxHeight: h,
+                               alignment: alignment)
             } else {
-                content.frame(maxWidth: .infinity,
-                              maxHeight: boxH ?? spec.maxBoxHeight ?? .infinity,
-                              alignment: alignment)
+                measured.frame(maxWidth: .infinity,
+                               maxHeight: boxH ?? spec.maxBoxHeight ?? .infinity,
+                               alignment: alignment)
             }
         }
         .lyricEdgeFade(active: spec.edgeFade)
@@ -537,7 +579,16 @@ struct LyricTileView: View {
         } else if !previousLines.isEmpty && isPlaying {
             // Outro transition: current line cleared so previous line rolls off
             hero = ""
+        } else if showsIdentityHeader(spec: spec) || spec.showsBottomBar {
+            // The identity already renders in the header or the bottom bar —
+            // the hero shows an empty placeholder so the same string is never
+            // drawn twice (build 66 regression fix). The first lyric line
+            // takes the hero slot the moment it arrives.
+            hero = ""
         } else if !title.isEmpty {
+            // Header-less surfaces (lock banner, in-app card, CarPlay lyrics
+            // tile) carry the identity as the intro hero — it is the only
+            // identity they show.
             hero = artist.isEmpty ? title : "\(title) — \(artist)"
         } else {
             hero = "Play a song to see lyrics"
@@ -545,9 +596,12 @@ struct LyricTileView: View {
 
         let hasPreviousLines = !previousLines.isEmpty && status != .idle
         let showPrevious = hasPreviousLines && budget.previousShown > 0
-        let isIntro = hero.isEmpty && !displayUpcomingLines.isEmpty && status == .playing
-        let showUpcoming = (showPrevious || isIntro || !hasPreviousLines) && status != .idle
-            && (budget.upcomingShown > 0 || isIntro)
+        // The budget table is the dial: what a rung shows is exactly what the
+        // rung declares. (Build 64's char-count heuristic — "hero.count > 30
+        // kills the upcoming rows" — measured characters, not rendered rows,
+        // and was wrong in both directions. The ladder now sheds rows
+        // height-driven, previous first.)
+        let showUpcoming = status != .idle && budget.upcomingShown > 0
 
         var rows: [LyricRow] = []
         if showPrevious {
@@ -560,11 +614,6 @@ struct LyricTileView: View {
             rows.append(LyricRow(id: uniqueID(hero), text: hero, kind: .hero, opacity: 1))
         }
         if showUpcoming {
-            // The table is the dial, not a floor. This was
-            // `max(budget.upcomingShown, 3)` during an intro and `max(…, 2)`
-            // otherwise, which made every rung of the ladder render the SAME rows:
-            // `ViewThatFits` had nothing left to step down to, so an over-long set
-            // overflowed the box instead of shedding a row.
             for (idx, line) in displayUpcomingLines.prefix(budget.upcomingShown).enumerated() {
                 rows.append(LyricRow(id: uniqueID(line), text: line,
                                      kind: .upcoming, opacity: upcomingOpacity(index: idx)))
@@ -576,19 +625,20 @@ struct LyricTileView: View {
     /// The fit ladder. Richest row set first; `ViewThatFits` walks down to the
     /// first one that actually fits the surface. This is what replaced
     /// `minimumScaleFactor`: when space runs out the tile shows fewer lines at
-    /// the SAME 18 pt, instead of squeezing four lines into a smaller font.
+    /// the SAME size, instead of squeezing lines into a smaller font.
+    ///
+    /// Every surface walks the ladder — including the fixed boxes. The
+    /// budgeted row set always fits its box (that is what `layoutFits_*`
+    /// asserts), so the ladder only steps down when the hero wraps past its
+    /// planned rows: it then sheds the PREVIOUS row first and keeps the next
+    /// row visible when it still fits, instead of clipping the hero at the
+    /// box edge (build 66).
     @ViewBuilder
     private func lyricRows(spec: LyricTileLayout) -> some View {
-        if surface == .lockBanner || surface == .home || surface == .carPlaySmall || surface == .carPlayLyrics {
-            if let budget = surface.profile.budgets.first {
+        let budgets = surface.profile.budgets
+        ViewThatFits(in: .vertical) {
+            ForEach(Array(budgets.enumerated()), id: \.offset) { _, budget in
                 rowsStack(spec: spec, budget: budget)
-            }
-        } else {
-            let budgets = surface.profile.budgets
-            ViewThatFits(in: .vertical) {
-                ForEach(Array(budgets.enumerated()), id: \.offset) { _, budget in
-                    rowsStack(spec: spec, budget: budget)
-                }
             }
         }
     }
@@ -608,7 +658,7 @@ struct LyricTileView: View {
         // fallback. Removed so the stack sizes to its content and
         // ViewThatFits can actually compare it to the container.
         .frame(maxWidth: .infinity)
-        .animation(.easeInOut(duration: 0.32), value: items.map(\.id))
+        .animation(.easeInOut(duration: 0.25), value: items.map(\.id))
     }
 
     /// Active line: emphasis by weight, never by size. Build 40 used `.bold` in
@@ -625,16 +675,21 @@ struct LyricTileView: View {
     /// the surface's budget allows.
     @ViewBuilder
     private func rowView(_ row: LyricRow, budget: LyricRowBudget, spec: LyricTileLayout) -> some View {
-        let weight: Font.Weight = row.kind == .hero ? LyricType.lyricHeroWeight : LyricType.lyricNeighborWeight
-        let allowance: Int = {
-            if surface == .lockBanner || surface == .home || surface == .widgetLarge {
-                return row.kind == .hero ? 5 : 4
-            } else if surface == .carPlaySmall || surface == .carPlayLyrics {
-                return row.kind == .hero ? 4 : 3
-            } else {
-                return row.kind == .hero ? budget.heroRows : budget.neighborRows
-            }
-        }()
+        let weight: Font.Weight = row.kind == .hero
+            ? LyricType.heroWeight(boldText: bold)
+            : LyricType.neighborWeight(boldText: bold)
+        // Row allowances come from the budget table and nowhere else — the
+        // table is the dial, no literals here (build 66: the old `hero ? 2 : 1`
+        // / `hero ? 5 : 4` literals contradicted the declared budgets and were
+        // the root of the clipping family). A neighbour may ellipsize at its
+        // allowance; it may never be clipped by the box. The hero is NOT
+        // capped at its planned `heroRows`: it may spill into the room freed
+        // by shedding neighbours (the ladder above), bounded only by what the
+        // box can hold, so a long active line is never cut.
+        let allowance: Int = row.kind == .hero
+            ? budget.maxRows(fitting: customBoxHeight ?? spec.boxHeight ?? spec.maxBoxHeight
+                             ?? surface.profile.blockHeight)
+            : budget.neighborRows
         Text(row.text)
             .font(LyricType.font(size: spec.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
@@ -675,11 +730,16 @@ struct LyricTileView: View {
     // MARK: - Progress bar (3px capsule)
 
     private var progressRow: some View {
-        GeometryReader { geo in
+        let safeProgress: CGFloat = {
+            let p = CGFloat(progress)
+            guard p.isFinite else { return 0 }
+            return min(max(p, 0), 1)
+        }()
+        return GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(colors.trackBackground)
                 Capsule().fill(colors.trackFill)
-                    .frame(width: max(3, geo.size.width * CGFloat(min(max(progress, 0), 1))))
+                    .frame(width: max(3, geo.size.width * safeProgress))
             }
         }
         .frame(height: 3)
@@ -694,7 +754,7 @@ struct LyricTileView: View {
             artwork
             VStack(alignment: .leading, spacing: 1) {
                 Text(title.isEmpty ? "Live Lyrics" : title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
                     .foregroundColor(colors.titleText)
                     .lineLimit(1)
                 Text(artist.isEmpty ? status.badge ?? " " : artist)
@@ -804,38 +864,81 @@ struct LyricTileView: View {
 
 // MARK: - Edge fade
 
+/// Reports this view's natural height to `LyricEdgeFade` through
+/// `LyricBlockHeightKey`. Must sit on the block BEFORE the box frame pins its
+/// height — the fade measures empty space as (box − block) / 2.
+extension View {
+    func lyricBlockMeasurer() -> some View {
+        background(GeometryReader { geo in
+            Color.clear.preference(key: LyricBlockHeightKey.self, value: geo.size.height)
+        })
+    }
+}
+
+struct LyricBlockHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// Vertical gradient used as a mask over the lyric block: opaque through the
 /// middle, transparent at the very top and bottom, so the outermost lines
 /// dissolve into the background instead of ending on a hard cut.
 ///
-/// Ratios, not point values: the fade has to hold on the 4x4 widget and on a
-/// wide Live Activity without a per-surface constant. The plateau keeps the
-/// active line and its neighbours at full opacity; only the outermost ~5% of
-/// each edge is touched.
+/// Build 66 — the fade covers ONLY the genuinely empty edge bands. It is
+/// measured, not guessed: the block's natural height arrives through
+/// `LyricBlockHeightKey` (placed by `lyricBlockMeasurer` before the frame pins
+/// the box) and the mask's opaque plateau runs exactly over the block. The old
+/// fixed 0.16/0.84 stops sat on top of glyphs whenever a row reached into the
+/// fade — the "previous line sliced mid-glyph" defect. The plateau now hugs
+/// the block, so the fade can never touch a glyph; when the block fills its
+/// box the bands vanish and there is no fade at all.
 ///
 /// `active: false` applies no mask at all, which is what lets the shared
 /// `boxed(_:spec:alignment:)` path call this unconditionally without changing
 /// any other surface's rendering.
 struct LyricEdgeFade: ViewModifier {
     let active: Bool
+    /// The block's measured height — 0 until the first layout pass reports.
+    @State private var blockHeight: CGFloat = 0
 
     func body(content: Content) -> some View {
         if active {
-            content.mask {
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: .black, location: 0.12),
-                        .init(color: .black, location: 0.88),
-                        .init(color: .clear, location: 1),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
+            content
+                .onPreferenceChange(LyricBlockHeightKey.self) { blockHeight = $0 }
+                .mask {
+                    GeometryReader { geo in
+                        LinearGradient(
+                            stops: stops(boxHeight: geo.size.height),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                }
         } else {
             content
         }
+    }
+
+    /// Clear → black across the empty top band, black → clear across the empty
+    /// bottom band; fully opaque wherever a glyph can be. Symmetric because
+    /// every fading surface centres its block. Unmeasured or empty box = no
+    /// fade: never fade what cannot be proven empty.
+    private func stops(boxHeight: CGFloat) -> [Gradient.Stop] {
+        guard blockHeight > 0, boxHeight > 0 else {
+            return [.init(color: .black, location: 0), .init(color: .black, location: 1)]
+        }
+        let band = min(0.5, max(0, (boxHeight - blockHeight) / 2) / boxHeight)
+        guard band > 0 else {
+            return [.init(color: .black, location: 0), .init(color: .black, location: 1)]
+        }
+        return [
+            .init(color: .clear, location: 0),
+            .init(color: .black, location: band),
+            .init(color: .black, location: 1 - band),
+            .init(color: .clear, location: 1),
+        ]
     }
 }
 

@@ -40,6 +40,14 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 enum AppearanceSettings {
     static let storageKey = "caraoke-appearance"
 
+    /// The "Bold Text" switch (default ON — the shipped look is bold). Stored
+    /// under exactly this key: `@AppStorage(AppearanceSettings.boldTextKey)`
+    /// in the views (a Bool, default `true`), and read by name in the widget
+    /// target too (`"appearance.boldText"`), which cannot see this type.
+    /// When OFF — or when the system's Bold Text accessibility setting is on —
+    /// our already-bold faces step down instead of stacking a second bold.
+    static let boldTextKey = "appearance.boldText"
+
     static var mode: AppearanceMode {
         get { AppearanceMode(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .auto }
         set {

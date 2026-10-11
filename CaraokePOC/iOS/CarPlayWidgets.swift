@@ -31,10 +31,17 @@ private struct CaraokeCarPlayTransport: View {
     var spacing: CGFloat = 2
     var buttonWidth: CGFloat = 34
     var buttonHeight: CGFloat = 34
+    /// The hybrid widget drops Previous so its title row gets the width back
+    /// and renders un-truncated (user direction, build 66).
+    var showPrevious: Bool = true
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { entry.settings.boldText && legibilityWeight != .bold }
 
     var body: some View {
         HStack(spacing: spacing) {
-            button("backward.fill", PreviousTrackIntent(), "Previous song", size)
+            if showPrevious {
+                button("backward.fill", PreviousTrackIntent(), "Previous song", size)
+            }
             button(entry.isPlaying ? "pause.fill" : "play.fill",
                    PlayPauseIntent(), entry.isPlaying ? "Pause" : "Play", size + 2)
             button("forward.fill", NextTrackIntent(), "Next song", size)
@@ -45,7 +52,7 @@ private struct CaraokeCarPlayTransport: View {
                                       _ label: String, _ size: CGFloat) -> some View {
         Button(intent: intent) {
             Image(systemName: name)
-                .font(.system(size: size, weight: .semibold))
+                .font(.system(size: size, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
                 .foregroundColor(tint)
                 .frame(width: buttonWidth, height: buttonHeight)
                 .contentShape(Rectangle())
@@ -55,11 +62,40 @@ private struct CaraokeCarPlayTransport: View {
     }
 }
 
+/// Always-visible refresh affordance. The cover is the canonical resync tap
+/// target, but on the CarPlay tiles it renders small — user direction, build
+/// 66: the button must appear on the lyric area too (and on the hybrid's
+/// cover), never just as a cover-sized tap target.
+private struct CaraokeCarPlayResyncButton: View {
+    let entry: CaraokeWidgetEntry
+    var glyphSize: CGFloat = 15
+    /// Where the tile allows, keep the touch target at the 44 pt guideline.
+    var hitTarget: CGFloat = 44
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { entry.settings.boldText && legibilityWeight != .bold }
+
+    var body: some View {
+        Button(intent: ResyncWidgetIntent()) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: glyphSize, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.5), radius: 3)
+                .frame(width: hitTarget, height: hitTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Resync lyrics")
+    }
+}
+
 /// Cover art, tapped to resync — the same contract the Home Screen widgets use.
 private struct CaraokeCarPlayCover: View {
     let entry: CaraokeWidgetEntry
     let size: CGFloat
     var cornerRadius: CGFloat? = nil
+    /// Always show the resync glyph on the cover (build 66 — the hybrid's cover
+    /// is small enough that an invisible tap-only affordance missed it).
+    var showsResyncGlyph: Bool = false
     private var radius: CGFloat { cornerRadius ?? max(4, size * 0.22) }
     private var theme: WidgetTheme { WidgetTheme(rawValue: entry.settings.theme) ?? .artwork }
 
@@ -82,7 +118,7 @@ private struct CaraokeCarPlayCover: View {
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(theme.textColor.opacity(0.12), lineWidth: 1))
             .overlay {
-                if entry.status != .playing || entry.resyncPulse < 1 {
+                if showsResyncGlyph || entry.status != .playing || entry.resyncPulse < 1 {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: size * 0.3, weight: .bold))
                         .foregroundColor(.white)
@@ -117,13 +153,19 @@ private struct CaraokeCarPlayIdentity: View {
     let titleColor: Color
     let mutedColor: Color
     let titleSize: CGFloat
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    private var bold: Bool { entry.settings.boldText && legibilityWeight != .bold }
 
     var body: some View {
         VStack(spacing: 1) {
+            // Build 66: `minimumScaleFactor(0.85)` is GONE (spec §2.3 — nothing
+            // scales at render time). The title wraps to its 2 lines instead of
+            // shrinking or ellipsizing mid-word.
             Text(entry.title.isEmpty ? "Caraoke" : entry.title)
-                .font(.system(size: titleSize, weight: .semibold))
+                .font(.system(size: titleSize,
+                             weight: LyricType.chromeWeight(.semibold, boldText: bold)))
                 .foregroundColor(titleColor)
-                .lineLimit(1)
+                .lineLimit(2)
             if !entry.artist.isEmpty {
                 Text(entry.artist)
                     .font(.system(size: titleSize - 1.5))
@@ -209,23 +251,30 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
     let entry: CaraokeWidgetEntry
 
     var body: some View {
-        LyricTileView(
-            title: entry.title,
-            artist: entry.artist,
-            currentLine: entry.currentLine,
-            previousLines: entry.previousLines,
-            nextLine: entry.nextLine,
-            upcomingLines: entry.upcomingLines,
-            isPlaying: entry.isPlaying,
-            progress: entry.progress,
-            status: entry.status,
-            surface: .carPlayLyrics,
-            palette: entry.widgetPalette,
-            artworkData: entry.artworkData,
-            resyncPulse: entry.resyncPulse,
-            needsResync: entry.status != .playing || entry.resyncPulse < 1,
-            showsProgressBar: false
-        )
+        ZStack(alignment: .topTrailing) {
+            LyricTileView(
+                title: entry.title,
+                artist: entry.artist,
+                currentLine: entry.currentLine,
+                previousLines: entry.previousLines,
+                nextLine: entry.nextLine,
+                upcomingLines: entry.upcomingLines,
+                isPlaying: entry.isPlaying,
+                progress: entry.progress,
+                status: entry.status,
+                surface: .carPlayLyrics,
+                palette: entry.widgetPalette,
+                artworkData: entry.artworkData,
+                resyncPulse: entry.resyncPulse,
+                needsResync: entry.status != .playing || entry.resyncPulse < 1,
+                showsProgressBar: false,
+                boldText: entry.settings.boldText
+            )
+            // No cover on this tile to tap, so the resync button lives on the
+            // lyric area itself (user direction, build 66).
+            CaraokeCarPlayResyncButton(entry: entry)
+                .padding(2)
+        }
     }
 }
 
@@ -240,34 +289,46 @@ private struct CaraokeCarPlayHybridWidgetView: View {
             // Lyrics allocate 65% of the tile height.
             let lyricHeight = geo.size.height * 0.65
             VStack(spacing: 0) {
-                LyricTileView(
-                    title: entry.title,
-                    artist: entry.artist,
-                    currentLine: entry.currentLine,
-                    previousLines: entry.previousLines,
-                    nextLine: entry.nextLine,
-                    upcomingLines: entry.upcomingLines,
-                    isPlaying: entry.isPlaying,
-                    progress: entry.progress,
-                    status: entry.status,
-                    surface: .carPlaySmall,
-                    palette: entry.widgetPalette,
-                    artworkData: entry.artworkData,
-                    resyncPulse: entry.resyncPulse,
-                    needsResync: entry.status != .playing || entry.resyncPulse < 1,
-                    showsProgressBar: false,
-                    customBoxHeight: lyricHeight,
-                    customPadding: 8
-                )
+                ZStack(alignment: .topTrailing) {
+                    LyricTileView(
+                        title: entry.title,
+                        artist: entry.artist,
+                        currentLine: entry.currentLine,
+                        previousLines: entry.previousLines,
+                        nextLine: entry.nextLine,
+                        upcomingLines: entry.upcomingLines,
+                        isPlaying: entry.isPlaying,
+                        progress: entry.progress,
+                        status: entry.status,
+                        surface: .carPlaySmall,
+                        palette: entry.widgetPalette,
+                        artworkData: entry.artworkData,
+                        resyncPulse: entry.resyncPulse,
+                        needsResync: entry.status != .playing || entry.resyncPulse < 1,
+                        showsProgressBar: false,
+                        customBoxHeight: lyricHeight,
+                        customPadding: 8,
+                        boldText: entry.settings.boldText
+                    )
+                    // User direction, build 66: the resync button appears on
+                    // BOTH the cover and the lyric lines — the cover is too
+                    // small to be the only tap target.
+                    CaraokeCarPlayResyncButton(entry: entry, glyphSize: 12)
+                        .padding(2)
+                }
                 .frame(height: lyricHeight)
 
                 HStack(spacing: 6) {
-                    CaraokeCarPlayCover(entry: entry, size: 24)
+                    CaraokeCarPlayCover(entry: entry, size: 24, showsResyncGlyph: true)
                     CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
                                            mutedColor: t.mutedTextColor, titleSize: 11.5)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    // Build 66: no Previous button on the hybrid — the space it
+                    // took is what truncated the title ("Wa…"). Play/pause +
+                    // Next stay; the reclaimed width flows to the title above.
                     CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
-                                           buttonWidth: 26, buttonHeight: 28)
+                                           buttonWidth: 26, buttonHeight: 28,
+                                           showPrevious: false)
                 }
                 .padding(.horizontal, 8)
                 .padding(.top, 2)

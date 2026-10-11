@@ -9,11 +9,22 @@ design/refs/
 # Secrets — NEVER commit
 CaraokePOC/iOS/Resources/Secrets.plist
 Apple Developer Info/
-AuthKey_*.p8
+*.p8
+*.p12
+*.pem
+*.cer
+*.mobileprovision
+CaraokePOC/profiles/
 *.env
 .env
 .env.*
 .agents/telegram-bridge/config.json
+.agents/telegram-bridge/bridge.log
+.agents/telegram-bridge/bridge.err
+session-transcript-*.md
+.claude/
+.v2c/
+out/
 
 # macOS
 .DS_Store
@@ -27,3 +38,8 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 *.xcodeproj/
+
+# CarPlay tablet testing binaries
+tools/carplay-tablet/*.apk
+tools/jdk-21/
+tools/playport/

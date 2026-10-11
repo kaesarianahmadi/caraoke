@@ -109,11 +109,18 @@ final class SpotifySource: NowPlayingSource {
         request.timeoutInterval = 10
 
         do {
+            let requestedAt = Date()
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { return Self.idleInterval }
+            // `progress_ms` was sampled mid-request: stamping at response
+            // arrival made every report look 200-800 ms behind reality. The
+            // sample's true time is the request's midpoint — server sampling
+            // sits at the middle of the round trip, so extrapolation starts
+            // from there instead of the arrival time.
+            let capturedAt = requestedAt.addingTimeInterval(Date().timeIntervalSince(requestedAt) / 2)
             switch http.statusCode {
             case 200:
-                let state = try Self.parseCurrentlyPlaying(data, capturedAt: Date())
+                let state = try Self.parseCurrentlyPlaying(data, capturedAt: capturedAt)
                 subject.send(state)
                 availabilitySubject.send(.connected)
                 // Stay on the fast cadence whenever a TRACK is present — even

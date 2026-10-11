@@ -75,7 +75,7 @@ struct PaywallView: View {
 
                         // Plan cards
                         VStack(spacing: 12) {
-                            ForEach(PaywallContent.plans, id: \.productID) { offer in
+                            ForEach(purchases.planOffers, id: \.productID) { offer in
                                 planCard(offer: offer, isSelected: selectedProductID == offer.productID)
                             }
                         }
@@ -140,11 +140,11 @@ struct PaywallView: View {
 
     private var ctaButtonText: String {
         if selectedProductID == CaraokeProducts.monthly {
-            return "Start 3-Day Free Trial"
+            return purchases.ctaText(for: selectedProductID, defaultText: "Start 3-Day Free Trial")
         } else if selectedProductID == CaraokeProducts.lifetime {
-            return "Get Lifetime Access"
+            return purchases.ctaText(for: selectedProductID, defaultText: "Get Lifetime Access")
         } else {
-            return "Subscribe Yearly"
+            return purchases.ctaText(for: selectedProductID, defaultText: "Subscribe Yearly")
         }
     }
 

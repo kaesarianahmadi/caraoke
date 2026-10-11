@@ -51,9 +51,17 @@
 	<false/>
 	<key>UILaunchScreen</key>
 	<dict/>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-</dict>
+		<key>UISupportedInterfaceOrientations</key>
+		<array>
+			<string>UIInterfaceOrientationPortrait</string>
+		</array>
+		<key>SpotifyClientID</key>
+		<string>b9aac1a6d5ef46f69eb159a73cc41d3f</string>
+		<key>REVENUECAT_API_KEY</key>
+		<string>test_mzYmfLrmPGvshrhpjwiEpTSrFeJ</string>
+		<key>TELEMETRYDECK_APP_ID</key>
+		<string>20437004-127D-47AE-A12F-3E257C623913</string>
+		<key>SENTRY_DSN</key>
+		<string>https://3ded58404a9af249932ed25b31b34e9e@o4512129781858304.ingest.us.sentry.io/4512129791819776</string>
+	</dict>
 </plist>

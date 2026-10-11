@@ -87,6 +87,31 @@ enum LyricType {
         }
     }
 
+    // MARK: - Bold Text
+
+    /// Bold Text support. Every face in this table already carries bold, so a
+    /// user who also enables iOS Bold Text (or the Bold Text accessibility
+    /// setting) would get a second bold stacked on top. Views pass
+    /// `boldText: false` in that case and the bold faces step DOWN instead of
+    /// stacking. The hero keeps `.medium` so the active line stays readable at
+    /// a glance; everything else drops to `.regular`.
+    static func heroWeight(boldText: Bool) -> Font.Weight {
+        boldText ? lyricHeroWeight : .medium
+    }
+
+    /// Dimmed neighbours drop all the way to `.regular` — their hierarchy is
+    /// opacity, never weight (see `lyricNeighborWeight`).
+    static func neighborWeight(boldText: Bool) -> Font.Weight {
+        boldText ? lyricNeighborWeight : .regular
+    }
+
+    /// Chrome (titles, badges, controls): medium-or-heavier steps down to
+    /// `.regular` when Bold Text is off; lighter faces are left alone.
+    static func chromeWeight(_ requested: Font.Weight, boldText: Bool) -> Font.Weight {
+        guard !boldText else { return requested }
+        return rank(requested) >= rank(.medium) ? .regular : requested
+    }
+
     /// Line spacing inside one wrapped lyric line — the gap between two rows of
     /// the SAME lyric when it carries on past the tile's width.
     ///
@@ -112,8 +137,10 @@ enum LyricType {
     static let pageLyric: CGFloat = 28
 
     /// CarPlay's mirrored Live Activity tile. Scaled for dashboard readability
-    /// from ~1 m in a moving car (14 pt).
-    static let carPlayLyric: CGFloat = 14
+    /// from ~1 m in a moving car. User direction, build 66: −1 pt from 14 — the
+    /// dashboard read slightly too large; every dependent row-height
+    /// computation derives from this one number (see `LyricSurface.budgets`).
+    static let carPlayLyric: CGFloat = 13
 
     /// The CarPlay **Lyrics tile** — the standalone widget that is nothing but
     /// lyrics, sized for the widget stack.
@@ -139,13 +166,18 @@ enum LyricType {
 /// budget is unit-testable without a simulator — see the `layoutBudget` checks
 /// in `Tests/main.swift`.
 struct LyricRowBudget {
-    /// Rows of text the active line may wrap to.
+    /// Rows of text the active line is planned to wrap to. A longer line spills
+    /// past this into the room freed by shedding neighbours (see
+    /// `maxRows(fitting:)`) — the hero is never cut to hold a neighbour.
     let heroRows: Int
-    /// Dimmed context lines above the active line.
+    /// Dimmed context lines above the active line. The ladder sheds these
+    /// FIRST when the hero needs room: the read-ahead below matters more than
+    /// the line already sung.
     let previousShown: Int
     /// Dimmed lines below the active line.
     let upcomingShown: Int
-    /// Rows each dimmed line may wrap to.
+    /// Rows each dimmed line may wrap to. Neighbours may ellipsize at this
+    /// limit; they may never be clipped by the box.
     let neighborRows: Int
     let font: CGFloat
     let lineSpacing: CGFloat
@@ -173,6 +205,16 @@ struct LyricRowBudget {
     func height(rows: Int) -> CGFloat {
         guard rows > 0 else { return 0 }
         return CGFloat(rows) * font + CGFloat(rows - 1) * lineSpacing
+    }
+
+    /// The most wrapped lines that can fit `height` on this budget's font and
+    /// line spacing — the hero's spill allowance. The hero may wrap past
+    /// `heroRows` into the neighbour rows' room (the ladder sheds neighbours
+    /// around it), but never past what the box can hold, so it can never push
+    /// the block out of its frame. Inverse of `height(rows:)`.
+    func maxRows(fitting height: CGFloat) -> Int {
+        guard font > 0, height > 0 else { return 1 }
+        return max(1, Int((height + lineSpacing) / (font + lineSpacing)))
     }
 
     /// Total height of the whole lyric block, worst case (every row wraps to
@@ -348,6 +390,12 @@ enum LyricSurface: String, CaseIterable, Sendable {
 
     /// Richest row set first; the tile picks the first one that fits via
     /// `ViewThatFits`, and the last entry is the guaranteed minimum.
+    ///
+    /// The ladder sheds the PREVIOUS row before any upcoming row (user
+    /// direction, build 66): when the active line wraps big, the read-ahead
+    /// below is what carries the karaoke feel, and the line already sung is the
+    /// first thing to go. The hero keeps its full wrap on every rung — rows are
+    /// suppressed around it, never the other way round.
     var budgets: [LyricRowBudget] {
         switch self {
         case .lockBanner, .home:
@@ -355,7 +403,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
             // Allows up to 4 rap lines for hero.
             return [
                 LyricRowBudget(heroRows: 4, previousShown: 1, upcomingShown: 1, neighborRows: 1),
-                LyricRowBudget(heroRows: 4, previousShown: 1, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 4, previousShown: 0, upcomingShown: 1, neighborRows: 1),
                 LyricRowBudget(heroRows: 4, previousShown: 0, upcomingShown: 0, neighborRows: 1),
             ]
         case .carPlaySmall:
@@ -363,7 +411,7 @@ enum LyricSurface: String, CaseIterable, Sendable {
             return [
                 LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 1,
                                neighborRows: 1, font: font),
-                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 0,
+                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 1,
                                neighborRows: 1, font: font),
                 LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0,
                                neighborRows: 1, font: font),
@@ -380,19 +428,19 @@ enum LyricSurface: String, CaseIterable, Sendable {
                                neighborRows: 1, font: font, lineSpacing: 2, rowSpacing: 5)
             }
             return [rung(previous: 1, upcoming: 1),
-                    rung(previous: 1, upcoming: 0),
+                    rung(previous: 0, upcoming: 1),
                     rung(previous: 0, upcoming: 0)]
         case .widgetSmall:
             // Centred active line (1 previous + 1 hero + 1 upcoming) with 3-line wrap allowance.
             return [
                 LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 1, neighborRows: 1),
-                LyricRowBudget(heroRows: 3, previousShown: 1, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 1, neighborRows: 1),
                 LyricRowBudget(heroRows: 3, previousShown: 0, upcomingShown: 0, neighborRows: 1),
             ]
         case .widgetMedium:
             return [
                 LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 1, neighborRows: 1),
-                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 0, neighborRows: 1),
+                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 1, neighborRows: 1),
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0, neighborRows: 1),
             ]
         case .widgetLarge:
@@ -408,8 +456,8 @@ enum LyricSurface: String, CaseIterable, Sendable {
             let font = LyricType.widgetLargeLyric
             return [
                 LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 3, font: font),
-                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 2, font: font),
-                LyricRowBudget(heroRows: 2, previousShown: 1, upcomingShown: 1, font: font),
+                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 3, font: font),
+                LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 2, font: font),
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 1, font: font),
                 LyricRowBudget(heroRows: 2, previousShown: 0, upcomingShown: 0, font: font),
             ]

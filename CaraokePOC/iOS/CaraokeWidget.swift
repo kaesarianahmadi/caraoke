@@ -232,7 +232,8 @@ struct CaraokeWidgetEntryView: View {
                     artworkData: entry.artworkData,
                     resyncPulse: entry.resyncPulse,
                     // Out of sync = anything but a playing, lyric-backed state.
-                    needsResync: entry.status != .playing || entry.resyncPulse < 1
+                    needsResync: entry.status != .playing || entry.resyncPulse < 1,
+                    boldText: entry.settings.boldText
                 )
                 .widgetURL(URL(string: "caraoke://lyrics"))
                 .containerBackground(for: .widget) {

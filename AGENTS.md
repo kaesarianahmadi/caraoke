@@ -8,11 +8,11 @@
 - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
 
 ## Operational Protocol: Direct Senior Engineering
-1. **Direct Code Ownership:** The primary session agent owns direct inspection, editing, and compilation of Swift, SwiftUI, relay, and configuration code. Direct use of `read`, `edit`, `write`, and `bash` (`xcodebuild`, `fastlane`, `git`) is standard.
+1. **Direct Code Ownership:** The primary session agent owns direct inspection, editing, and compilation of Swift, SwiftUI, relay, and configuration code. Direct use of `read`, `edit`, `write`, and `bash` (`git`, `gh`, `swiftc`) is standard. There is no local Xcode: `xcodebuild` and `fastlane` never run on this machine — only CI builds.
 2. **Lean Execution Loop:** On bug reports or feature requests:
    - Read & diagnose problem directly.
    - Apply targeted fix.
-   - Verify via `xcodebuild` / test suite.
+   - Verify via the local gate (below); real builds happen in CI only.
    - Commit cleanly.
 3. **Optional Native Subagents:** Use native DSH `subagent` only when an independent background investigation, deep codebase audit, or parallel research task is genuinely needed without polluting session context.
 4. **Skills as Technical Reference:** Consult reference patterns under `.agents/skills/` (`swiftui-patterns.md`, `error-handling.md`, `security-review.md`, etc.) for architectural compliance.
@@ -41,17 +41,17 @@
 | `ios-app-compile` | `xcodegen generate` then full simulator build, no signing |
 | `testflight` | Archive → export → **upload to App Store Connect** |
 
-`testflight` is gated by the repo variable `HAS_ASC_CREDENTIALS == 'true'`.
+`testflight` is gated to pushes on `main` and by the repo variable `HAS_ASC_CREDENTIALS == 'true'`. Provisioning profiles come from the `PROFILES_B64` secret — `CaraokePOC/profiles/` is local-only and gitignored.
 
 ### Required repo secrets (never committed, never echoed)
 
-`ASC_ISSUER_ID` · `ASC_KEY_ID` · `ASC_KEY_P8` · `ASC_DEVELOPMENT_TEAM` · `DIST_CERT_P12` · `DIST_CERT_PASSWORD`
+`ASC_ISSUER_ID` · `ASC_KEY_ID` · `ASC_KEY_P8` · `ASC_DEVELOPMENT_TEAM` · `DIST_CERT_P12` · `DIST_CERT_PASSWORD` · `PROFILES_B64`
 
 Write access to `main` therefore equals deployment rights, including the ability to land code that the signing workflow runs with those secrets in scope.
 
 ### The push procedure
 
-1. **Bump the build number** in `CaraokePOC/project.yml` → `CURRENT_PROJECT_VERSION` (last shipped: `51`, this push is `55`). The workflow does **not** set it; it comes from `project.yml` via xcodegen. A push without a bump reuses the previous number and Apple rejects the upload.
+1. **Bump the build number** in `CaraokePOC/project.yml` → `CURRENT_PROJECT_VERSION` (last shipped: `65`, this push is `66`). The workflow does **not** set it; it comes from `project.yml` via xcodegen. A push without a bump reuses the previous number and Apple rejects the upload. The bump must be part of the pushed commit.
 2. Run the local gate (catches only what is checkable locally):
    ```bash
    cd CaraokePOC

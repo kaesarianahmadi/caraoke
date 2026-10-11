@@ -94,6 +94,21 @@ enum SecretsLoader {
         }
         return nil
     }
+
+    /// Reads Sentry DSN from Secrets.plist or Info.plist.
+    static var sentryDSN: String? {
+        if let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+           let dict = NSDictionary(contentsOf: url) as? [String: Any],
+           let dsn = dict["SENTRY_DSN"] as? String,
+           !dsn.isEmpty, !dsn.contains("YOUR_") {
+            return dsn
+        }
+        if let dsn = Bundle.main.object(forInfoDictionaryKey: "SENTRY_DSN") as? String,
+           !dsn.isEmpty, !dsn.contains("YOUR_") {
+            return dsn
+        }
+        return nil
+    }
 }
 
 // MARK: - Auth manager

@@ -1,13 +1,15 @@
 import Foundation
 import MetricKit
+#if canImport(Sentry)
+import Sentry
+#endif
 
 /// Native crash & diagnostic reporter for autonomous agent debugging.
 ///
-/// Combines two layers:
-/// 1. NSUncaughtExceptionHandler: catches runtime exceptions, persists stack trace
-///    to UserDefaults, and uploads on the subsequent app launch.
-/// 2. MetricKit: receives OS-level termination, watchdog, and crash diagnostics
-///    directly from iOS and forward them to the lyric relay.
+/// Combines three layers:
+/// 1. Sentry SDK: real-time crash capture, Mach exception handling, and symbolicated stack traces.
+/// 2. NSUncaughtExceptionHandler: fallback runtime exception persistence.
+/// 3. MetricKit: receives OS-level termination, watchdog, and crash diagnostics.
 final class CrashReporter: NSObject, MXMetricManagerSubscriber {
     static let shared = CrashReporter()
 
@@ -23,9 +25,29 @@ final class CrashReporter: NSObject, MXMetricManagerSubscriber {
         guard !isStarted else { return }
         isStarted = true
 
+        #if canImport(Sentry)
+        if let dsn = SecretsLoader.sentryDSN {
+            SentrySDK.start { options in
+                options.dsn = dsn
+                options.enableAutoSessionTracking = true
+                options.enableWatchdogTerminationTracking = true
+                #if DEBUG
+                options.debug = true
+                #endif
+            }
+        }
+        #endif
+
         installExceptionHandler()
         MXMetricManager.shared.add(self)
         flushPendingCrashReport()
+    }
+
+    /// Captures a non-fatal error to Sentry.
+    static func recordError(_ error: Error) {
+        #if canImport(Sentry)
+        SentrySDK.capture(error: error)
+        #endif
     }
 
     // MARK: - Uncaught Exception Handling
