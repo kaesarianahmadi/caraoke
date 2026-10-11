@@ -39,7 +39,15 @@ final class PurchaseManager: ObservableObject {
     init() {
         #if canImport(RevenueCat)
         if let key = SecretsLoader.revenueCatAPIKey {
+            #if DEBUG
             Purchases.configure(withAPIKey: key)
+            #else
+            // RevenueCat throws fatalError in Release builds if a "test_" API key is used.
+            // Only configure RevenueCat in Release builds when a production Apple key ("appl_") is present.
+            if !key.hasPrefix("test_") {
+                Purchases.configure(withAPIKey: key)
+            }
+            #endif
         }
         #endif
 
