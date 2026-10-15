@@ -24,10 +24,19 @@ def get_wifi_ip() -> str:
     ip = res.stdout.strip()
     if ip:
         return ip
+    res = subprocess.run(["route", "get", "default"], capture_output=True, text=True)
+    for line in res.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("interface:"):
+            iface = line.split(":", 1)[1].strip()
+            ip_res = subprocess.run(["ipconfig", "getifaddr", iface], capture_output=True, text=True)
+            ip = ip_res.stdout.strip()
+            if ip and not ip.startswith("100."):
+                return ip
     res = subprocess.run(["ifconfig"], capture_output=True, text=True)
     for line in res.stdout.splitlines():
         line = line.strip()
-        if line.startswith("inet ") and not line.startswith("inet 127."):
+        if line.startswith("inet ") and not line.startswith("inet 127.") and not line.split()[1].startswith("100."):
             return line.split()[1]
     return "127.0.0.1"
 
@@ -102,7 +111,7 @@ def start_server(token: str = DEFAULT_TOKEN, auto_open: bool = True):
     url = f"http://localhost:{DEFAULT_PORT}/?token={token}"
     print(f"Waiting for PlayPort web server on port {DEFAULT_PORT}...")
     ready = False
-    for _ in range(30):
+    for _ in range(60):
         time.sleep(1)
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "HealthCheck"})
