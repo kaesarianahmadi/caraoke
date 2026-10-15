@@ -318,6 +318,32 @@ Pair both with the provider's existing `getTimeline direct` / `getTimeline
 self-fetch` lines and the app's category `ride` (`widget reload scheduled` /
 `widget reload executed`).
 
+**All of these log at `notice`, not `info`** (from build 70). Two reasons, both
+of which would otherwise empty the log right when it matters: `log show` prints
+only default-level events unless `--info` is passed, and info events are
+frequently not persisted into a logarchive at all — `log collect` has no flag
+to force them in. A collection taken from the phone after a drive could
+otherwise contain none of the lines this build exists to produce.
+
+### Collecting the log
+
+`log collect` has **no `--predicate`** — filtering belongs on `log show`. The
+`log` name is also a zsh builtin (natural logarithm), so use the absolute path
+or the builtin wins:
+
+```bash
+sudo /usr/bin/log collect --device --last 10m --output caraoke.logarchive
+/usr/bin/log show --predicate 'subsystem == "com.caraoke.poc"' caraoke.logarchive
+```
+
+`--device` requires the iPhone plugged into this Mac with Developer Mode on.
+In the car the phone is attached to the head unit, not the Mac, so collect
+afterwards — and note that only what the system persisted will be there.
+
+**In the car, the photographed stamp is the primary evidence and the log is a
+bonus.** The stamp is rendered into the tile and needs no collection at all.
+The CarPlay Simulator is where logs can be watched live.
+
 The distinction the logs settle: **"the app stopped asking" and "the reload was
 throttled" are identical on the car screen** — a reload line with no matching
 bake line means the request left the app and never landed.
