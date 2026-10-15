@@ -226,7 +226,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
     private func entry(from built: WidgetTimelineEntry,
                        payload: SharedWidgetPayload,
                        settings: SharedWidgetSettings,
-                       debug: WidgetDebugStamp?) -> CaraokeWidgetEntry {
+                       debug: WidgetDebugStamp? = nil) -> CaraokeWidgetEntry {
         // `expired` is per-entry, not per-payload: the payload is what the app
         // last knew, and this entry is the one dated past the end of it.
         let status: LyricStatus = built.isExpired
