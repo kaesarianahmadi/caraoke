@@ -854,6 +854,6 @@ final class RidePlaybackController: ObservableObject {
             return
         }
         Self.log.info("widget self-heal: \(cause, privacy: .public) → reload")
-        scheduleWidgetReload()
+        scheduleWidgetReload(reason: "selfheal-\(cause)")
     }
 }
