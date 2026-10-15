@@ -137,11 +137,37 @@ struct SharedWidgetSettings: Codable, Sendable, Equatable {
     /// Hero lyric weight: bold (default) or regular. Sourced from the
     /// appearance settings UI's `appearance.boldText` UserDefaults key.
     var boldText: Bool
+    /// Burns the timeline stamp into the corner of every tile. Diagnostic
+    /// only — see `WidgetDebugStamp` in the widget extension.
+    ///
+    /// **ON for test builds. Set both defaults to `false` for a release build:**
+    /// here and in `init(from:)` below. On by default rather than behind a
+    /// toggle because the app and the widget extension cannot share
+    /// UserDefaults without an App Group, so the only ways to enable it are the
+    /// shared keychain settings or a default.
+    var debugStamp: Bool
 
-    init(theme: String = "artwork", coverStyle: String = "vinyl", boldText: Bool = true) {
+    init(theme: String = "artwork",
+         coverStyle: String = "vinyl",
+         boldText: Bool = true,
+         debugStamp: Bool = true) {
         self.theme = theme
         self.coverStyle = coverStyle
         self.boldText = boldText
+        self.debugStamp = debugStamp
+    }
+
+    /// Hand-written so a settings blob written before a field existed still
+    /// decodes. The synthesised initializer throws on a missing key, and
+    /// `SharedWidgetStore.readSettings()` maps a throw to *defaults* — which
+    /// would silently reset the user's theme and cover style, not just the new
+    /// field. Every field added here must be read with `decodeIfPresent`.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? "artwork"
+        coverStyle = try container.decodeIfPresent(String.self, forKey: .coverStyle) ?? "vinyl"
+        boldText = try container.decodeIfPresent(Bool.self, forKey: .boldText) ?? true
+        debugStamp = try container.decodeIfPresent(Bool.self, forKey: .debugStamp) ?? true
     }
 }
 

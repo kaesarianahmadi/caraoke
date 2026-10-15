@@ -211,10 +211,36 @@ private struct CaraokeCarPlayChrome<Content: View>: View {
 
     var body: some View {
         content
+            .overlay(alignment: .bottomLeading) { WidgetDebugStampView(stamp: entry.debugStamp) }
             .widgetURL(URL(string: "caraoke://lyrics"))
             .containerBackground(for: .widget) {
                 WidgetArtworkBackground(theme: entry.theme, artworkData: entry.artworkData)
             }
+    }
+}
+
+/// The bake stamp, rendered small in a corner of the tile.
+///
+/// Present on every CarPlay tile and on the Home Screen widget. Nil — and so
+/// invisible — unless `SharedWidgetSettings.debugStamp` is on, which is
+/// currently the default for test builds. Read it off the car screen when the
+/// tile freezes: see `WidgetDebugStamp` for what each field means and
+/// `rea/findings-carplay-lyric-sync.md` §9 for the three readings.
+struct WidgetDebugStampView: View {
+    let stamp: WidgetDebugStamp?
+
+    var body: some View {
+        if let stamp {
+            Text(stamp.line)
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white)
+                .padding(.horizontal, 3)
+                .padding(.vertical, 1)
+                .background(Color.black.opacity(0.65))
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .padding(2)
+                .accessibilityLabel("Timeline \(stamp.index + 1) of \(stamp.total)")
+        }
     }
 }
 

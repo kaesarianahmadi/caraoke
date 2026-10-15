@@ -23,14 +23,14 @@ enum WidgetResync {
 
     static func run() async {
         guard var payload = SharedWidgetStore.read() else {
-            WidgetCenter.shared.reloadAllTimelines()
+            SharedWidgetStore.requestReload(reason: "resync-no-payload")
             return
         }
         let start = Date()
         let nowMs = Int(start.timeIntervalSince1970 * 1000)
         payload.resyncingUntilMs = nowMs + WidgetTimelineBuilder.resyncPulseWindowMs
         SharedWidgetStore.write(payload)
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedWidgetStore.requestReload(reason: "resync-pulse")
 
         await refreshNowPlaying()
 
@@ -40,7 +40,7 @@ enum WidgetResync {
         if elapsed < 1.2 {
             try? await Task.sleep(for: .seconds(1.2 - elapsed))
         }
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedWidgetStore.requestReload(reason: "resync-settle")
     }
 
     /// Asks the player what is on right now and rewrites the shared payload

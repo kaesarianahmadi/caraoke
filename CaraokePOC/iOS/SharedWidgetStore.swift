@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import WidgetKit
 import os
 
 // The one cross-process store: app ⇄ widget extension ⇄ Live Activity.
@@ -71,6 +72,23 @@ enum SharedWidgetStore {
     private static let spotifyService = "com.caraoke.spotify"
     private static let spotifyTokenAccount = "token"
     private static let spotifyClientIDAccount = "clientID"
+
+    // MARK: - Diagnostics
+
+    /// Every timeline reload in the app goes through here, so each one is
+    /// attributable.
+    ///
+    /// The distinction this log exists to settle: "the app stopped asking for
+    /// reloads" and "the reload was throttled" look identical on the car
+    /// screen. Only the log tells them apart. `reason` should name the trigger
+    /// (track change, play/pause, seek, artwork, tap) — never a value that
+    /// changes every call, or the log stops being groupable.
+    static func requestReload(reason: String) {
+        reloadLog.info("reloadAllTimelines reason=\(reason, privacy: .public)")
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private static let reloadLog = Logger(subsystem: "com.caraoke.poc", category: "widgetreload")
 
     // MARK: - Now-playing payload
 

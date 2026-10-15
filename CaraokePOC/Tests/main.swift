@@ -1154,6 +1154,36 @@ final class TestRunner {
             }
         }
 
+        // MARK: shared widget settings — tolerant decode
+        //
+        // The widget extension reads these from the keychain. Adding a field
+        // without `decodeIfPresent` makes the synthesised initializer throw on
+        // any blob written before that field existed, and
+        // `SharedWidgetStore.readSettings()` maps a throw to *defaults* — so the
+        // failure is not "the new field is missing", it is the user's theme and
+        // cover style silently resetting. Guard every added field.
+        do {
+            let older = "{\"theme\":\"spooky\",\"coverStyle\":\"cd\",\"boldText\":false}"
+            if let data = older.data(using: .utf8),
+               let decoded = try? JSONDecoder().decode(SharedWidgetSettings.self, from: data) {
+                checkEqual("settingsKeepsThemeAcrossAddedField", decoded.theme, "spooky")
+                checkEqual("settingsKeepsCoverStyleAcrossAddedField", decoded.coverStyle, "cd")
+                checkEqual("settingsKeepsBoldTextAcrossAddedField", decoded.boldText, false)
+                checkEqual("settingsDefaultsDebugStamp", decoded.debugStamp, true)
+            } else {
+                check("settingsDecodesOlderBlob", false)
+            }
+
+            let fresh = SharedWidgetSettings(theme: "midnight", coverStyle: "cd",
+                                             boldText: false, debugStamp: false)
+            if let data = try? JSONEncoder().encode(fresh),
+               let back = try? JSONDecoder().decode(SharedWidgetSettings.self, from: data) {
+                checkEqual("settingsRoundTrips", back, fresh)
+            } else {
+                check("settingsRoundTrips", false)
+            }
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {

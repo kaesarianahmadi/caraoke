@@ -24,6 +24,56 @@ struct CaraokeWidgetEntry: TimelineEntry {
     /// Cover opacity for this entry — below 1 while a resync pulses.
     let resyncPulse: Double
     let settings: SharedWidgetSettings
+    /// Diagnostics burned into the rendered tile. Nil unless the tester turned
+    /// on `SharedWidgetSettings.debugStamp`. Read it off the car screen to tell
+    /// a short bake from a stalled CarPlay from reload churn — see the doc
+    /// comment on `WidgetDebugStamp` for what each reading means.
+    let debugStamp: WidgetDebugStamp?
+}
+
+/// Values captured at bake time, rendered into a corner of the tile.
+///
+/// Every field is computed when the timeline is *built*, never inside a view
+/// body — a view body runs when the system archives the entry, not when it is
+/// displayed, so a live clock there would read as permanently fresh.
+struct WidgetDebugStamp {
+    /// Position of this entry in the bake, 0-based.
+    let index: Int
+    let total: Int
+    /// The entry's own schedule date — what WidgetKit compares against the
+    /// clock to decide when to show it.
+    let entryDate: Date
+    /// When the timeline containing this entry was built.
+    let builtAt: Date
+    /// The playback anchor the bake was derived from, as epoch millis. The
+    /// only field the screen does not show: it is for correlating against the
+    /// app's log, not for reading in a photo.
+    let anchorMs: Int
+    /// How stale that anchor already was when the bake happened.
+    let anchorAgeSec: TimeInterval
+
+    private static let clock: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    /// One line, legible in a photograph of the car screen: which entry of
+    /// how many, when it was scheduled to appear, when the bake happened, and
+    /// how old the anchor was. Wall-clock times, not epoch — a human reads
+    /// this off a photo, and the sub-second correlation lives in the log.
+    var line: String {
+        "\(index + 1)/\(total) e\(Self.clock.string(from: entryDate)) b\(Self.clock.string(from: builtAt)) -\(Int(anchorAgeSec))s"
+    }
+
+    /// Millisecond-precision form for log lines, where the stamp has to line
+    /// up with the app's reload requests.
+    var logLine: String {
+        let entryMs = Int(entryDate.timeIntervalSince1970 * 1000)
+        let builtMs = Int(builtAt.timeIntervalSince1970 * 1000)
+        return "\(index + 1)/\(total) entryMs=\(entryMs) builtMs=\(builtMs) anchorMs=\(anchorMs) anchorAgeSec=\(Int(anchorAgeSec))"
+    }
 }
 
 // MARK: - Timeline Provider
@@ -55,7 +105,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
             artworkData: nil,
             artworkColorHex: nil,
             resyncPulse: 1,
-            settings: SharedWidgetSettings()
+            settings: SharedWidgetSettings(),
+            debugStamp: nil
         )
     }
 
@@ -101,7 +152,39 @@ struct CaraokeWidgetProvider: TimelineProvider {
         let settings = SharedWidgetStore.readSettings()
         let now = Date()
         let built = WidgetTimelineBuilder.entries(for: payload, now: now, includeOutro: true)
-        let entries = built.map { entry(from: $0, payload: payload, settings: settings) }
+        // Read from the shared keychain settings, never UserDefaults: the
+        // extension cannot see the app's `.standard` domain without an App
+        // Group, which this project deliberately does not use.
+        let debug = settings.debugStamp
+        // Anchor age is measured once, when the bake happens: how stale the
+        // playback reference already was when we derived from it. A value that
+        // climbs across bakes is the signature of a reload landing on a payload
+        // the app never refreshed.
+        let anchorAge = now.timeIntervalSince1970 - Double(payload.trackStartEpochMs) / 1000.0
+        let stamp = debug ? WidgetDebugStamp(index: 0,
+                                             total: built.count,
+                                             entryDate: now,
+                                             builtAt: now,
+                                             anchorMs: payload.trackStartEpochMs,
+                                             anchorAgeSec: anchorAge) : nil
+        if let stamp {
+            // Millisecond precision here, not on the tile: this line is what
+            // lines a bake up against the app's reload requests.
+            Self.log.info("timeline baked entries=\(built.count, privacy: .public) covered=\(built.contains { $0.lineIndex == payload.lines.count - 1 }, privacy: .public) \(stamp.logLine, privacy: .public)")
+        }
+        let entries = built.enumerated().map { index, item in
+            entry(from: item,
+                  payload: payload,
+                  settings: settings,
+                  debug: stamp.map { s in
+                      WidgetDebugStamp(index: index,
+                                        total: s.total,
+                                        entryDate: item.date,
+                                        builtAt: s.builtAt,
+                                        anchorMs: s.anchorMs,
+                                        anchorAgeSec: s.anchorAgeSec)
+                  })
+        }
 
         // "Covered" means this timeline actually reaches the last lyric line —
         // a chained tail counts, because it is in the same array. Deliberately
@@ -142,7 +225,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
 
     private func entry(from built: WidgetTimelineEntry,
                        payload: SharedWidgetPayload,
-                       settings: SharedWidgetSettings) -> CaraokeWidgetEntry {
+                       settings: SharedWidgetSettings,
+                       debug: WidgetDebugStamp?) -> CaraokeWidgetEntry {
         // `expired` is per-entry, not per-payload: the payload is what the app
         // last knew, and this entry is the one dated past the end of it.
         let status: LyricStatus = built.isExpired
@@ -170,7 +254,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
             artworkData: cover.data,
             artworkColorHex: cover.hex,
             resyncPulse: built.resyncPulse,
-            settings: settings
+            settings: settings,
+            debugStamp: debug
         )
     }
 }
@@ -241,6 +326,9 @@ struct CaraokeWidgetEntryView: View {
                 }
             }
         }
+        // Same stamp as the CarPlay tiles — this is the surface to compare
+        // against, since it shares the provider, the bake and the payload.
+        .overlay(alignment: .bottomLeading) { WidgetDebugStampView(stamp: entry.debugStamp) }
     }
 }
 

@@ -66,7 +66,7 @@ struct WidgetSettingsView: View {
     private func update(_ mutate: (inout SharedWidgetSettings) -> Void) {
         mutate(&settings)
         SharedWidgetStore.writeSettings(settings)
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedWidgetStore.requestReload(reason: "settings-changed")
     }
 
     // MARK: - Preview (mirrors the real medium widget)

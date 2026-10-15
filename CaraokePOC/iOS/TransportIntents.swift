@@ -24,7 +24,7 @@ struct PreviousTrackIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         await TransportControl.perform(.previous)
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedWidgetStore.requestReload(reason: "tap-prev")
         return .result()
     }
 }
@@ -48,7 +48,7 @@ struct PlayPauseIntent: AppIntent {
             // while `isPlaying`.
             SharedWidgetStore.write(before)
         }
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedWidgetStore.requestReload(reason: "tap-playpause")
         return .result()
     }
 }
@@ -59,7 +59,7 @@ struct NextTrackIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         await TransportControl.perform(.next)
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedWidgetStore.requestReload(reason: "tap-next")
         return .result()
     }
 }

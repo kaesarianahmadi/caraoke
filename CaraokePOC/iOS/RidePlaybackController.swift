@@ -243,7 +243,7 @@ final class RidePlaybackController: ObservableObject {
         durationMs = nil
         lyricState = .idle
         SharedWidgetStore.write(nil)
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedWidgetStore.requestReload(reason: "ride-mode-stop")
     }
 
     func setSourcePin(_ pin: SourcePin) {
@@ -699,7 +699,16 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetIsPlaying = snapshot.isPlaying
         lastWidgetStatus = snapshot.status.rawValue
         lastWidgetArtworkHex = artworkColorHex
-        scheduleWidgetReload()
+        // Name the trigger, so the reload log says why this bake happened.
+        // Coalesced triggers are rare enough that naming the first is honest;
+        // a burst is visible as consecutive lines with different reasons.
+        var causes: [String] = []
+        if forced { causes.append("heartbeat") }
+        if isTitleChanged { causes.append("title") }
+        if isPlayStateChanged { causes.append("playstate") }
+        if isStatusChanged { causes.append("status") }
+        if isArtworkChanged { causes.append("artwork") }
+        scheduleWidgetReload(reason: causes.joined(separator: "+"))
         Self.log.info("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
     }
 
@@ -709,7 +718,7 @@ final class RidePlaybackController: ObservableObject {
     // bursts (< 1 s apart), placing the widget into a 70+ second penalty box
     // where all reloads are ignored. We coalesce rapid triggers (lyrics landing,
     // artwork landing, queue chain, and seeks) through a trailing debounce.
-    private func scheduleWidgetReload() {
+    private func scheduleWidgetReload(reason: String) {
         pendingWidgetReloadTask?.cancel()
         pendingWidgetReloadTask = Task { [weak self] in
             guard let self else { return }
@@ -732,8 +741,8 @@ final class RidePlaybackController: ObservableObject {
             // The bake rides along for the same reason.
             self.lastReloadedTrackStartMs = self.trackStartEpochMs
             self.reloadedBake = self.pendingBake
-            WidgetCenter.shared.reloadAllTimelines()
-            Self.log.info("widget reload executed (coalesced)")
+            SharedWidgetStore.requestReload(reason: reason)
+            Self.log.info("widget reload executed (coalesced) reason=\(reason, privacy: .public)")
         }
     }
 

@@ -43,3 +43,9 @@ DerivedData/
 tools/carplay-tablet/*.apk
 tools/jdk-21/
 tools/playport/
+
+# REA working files: third-party APKs and decompiled sources stay local.
+# rea/*.md is deliberately NOT ignored — those reports are worth committing.
+# The analysis toolchain itself lives in ~/Tools, outside this repo entirely.
+rea/targets/
+rea/jadx-out/
