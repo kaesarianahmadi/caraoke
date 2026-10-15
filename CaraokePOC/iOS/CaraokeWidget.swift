@@ -134,14 +134,14 @@ struct CaraokeWidgetProvider: TimelineProvider {
         // music when the app itself has been suspended and cannot reload us.
         // Gated on expiry so an ordinary wake never costs a network round trip.
         guard WidgetTimelineBuilder.isExpired(payload: payload, now: Date()) else {
-            Self.log.info("getTimeline direct: lines=\(payload.lines.count, privacy: .public) chain=\(payload.nextStartMs, privacy: .public)")
+            Self.log.notice("getTimeline direct: lines=\(payload.lines.count, privacy: .public) chain=\(payload.nextStartMs, privacy: .public)")
             completion(timeline(for: payload, in: context))
             return
         }
         Task {
             let started = Date()
             let refreshed = await WidgetResync.refreshNowPlaying(timeout: 6)
-            Self.log.info("getTimeline self-fetch took=\(Date().timeIntervalSince(started), privacy: .public)s track=\((refreshed ?? payload).title, privacy: .public)")
+            Self.log.notice("getTimeline self-fetch took=\(Date().timeIntervalSince(started), privacy: .public)s track=\((refreshed ?? payload).title, privacy: .public)")
             completion(timeline(for: refreshed ?? payload, in: context))
         }
     }
@@ -170,7 +170,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
         if let stamp {
             // Millisecond precision here, not on the tile: this line is what
             // lines a bake up against the app's reload requests.
-            Self.log.info("timeline baked entries=\(built.count, privacy: .public) covered=\(built.contains { $0.lineIndex == payload.lines.count - 1 }, privacy: .public) \(stamp.logLine, privacy: .public)")
+            Self.log.notice("timeline baked entries=\(built.count, privacy: .public) covered=\(built.contains { $0.lineIndex == payload.lines.count - 1 }, privacy: .public) \(stamp.logLine, privacy: .public)")
         }
         let entries = built.enumerated().map { index, item in
             entry(from: item,
@@ -219,7 +219,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
         } else {
             policy = .atEnd
         }
-        Self.log.info("timeline entries=\(entries.count, privacy: .public) covered=\(covered, privacy: .public) policy=\(String(describing: policy), privacy: .public)")
+        Self.log.notice("timeline entries=\(entries.count, privacy: .public) covered=\(covered, privacy: .public) policy=\(String(describing: policy), privacy: .public)")
         return Timeline(entries: entries.isEmpty ? [placeholder(in: context)] : entries, policy: policy)
     }
 

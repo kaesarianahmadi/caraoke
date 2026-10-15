@@ -709,7 +709,7 @@ final class RidePlaybackController: ObservableObject {
         if isStatusChanged { causes.append("status") }
         if isArtworkChanged { causes.append("artwork") }
         scheduleWidgetReload(reason: causes.joined(separator: "+"))
-        Self.log.info("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
+        Self.log.notice("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
     }
 
     // MARK: - Widget reload coalescing (Build 57)
@@ -742,7 +742,7 @@ final class RidePlaybackController: ObservableObject {
             self.lastReloadedTrackStartMs = self.trackStartEpochMs
             self.reloadedBake = self.pendingBake
             SharedWidgetStore.requestReload(reason: reason)
-            Self.log.info("widget reload executed (coalesced) reason=\(reason, privacy: .public)")
+            Self.log.notice("widget reload executed (coalesced) reason=\(reason, privacy: .public)")
         }
     }
 
@@ -817,7 +817,7 @@ final class RidePlaybackController: ObservableObject {
                     // reload gate below refuses it — the drift fix never
                     // reached the tile.
                     self.forceWidgetReload = true
-                    Self.log.info("widget anchor stale by \(engineStartMs - widgetStartMs, privacy: .public)ms → forcing widget reload")
+                    Self.log.notice("widget anchor stale by \(engineStartMs - widgetStartMs, privacy: .public)ms → forcing widget reload")
                     self.render(self.engine.positionSubject.value)
                 }
             }
@@ -853,7 +853,7 @@ final class RidePlaybackController: ObservableObject {
         } else {
             return
         }
-        Self.log.info("widget self-heal: \(cause, privacy: .public) → reload")
+        Self.log.notice("widget self-heal: \(cause, privacy: .public) → reload")
         scheduleWidgetReload(reason: "selfheal-\(cause)")
     }
 }

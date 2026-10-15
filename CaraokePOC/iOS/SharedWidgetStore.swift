@@ -84,7 +84,7 @@ enum SharedWidgetStore {
     /// (track change, play/pause, seek, artwork, tap) — never a value that
     /// changes every call, or the log stops being groupable.
     static func requestReload(reason: String) {
-        reloadLog.info("reloadAllTimelines reason=\(reason, privacy: .public)")
+        reloadLog.notice("reloadAllTimelines reason=\(reason, privacy: .public)")
         WidgetCenter.shared.reloadAllTimelines()
     }
 
