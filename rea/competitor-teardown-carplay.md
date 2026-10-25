@@ -38,7 +38,40 @@ their lyric updates keep flowing even with the app suspended. We cannot copy
 this without storing users' Spotify credentials on a server, which this
 project's privacy rules forbid. This is their moat, not their trick.
 
-## 2. What actually animates on CarPlay (four independent sources)
+## 2. What actually animates on CarPlay — REVISED 2026-10-26 (user's pushback was correct)
+
+The original verdict ("CarPlay widget tiles cannot animate") was wrong in one
+decisive way. Corrected statement:
+
+1. CarPlay **never advances baked timeline entries** — unchanged, proven by
+   our stamps, the renderer logs (evaluations only on
+   foreground/newEnvironment/newArchive; ~20-min staleness checks), and docs.
+2. CarPlay **repaints a tile every time a reload lands** — proven by our own
+   stamps (b-time refreshed on every reload during the recordings).
+3. **The competitor animates by hammering reloads from inside its own
+   extension.** From the user's phone logarchive (Oct 22–25, their real
+   usage): com.bing.lyrics's `lyricsWidgetExtension` ran a self-perpetuating
+   loop — getTimeline → bake → `WidgetCenter.reloadAllTimelines()` → chronod
+   re-requests ~1.2–1.6 s later → repeat. Observed: 25 timeline bakes in 41 s
+   (Oct 24 11:36), all honored, no penalty box at ~1.6 s cadence. Their
+   CarPlay renderer archives show **entry count: 1** — single-snapshot
+   timelines; the loop IS the animation.
+4. Therefore CarPlay tiles CAN animate — via reload loops, not entry swaps.
+
+**Implemented (build 75 candidate, local, not pushed):** the same loop in
+`CaraokeWidgetProvider.timeline(for:)` — while playing and not past span,
+every bake ends with `requestReload(reason: "live-loop")`; chronod meters the
+cadence; the loop stops itself when playback stops, and when the payload
+outlives its span the wake takes the existing self-fetch repair, which
+re-anchors and restarts the loop. With the app dead and Spotify playing, the
+extension now sustains karaoke alone. Gate: 295 passed / 0 failed, parse clean.
+
+(The competitor's CarPlay widget was never actually rendered on the user's car
+screen inside the archive window — the 62 renderer lines are the widget
+picker enumerating phone-sized timelines at 11:39:56 — but with (2) and (3)
+proven, their fluid in-car tiles need no further explanation.)
+
+The original evidence behind points 1–2 (kept for the record):
 
 **a. Our own stamps (build 71, tonight, §11 of findings-carplay-lyric-sync.md).**
 Healthy 63–72-entry timelines baked with fresh anchors; N/e/b frozen for 75 s
@@ -65,9 +98,10 @@ Live Activity (`supplementalActivityFamilies([.small])`) as the CarPlay
 surface. Nothing anywhere promises animated widget tiles on CarPlay.
 
 **d. The competitors.** All of them ride the Live Activity (with frequent
-updates; some with server push) + background audio. None attempts anything
-else. The fluid "CarPlay widgets" the user saw in Dynamic Lyrics = the Live
-Activity tile in the CarPlay dashboard.
+updates; some with server push) + background audio — that part of the original
+verdict stands. The original conclusion that their fluid "CarPlay widgets"
+were the Live Activity was superseded on re-audit: their extension's reload
+loop (point 3 above) is what animates widget tiles, on every surface.
 
 ## 3. Conclusions
 

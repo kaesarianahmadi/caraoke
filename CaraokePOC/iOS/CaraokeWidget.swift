@@ -80,6 +80,11 @@ struct WidgetDebugStamp {
 
 struct CaraokeWidgetProvider: TimelineProvider {
 
+    /// One live-loop reload request floor, shared by every tile that bakes in
+    /// this process (see `timeline(for:)`). Process-static, not persisted: a
+    /// fresh process simply asks again on its first bake.
+    private static var lastLoopRequest: Date?
+
     /// Boundary diagnostics. Readable on device with Console.app (or
     /// `log collect --predicate 'subsystem == "com.caraoke.poc"'`), which is
     /// the only way to tell "the app stopped reloading" apart from "the reload
@@ -151,7 +156,18 @@ struct CaraokeWidgetProvider: TimelineProvider {
     private func timeline(for payload: SharedWidgetPayload, in context: Context) -> Timeline<CaraokeWidgetEntry> {
         let settings = SharedWidgetStore.readSettings()
         let now = Date()
-        let built = WidgetTimelineBuilder.entries(for: payload, now: now, includeOutro: true)
+        // Live-loop mode: when the surface repaints only on reloads (every
+        // systemSmall placement — the CarPlay tiles; a small tile on the
+        // phone's Home Screen rides along, which TimelineProvider cannot
+        // distinguish), a short bake is all that can ever be shown before the
+        // next reload replaces it, so don't build 80 entries of dead weight.
+        let looping = context.family == .systemSmall
+            && payload.isPlaying
+            && payload.chainedSpanMs > 0
+        let built = WidgetTimelineBuilder.entries(for: payload,
+                                                  now: now,
+                                                  limit: looping ? 6 : WidgetTimelineBuilder.maxEntries,
+                                                  includeOutro: true)
         // Read from the shared keychain settings, never UserDefaults: the
         // extension cannot see the app's `.standard` domain without an App
         // Group, which this project deliberately does not use.
@@ -220,6 +236,35 @@ struct CaraokeWidgetProvider: TimelineProvider {
             policy = .atEnd
         }
         Self.log.notice("timeline entries=\(entries.count, privacy: .public) covered=\(covered, privacy: .public) policy=\(String(describing: policy), privacy: .public)")
+
+        // Live loop. CarPlay never advances baked timeline entries — its
+        // renderer repaints only when a reload lands (verified on-device from
+        // the system's own WidgetRenderer_CarPlay logs; the fluid competitor
+        // tiles ride exactly this pattern, re-baking a fresh snapshot ~1.6 s
+        // apart). So while playback is live, this provider asks chronod for
+        // the next wake; each wake re-derives the current line from the wall
+        // clock and the tiles repaint with it. The loop stops itself when
+        // playback stops or the payload outlives its span — that wake instead
+        // takes the self-fetch repair path, which re-anchors and restarts it.
+        // `chainedSpanMs > 0` matters: a span-less payload can never expire,
+        // and an endless loop on dead data is the one unforgivable outcome.
+        if context.family == .systemSmall,
+           payload.isPlaying,
+           !payload.lines.isEmpty,
+           payload.chainedSpanMs > 0,
+           !WidgetTimelineBuilder.isExpired(payload: payload, now: now) {
+            // One request per pass: every placed tile bakes in this same
+            // process milliseconds apart, and a burst of reload requests is
+            // exactly what chronod's penalty box punishes. The 1 s floor also
+            // caps the loop if chronod ever grants wakes faster than its
+            // observed ~1.2–1.6 s cadence.
+            if let last = Self.lastLoopRequest, now.timeIntervalSince(last) < 1.0 {
+                // a sibling tile already asked this pass
+            } else {
+                Self.lastLoopRequest = now
+                SharedWidgetStore.requestReload(reason: "live-loop")
+            }
+        }
         return Timeline(entries: entries.isEmpty ? [placeholder(in: context)] : entries, policy: policy)
     }
 

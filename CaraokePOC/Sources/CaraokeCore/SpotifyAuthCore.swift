@@ -148,6 +148,10 @@ struct SpotifyTokenClient {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = Self.formBody(params)
+        // The widget extension runs this inside a timeline request, where an
+        // overrunning call gets the process killed with the completion never
+        // delivered — shorter than URLSession's 60 s default on purpose.
+        request.timeoutInterval = 10
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard http.statusCode == 200 else { throw SpotifyAuthError.http(http.statusCode) }
