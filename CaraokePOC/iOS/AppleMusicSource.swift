@@ -173,5 +173,28 @@ final class AppleMusicSource: NowPlayingSource {
         let time = player.currentPlaybackTime
         return (time.isFinite && time >= 0) ? time : 0
     }
+
+    /// The Apple Music counterpart of `TransportControl.spotifyNextInQueue()`.
+    /// The Up Next queue already lives on this device, so this is a local read
+    /// — no network, no token — returning the queued item and its cover as one
+    /// consistent pair for the widget chain.
+    static func nextInQueueWithArtwork() -> (queued: TransportControl.QueuedTrack, artwork: UIImage?)? {
+        let player = MPMusicPlayerController.systemMusicPlayer
+        let currentID = player.nowPlayingItem?.persistentID
+        guard let item = player.queue.items.first(where: { $0.persistentID != currentID }),
+              let title = item.title, !title.isEmpty else { return nil }
+        let durationSec = (item.value(forProperty: MPMediaItemPropertyPlaybackDuration) as? Double) ?? 0
+        let durationMs = Int(durationSec * 1000)
+        guard durationMs > 0 else { return nil }
+        let queued = TransportControl.QueuedTrack(
+            title: title,
+            artist: item.artist ?? "",
+            album: item.albumTitle,
+            durationMs: durationMs,
+            artworkURL: nil
+        )
+        let artwork = item.artwork?.image(at: CGSize(width: 320, height: 320))
+        return (queued, artwork)
+    }
 }
 #endif

@@ -448,3 +448,38 @@ Six new suite checks pin all of this down (295 passed, 0 failed).
   from cold, that is this fix plus the Apple Music fetch branch.
 - Widget tiles remain line-stepping surfaces, not per-second animations —
   unchanged platform truth, now with a live payload stepping through lines.
+
+## 11. Build 71 verdict (2026-10-26 00:49–00:54, PlayPort + device log)
+
+Fix confirmed, and the real remaining bug isolated. Evidence:
+`App Screenshots/build71-recordings/` (2nd round, build 71 verified by
+`getTimeline self-fetch` lines), `/tmp/caraoke71b.txt` (logarchive).
+
+**Bug #1 (corpse payload) is FIXED.** Log: at 00:50:16 an expired paused
+payload fired the self-fetch (`took=0.512s`) and baked `entries=72
+covered=true anchorAgeSec=48`. On tape: 00:49:58 tile read
+`1/1 e00:49:58 b00:49:58 -1646s` (corpse); at 00:50:22 it read
+`1/72 e00:50:22 b00:50:22 -43s`. At 00:45 the self-fetch correctly no-op'd
+(Spotify paused → API returns nothing → 1 static entry by design).
+
+**Bug #2 (CarPlay never swaps entries) is CONFIRMED on build 71.** During
+test B the app was alive (PID 5107: payload writes 4–6 s before bakes,
+reload→bake latency 0.2–0.7 s), the bake was healthy (`63 entries,
+covered=true, policy date set`) — and the tile froze on
+`2/63 e00:51:18 b00:51:07 -6s` for the entire 75 s of recording, across
+three independent frame reads (00:51:19 / 00:51:56 / 00:52:34). Test A
+independently shows `1/72 e00:50:22` frozen from 00:50:22 to 00:50:46.
+N stuck + e stuck + b stuck = the "M large, N stuck" row of the §9 table.
+
+This is the original symptom verbatim: the 1–2 swaps that do land are the
+"first seconds it syncs once sometimes twice"; leaving the widget screen
+and returning forces a fresh render of the current entry, then it sticks.
+
+**Implication.** WidgetKit tiles on CarPlay do not advance through dated
+timeline entries (verified on PlayPort, a real CarPlay-protocol receiver;
+the in-car symptom matches exactly). Per-line reloading is not an answer —
+it re-enters the chronod budget trap. The surface that does animate on
+CarPlay is the Live Activity (push-updated) — the app's own LA tile
+already works in the user's car. Competitor conclusion unchanged: their
+CarPlay lyric fluidity must ride a push/live surface, not widget tiles
+(AirLyrics APK: self-scheduled clock rendering inside one live surface).
