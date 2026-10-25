@@ -173,39 +173,5 @@ final class AppleMusicSource: NowPlayingSource {
         let time = player.currentPlaybackTime
         return (time.isFinite && time >= 0) ? time : 0
     }
-
-    /// The Apple Music counterpart of `TransportControl.spotifyNextInQueue()`.
-    /// The Up Next queue already lives on this device, so this is a local read
-    /// — no network, no token — returning the queued item and its cover as one
-    /// consistent pair for the widget chain. The system player exposes no
-    /// `queue` property; the queue is readable only through a transaction,
-    /// which is also why this stays async. Any failure resolves to nil — the
-    /// AM chain then simply never fires.
-    static func nextInQueueWithArtwork() async -> (queued: TransportControl.QueuedTrack, artwork: UIImage?)? {
-        let player = MPMusicPlayerController.systemMusicPlayer
-        let currentID = player.nowPlayingItem?.persistentID
-        return await withCheckedContinuation { continuation in
-            var found: (queued: TransportControl.QueuedTrack, artwork: UIImage?)?
-            player.perform(queueTransaction: { mutable in
-                guard let item = mutable.items.first(where: { $0.persistentID != currentID }),
-                      let title = item.title, !title.isEmpty else { return }
-                let durationSec = (item.value(forProperty: MPMediaItemPropertyPlaybackDuration) as? Double) ?? 0
-                let durationMs = Int(durationSec * 1000)
-                guard durationMs > 0 else { return }
-                found = (
-                    queued: TransportControl.QueuedTrack(
-                        title: title,
-                        artist: item.artist ?? "",
-                        album: item.albumTitle,
-                        durationMs: durationMs,
-                        artworkURL: nil
-                    ),
-                    artwork: item.artwork?.image(at: CGSize(width: 320, height: 320))
-                )
-            }) { _, _ in
-                continuation.resume(returning: found)
-            }
-        }
-    }
 }
 #endif

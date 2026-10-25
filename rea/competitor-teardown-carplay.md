@@ -92,14 +92,27 @@ Activity tile in the CarPlay dashboard.
    there); only a real drive with logs can. **Not coded tonight — needs a
    product decision** (cadence, or gating, or accepting the freeze).
 
-## 4. Shipped tonight: build 72 (a5a4263) — Apple Music chained bakes
+## 4. Attempted and reverted tonight: Apple Music chained bakes (builds 72–73 failed, 74 reverts)
 
 The one real parity gap the teardown exposed was ours: `startChainFetch` was
-Spotify-only. Apple Music now reads its Up Next queue locally
-(`AppleMusicSource.nextInQueueWithArtwork()`, `MPMusicPlayerController.queue`)
-and feeds the same chained-bake path — the widget timeline now crosses AM song
-boundaries with zero network cost. Local gate: 295 passed / 0 failed, parse
-sweep clean. CI run 40242123463.
+Spotify-only. Two build attempts later the ceiling is proven, not assumed:
+`MPMusicPlayerController` has no `queue` member, and
+`perform(queueTransaction:completionHandler:` is declared in the SDK headers on
+`MPMusicPlayerApplicationController` only — the application player's subclass.
+The system music player (`systemMusicPlayer`, what we read Apple Music
+through) is a sibling class and inherits nothing of it. **Apple exposes no
+public way to read Apple Music's Up Next queue from a third-party app.**
+
+Build 74 therefore reverts to the Spotify-only chain (code state = build 71).
+The AM parity verdict is now complete and final:
+
+- no extension-side self-repair (MPMusicPlayerController is device-local, no server now-playing API — established Oct 25)
+- no queue lookahead (SDK walls it — this teardown)
+- what AM gets: fresh payload writes + the Live Activity while the app is
+  alive (RideAudioKeeper), and chained bakes on the Spotify side only. That is
+  the platform ceiling, and it matches what every competitor can do for AM
+  too — none of them chains AM either (only Spotify token infrastructure
+  appeared in any Info.plist).
 
 ## 5. What only the user can do next (the morning list)
 

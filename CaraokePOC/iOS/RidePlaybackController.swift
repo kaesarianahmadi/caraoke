@@ -405,57 +405,33 @@ final class RidePlaybackController: ObservableObject {
         chainedNext = nil
         chainedArtwork = nil
         chainedArtworkHex = nil
-        guard let anchor = engine.anchor else { return }
-        switch anchor.source {
-        case .spotify:
-            chainTask = Task { [weak self] in
-                guard let self,
-                      let queued = await TransportControl.spotifyNextInQueue(),
-                      !Task.isCancelled, queued.durationMs > 0 else { return }
-                // Artwork is resolved before the write, not alongside it: the
-                // cover is a second network hop behind the queue call, and the
-                // chain's single reload is the one chance to put it in the
-                // payload. Landing it afterwards would need another reload —
-                // exactly the call that gets starved when the boundary arrives.
-                let art = await Self.fetchArtwork(urlString: queued.artworkURL)
-                guard !Task.isCancelled else { return }
-                await self.resolveChain(queued: queued, artwork: art)
-            }
-        case .appleMusic:
-            // Parity with the Spotify chain, at zero network cost: the Up Next
-            // queue is a local MediaPlayer read, so an Apple Music boundary can
-            // ride the baked timeline the same way.
-            chainTask = Task { [weak self] in
-                guard let self else { return }
-                let next = await AppleMusicSource.nextInQueueWithArtwork()
-                guard !Task.isCancelled, let next else { return }
-                let art: (data: Data, hex: String?)? = next.artwork.map {
-                    (Self.thumbnail($0), $0.averageColorHex)
-                }
-                await self.resolveChain(queued: next.queued, artwork: art)
-            }
+        guard engine.anchor?.source == .spotify else { return }
+        chainTask = Task { [weak self] in
+            guard let self else { return }
+            guard let queued = await TransportControl.spotifyNextInQueue(),
+                  !Task.isCancelled, queued.durationMs > 0 else { return }
+            let signature = TrackSignature(title: queued.title, artist: queued.artist,
+                                           album: queued.album, durationMs: queued.durationMs)
+            guard let next = try? await self.provider.lyrics(for: signature),
+                  !Task.isCancelled, !next.lines.isEmpty else { return }
+            // Resolved before the write, not alongside it: the cover is a
+            // second network hop behind the queue call, and the chain's single
+            // reload is the one chance to put it in the payload. Landing it
+            // afterwards would need another reload — exactly the call that gets
+            // starved when the boundary arrives.
+            let art = await Self.fetchArtwork(urlString: queued.artworkURL)
+            guard !Task.isCancelled else { return }
+            self.chainedNext = queued
+            self.chainedTrack = next
+            self.chainedArtwork = art?.data
+            self.chainedArtworkHex = art?.hex
+            Self.log.info("chained next → \(queued.title, privacy: .public) (\(next.lines.count, privacy: .public) lines) art=\(art != nil, privacy: .public)")
+            // The payload now knows the future: rewrite and reload so the
+            // widget picks up a timeline that crosses the boundary on its own.
+            self.lastWidgetSignature = nil
+            self.forceWidgetReload = true
+            self.render(self.engine.positionSubject.value)
         }
-    }
-
-    /// Shared tail of both chain paths: resolve the queued track's lyrics,
-    /// then rewrite the payload so the widget's baked timeline crosses into
-    /// the next song on its own.
-    private func resolveChain(queued: TransportControl.QueuedTrack,
-                              artwork: (data: Data, hex: String?)?) async {
-        let signature = TrackSignature(title: queued.title, artist: queued.artist,
-                                        album: queued.album, durationMs: queued.durationMs)
-        guard let next = try? await provider.lyrics(for: signature),
-              !Task.isCancelled, !next.lines.isEmpty else { return }
-        chainedNext = queued
-        chainedTrack = next
-        chainedArtwork = artwork?.data
-        chainedArtworkHex = artwork?.hex
-        Self.log.info("chained next → \(queued.title, privacy: .public) (\(next.lines.count, privacy: .public) lines) art=\(artwork != nil, privacy: .public)")
-        // The payload now knows the future: rewrite and reload so the
-        // widget picks up a timeline that crosses the boundary on its own.
-        lastWidgetSignature = nil
-        forceWidgetReload = true
-        render(engine.positionSubject.value)
     }
 
     /// Downloads a cover by URL and reduces it to the thumbnail + average
