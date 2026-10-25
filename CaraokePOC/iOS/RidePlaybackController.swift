@@ -426,8 +426,9 @@ final class RidePlaybackController: ObservableObject {
             // queue is a local MediaPlayer read, so an Apple Music boundary can
             // ride the baked timeline the same way.
             chainTask = Task { [weak self] in
-                guard let self, !Task.isCancelled,
-                      let next = AppleMusicSource.nextInQueueWithArtwork() else { return }
+                guard let self else { return }
+                let next = await AppleMusicSource.nextInQueueWithArtwork()
+                guard !Task.isCancelled, let next else { return }
                 let art: (data: Data, hex: String?)? = next.artwork.map {
                     (Self.thumbnail($0), $0.averageColorHex)
                 }
