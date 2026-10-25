@@ -1184,6 +1184,60 @@ final class TestRunner {
             }
         }
 
+        // MARK: widget payload expiry — the paused-corpse regression
+        //
+        // Device logs (2026-10-25): the app died while paused, the payload
+        // stayed isPlaying=false forever, isExpired returned false forever, and
+        // every CarPlay wake baked one static entry from a 21-hour-old anchor —
+        // all three tiles frozen on a line from the previous day. A pause must
+        // hold the tile for a red-light pause, not forever.
+        do {
+            let nowMs = 1_792_940_000_000
+            let now = Date(timeIntervalSince1970: Double(nowMs) / 1000)
+            func pausedPayload(startMs: Int) -> SharedWidgetPayload {
+                SharedWidgetPayload(title: "t", artist: "a", currentLine: "line",
+                                    isPlaying: false, progress: 0.4,
+                                    status: LyricStatus.paused.rawValue,
+                                    trackStartEpochMs: startMs, durationMs: 200_000)
+            }
+            // Fresh pause — well inside the song and the hold — keeps the tile.
+            check("pausedFreshNotExpired",
+                  !WidgetTimelineBuilder.isExpired(
+                    payload: pausedPayload(startMs: nowMs - 100_000), now: now))
+            // A pause that outlived the song by more than pausedHoldMs is dead.
+            check("pausedCorpseExpires",
+                  WidgetTimelineBuilder.isExpired(
+                    payload: pausedPayload(startMs: nowMs - 200_000 - 601_000), now: now))
+            // Just inside the hold: still holds (no flap at the boundary).
+            check("pausedJustInsideHoldNotExpired",
+                  !WidgetTimelineBuilder.isExpired(
+                    payload: pausedPayload(startMs: nowMs - 200_000 - 599_000), now: now))
+            // Playing payloads keep the old semantics exactly.
+            check("playingPastSpanExpires",
+                  WidgetTimelineBuilder.isExpired(
+                    payload: SharedWidgetPayload(title: "t", artist: "a", currentLine: "line",
+                                                 isPlaying: true, progress: 0.4,
+                                                 status: LyricStatus.playing.rawValue,
+                                                 trackStartEpochMs: nowMs - 300_000,
+                                                 durationMs: 200_000),
+                    now: now))
+            check("playingMidSongNotExpired",
+                  !WidgetTimelineBuilder.isExpired(
+                    payload: SharedWidgetPayload(title: "t", artist: "a", currentLine: "line",
+                                                 isPlaying: true, progress: 0.4,
+                                                 status: LyricStatus.playing.rawValue,
+                                                 trackStartEpochMs: nowMs - 100_000,
+                                                 durationMs: 200_000),
+                    now: now))
+            // No span known: never expires (guard preserved).
+            check("noSpanNeverExpires",
+                  !WidgetTimelineBuilder.isExpired(
+                    payload: SharedWidgetPayload(title: "t", artist: "a", currentLine: "line",
+                                                 isPlaying: false, progress: 0.4,
+                                                 status: LyricStatus.paused.rawValue),
+                    now: now))
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {

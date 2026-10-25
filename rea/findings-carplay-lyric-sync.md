@@ -372,3 +372,79 @@ Two type risks found by hand, because parse cannot see either:
    hand-written `init(from:)` using `decodeIfPresent`, now covered by the five
    new suite checks (`settingsKeepsThemeAcrossAddedField` and friends).
 
+
+---
+
+## 10. Device-log verdict (2026-10-25) — the freeze is ours, and it is fixed in code
+
+Collected from the phone over USB (`--last 3d`, archive spans Oct 22 22:58 →
+Oct 25 22:49, build 70 on device — the notice-level lines prove it). The
+stamp/log pair finally produced a reading, and it lands on the first row of the
+§9 outcomes table: **the bake is one entry because the payload is a corpse.**
+
+### What the logs show
+
+Every widget wake in the window, without exception:
+
+```
+getTimeline direct: lines=67 chain=170000
+timeline baked entries=1 covered=false 1/1 anchorMs=1792846251283 anchorAgeSec=76614
+timeline entries=1 covered=false policy=TimelineReloadPolicy(date: nil)
+```
+
+- **entries=1, 1/1** — every bake is a single static entry. Not a short
+  CarPlay swap window, not budget throttling: the timeline handed to CarPlay
+  is literally one picture.
+- **anchorMs identical in every line** across 17:07 → 22:49 on Oct 25, with
+  **anchorAgeSec 76,614 → 97,095** (21.3 h → 26.9 h). The playback anchor was
+  last written **Oct 24, ~19:46** and never again.
+- **payload carries 67 lyric lines** (`lines=67`) — the data was there; the
+  bake refused to advance past it because the payload says paused.
+- **policy `.atEnd`, single entry** — the signature of `contentEntries`'
+  paused/static branch.
+
+The main-app side: **zero** `widgetreload` or `ride` lines in the whole
+window. Process-level search (`process == "Caraoke"`) shows the app last ran
+**Oct 24 22:36** — 66k lines across Oct 22–24, then nothing. During the car
+session on Oct 25 (17:07–17:42, four widget wakes in 200 ms at connect, then
+periodic), the app had **no process activity at all**. It was not suspended;
+it was simply not running.
+
+### The mechanism
+
+`WidgetTimelineBuilder.isExpired` (WidgetShared.swift) gated everything on
+`payload.isPlaying`:
+
+```swift
+guard payload.isPlaying, payload.chainedSpanMs > 0 else { return false }
+```
+
+A paused payload could **never** expire. So when the app died while paused
+(Oct 24 evening), every subsequent wake took the "direct" path, baked one
+static entry of the last-known line, and — critically — the extension's
+Spotify self-fetch, the one repair that works with the app gone, stayed gated
+off. The cover-tap revival the user observed is that same self-fetch, fired
+manually by the AppIntent. This also retires the earlier competing theories:
+CarPlay entry-swapping and reload-budget starvation both assumed a live
+payload. It was dead the whole time.
+
+### The fix (implemented, suite-verified, not yet shipped)
+
+`isExpired` now expires a paused payload once its age passes
+`chainedSpanMs + pausedHoldMs` (`pausedHoldMs = 600_000` — a red-light pause
+holds ~10 minutes; a corpse does not). Expiry routes the wake into
+`WidgetResync.refreshNowPlaying`, which asks Spotify what is playing *now* and
+rewrites the payload from the answer — reviving the tile with the app never
+launched. Playing-payload semantics are unchanged, as is the no-span guard.
+Six new suite checks pin all of this down (295 passed, 0 failed).
+
+### What this fix does NOT cover
+
+- **`refreshNowPlaying` only serves `source == "spotify"`.** A corpse whose
+  payload says Apple Music still cannot self-repair. Same architecture, needs
+  its own branch — separate change, not bundled here.
+- **The app still has to run for the Live Activity, transport buttons and
+  anything Apple-Music-sourced.** If the expectation is full widget autonomy
+  from cold, that is this fix plus the Apple Music fetch branch.
+- Widget tiles remain line-stepping surfaces, not per-second animations —
+  unchanged platform truth, now with a live payload stepping through lines.

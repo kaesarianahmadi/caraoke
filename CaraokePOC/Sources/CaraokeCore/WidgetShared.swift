@@ -206,6 +206,16 @@ enum WidgetTimelineBuilder {
     /// announces itself instead of looking like a frozen song.
     static let expiredSlackMs = 20_000
 
+    /// How long a *paused* payload may hold its tile before a wake treats it
+    /// as dead. A red-light pause is minutes, not hours: when the app dies
+    /// while paused, this cap is the only thing that lets the extension's
+    /// Spotify self-fetch take over. Without it `isExpired` returned false for
+    /// any paused payload forever, and device logs (2026-10-25) showed the
+    /// result — a payload 21 h old, every bake one static entry, all three
+    /// CarPlay tiles frozen on a line from the previous day while the app
+    /// had not run at all.
+    static let pausedHoldMs = 600_000
+
     /// Pulse cadence for an in-flight resync. WidgetKit renders static
     /// snapshots, so the fade in/out is emitted as alternating entries.
     static let resyncPulseStep: TimeInterval = 0.45
@@ -405,9 +415,21 @@ enum WidgetTimelineBuilder {
     /// baked timeline is spent and the app never came back to replace it. The
     /// widget provider gates its self-repair on this, so a wake only costs a
     /// network round trip when it might actually change what is on screen.
+    ///
+    /// A *playing* payload expires when its span runs out (plus slack). A
+    /// *paused* payload used to never expire at all, which stranded the tile
+    /// forever when the app died while paused: the wake took the direct path,
+    /// baked one static entry, and the Spotify self-fetch — the extension's
+    /// only repair when the app is gone — stayed gated off. A pause now holds
+    /// for `pausedHoldMs` past the span; after that the payload is treated as
+    /// dead and the self-fetch runs.
     static func isExpired(payload: SharedWidgetPayload, now: Date) -> Bool {
-        guard payload.isPlaying, payload.chainedSpanMs > 0 else { return false }
-        return positionMs(for: payload, now: now) > payload.chainedSpanMs + expiredSlackMs
+        guard payload.chainedSpanMs > 0 else { return false }
+        let age = positionMs(for: payload, now: now)
+        if payload.isPlaying {
+            return age > payload.chainedSpanMs + expiredSlackMs
+        }
+        return age > payload.chainedSpanMs + pausedHoldMs
     }
 
     private static func staticEntry(payload: SharedWidgetPayload, now: Date,
