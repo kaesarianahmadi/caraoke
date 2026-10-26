@@ -154,14 +154,18 @@ struct CaraokeWidgetProvider: TimelineProvider {
         // Live-loop mode: when the surface repaints only on reloads (every
         // systemSmall placement — the CarPlay tiles; a small tile on the
         // phone's Home Screen rides along, which TimelineProvider cannot
-        // distinguish), a short bake is all that can ever be shown before the
-        // next reload replaces it, so don't build 80 entries of dead weight.
+        // distinguish), bake exactly ONE entry. The competitor's CarPlay
+        // timeline archives hold entry count 1, and chronod re-requests a
+        // spent timeline promptly while deferring timelines that still have
+        // future entries (device logs 2026-10-26: our 6–82-entry bakes got
+        // 85 s cooldowns; a single spent entry is the shape that produced
+        // their ~1.6 s bake cadence).
         let looping = context.family == .systemSmall
             && payload.isPlaying
             && payload.chainedSpanMs > 0
         let built = WidgetTimelineBuilder.entries(for: payload,
                                                   now: now,
-                                                  limit: looping ? 6 : WidgetTimelineBuilder.maxEntries,
+                                                  limit: looping ? 1 : WidgetTimelineBuilder.maxEntries,
                                                   includeOutro: true)
         // Read from the shared keychain settings, never UserDefaults: the
         // extension cannot see the app's `.standard` domain without an App
@@ -206,14 +210,13 @@ struct CaraokeWidgetProvider: TimelineProvider {
         if !payload.isPlaying || payload.lines.isEmpty {
             policy = .atEnd
         } else if context.family == .systemSmall {
-            // CarPlay: the renderer repaints only when a wake lands, so ask for
-            // one a few seconds out — the reload-policy date is the scheduling
-            // path chronod honors without the budget metering that starved the
-            // force-reload loop (measured against the competitor's tile: clean
-            // repaints every 4–10 s at lyric boundaries, for minutes). Each
-            // wake re-derives the current line from the wall clock, so a lane
-            // of short policy dates is exactly "fresh snapshot per line".
-            policy = .after(now.addingTimeInterval(4))
+            // Single spent entry (see `looping` above): the car tile declares
+            // it has nothing left. chronod treats that as an immediate refresh
+            // request and re-wakes the extension promptly — the mechanism the
+            // competitor's single-entry archives ride. The old short
+            // `.after(now + 4 s)` dates were deferred ~86 s on device
+            // (2026-10-26 log), so the date is not worth asking for.
+            policy = .atEnd
         } else if covered {
             // A whole song fits in one timeline, so no periodic reload is
             // needed — reloading every few seconds is what exhausted
