@@ -483,3 +483,51 @@ CarPlay is the Live Activity (push-updated) — the app's own LA tile
 already works in the user's car. Competitor conclusion unchanged: their
 CarPlay lyric fluidity must ride a push/live surface, not widget tiles
 (AirLyrics APK: self-scheduled clock rendering inside one live surface).
+
+## 12. Build 75 drive log (2026-10-26 21:17–21:25) — the metering truth
+
+Source: `/tmp/caraoke75.logarchive` (subsystem com.caraoke.poc) + the 4.5-min
+CarPlay screen recording. The live loop WORKS but chronod meters it to runs:
+
+- A reload grants an instant full pass (5 widget kinds baked within 1 s, e.g.
+  21:21:15). Between grants the extension is never woken.
+- Observed grant rhythm: bursts every 6–16 s while the user was actively
+  touching the car screen, then 60–90 s cooldowns with zero wakes even while
+  the app kept reloading (21:19:50→21:21:15 = 85 s; 21:21:35→21:22:43 = 68 s).
+- Between wakes the tile repaints only on CarPlay screen/touch events, drawing
+  the current entry from the cached archive (bake b-time frozen, displayed e
+  tracks wall time within 2–6 s). That is why the recording "kind of slides"
+  while the user fiddles and freezes when idle.
+- Absolute ceiling on widget tiles ≈ 1 refresh / 6–16 s active, 1 / 60–90 s
+  idle. Karaoke-grade per-line motion on widget tiles is not reachable by any
+  client-side technique; only server-push LA (competitor pattern, needs stored
+  Spotify tokens — forbidden here) goes lower.
+
+**One real bug found and fixed (build 76 candidate, gate 295/0):** a paused
+payload frozen the tile for the full 600 s hold after an app-dead
+resume-by-car-controls (21:19:45 bake aged 123 s, next wake 85 s later).
+`pausedHoldMs` 600 s → 60 s so a wake repairs a stale pause within a minute;
+tests now derive the boundary from the constant instead of the old literals.
+
+## 13. Competitor widget recording measured (2026-10-26 21:45) — the mechanism
+
+The user's paid-subscription recording (`App Screenshots/Dynamic-Lyrics-Test-
+Recording-Carplay-Widgets/`) shows Dynamic Lyrics' WIDGET TILE on CarPlay
+advancing through lyric lines. Measured frame-to-frame at 1 s resolution
+(diff of the tile region, /tmp/dl_1s): content changes land in clean steps at
+t ≈ 74, 80, 89, 95, 105, 111, 121, 123 s — i.e. every 4–10 s at lyric
+boundaries, pixel-identical between steps, with NO 60–90 s dead gaps over the
+full minute. Their widget repaints per line. Ours (build 75 drive log,
+§12) was metered into 6–16 s bursts with 60–90 s starvations.
+
+Mechanism correction: our build-75 loop used the force-reload path
+(`WidgetCenter.reloadAllTimelines()`), which is the budget-metered one. Their
+cadence matches the OTHER scheduling path — timeline reload-policy dates
+(bake → `policy=.after(now+few seconds)` → chronod wakes on the date → fresh
+snapshot). Their Oct 24 extension trace (25 bakes in 41 s, 1.2–1.6 s apart)
+is consistent with policy-driven wakes, not with a metered force-reload loop.
+
+Build 76 change (gate 295/0): for `systemSmall` while playing, the bake now
+returns `policy = .after(now + 4 s)` and the force-reload loop is removed
+entirely, so the policy dates do not compete with a metered path. Also in 76:
+`pausedHoldMs` 600 s → 60 s (§12).

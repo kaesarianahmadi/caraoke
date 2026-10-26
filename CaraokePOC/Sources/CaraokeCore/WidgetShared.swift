@@ -213,8 +213,11 @@ enum WidgetTimelineBuilder {
     /// any paused payload forever, and device logs (2026-10-25) showed the
     /// result — a payload 21 h old, every bake one static entry, all three
     /// CarPlay tiles frozen on a line from the previous day while the app
-    /// had not run at all.
-    static let pausedHoldMs = 600_000
+    /// had not run at all. 60 s, not 600: build 75 drive logs (2026-10-26)
+    /// showed a resume-by-car-controls case stranded an app-dead tile for the
+    /// full ten-minute hold while the music had moved on — a wake costs one
+    /// bounded self-fetch, so repair within a minute instead.
+    static let pausedHoldMs = 60_000
 
     /// Pulse cadence for an in-flight resync. WidgetKit renders static
     /// snapshots, so the fade in/out is emitted as alternating entries.

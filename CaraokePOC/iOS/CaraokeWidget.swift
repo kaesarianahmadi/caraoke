@@ -80,11 +80,6 @@ struct WidgetDebugStamp {
 
 struct CaraokeWidgetProvider: TimelineProvider {
 
-    /// One live-loop reload request floor, shared by every tile that bakes in
-    /// this process (see `timeline(for:)`). Process-static, not persisted: a
-    /// fresh process simply asks again on its first bake.
-    private static var lastLoopRequest: Date?
-
     /// Boundary diagnostics. Readable on device with Console.app (or
     /// `log collect --predicate 'subsystem == "com.caraoke.poc"'`), which is
     /// the only way to tell "the app stopped reloading" apart from "the reload
@@ -210,6 +205,15 @@ struct CaraokeWidgetProvider: TimelineProvider {
         let policy: TimelineReloadPolicy
         if !payload.isPlaying || payload.lines.isEmpty {
             policy = .atEnd
+        } else if context.family == .systemSmall {
+            // CarPlay: the renderer repaints only when a wake lands, so ask for
+            // one a few seconds out — the reload-policy date is the scheduling
+            // path chronod honors without the budget metering that starved the
+            // force-reload loop (measured against the competitor's tile: clean
+            // repaints every 4–10 s at lyric boundaries, for minutes). Each
+            // wake re-derives the current line from the wall clock, so a lane
+            // of short policy dates is exactly "fresh snapshot per line".
+            policy = .after(now.addingTimeInterval(4))
         } else if covered {
             // A whole song fits in one timeline, so no periodic reload is
             // needed — reloading every few seconds is what exhausted
@@ -237,34 +241,13 @@ struct CaraokeWidgetProvider: TimelineProvider {
         }
         Self.log.notice("timeline entries=\(entries.count, privacy: .public) covered=\(covered, privacy: .public) policy=\(String(describing: policy), privacy: .public)")
 
-        // Live loop. CarPlay never advances baked timeline entries — its
-        // renderer repaints only when a reload lands (verified on-device from
-        // the system's own WidgetRenderer_CarPlay logs; the fluid competitor
-        // tiles ride exactly this pattern, re-baking a fresh snapshot ~1.6 s
-        // apart). So while playback is live, this provider asks chronod for
-        // the next wake; each wake re-derives the current line from the wall
-        // clock and the tiles repaint with it. The loop stops itself when
-        // playback stops or the payload outlives its span — that wake instead
-        // takes the self-fetch repair path, which re-anchors and restarts it.
-        // `chainedSpanMs > 0` matters: a span-less payload can never expire,
-        // and an endless loop on dead data is the one unforgivable outcome.
-        if context.family == .systemSmall,
-           payload.isPlaying,
-           !payload.lines.isEmpty,
-           payload.chainedSpanMs > 0,
-           !WidgetTimelineBuilder.isExpired(payload: payload, now: now) {
-            // One request per pass: every placed tile bakes in this same
-            // process milliseconds apart, and a burst of reload requests is
-            // exactly what chronod's penalty box punishes. The 1 s floor also
-            // caps the loop if chronod ever grants wakes faster than its
-            // observed ~1.2–1.6 s cadence.
-            if let last = Self.lastLoopRequest, now.timeIntervalSince(last) < 1.0 {
-                // a sibling tile already asked this pass
-            } else {
-                Self.lastLoopRequest = now
-                SharedWidgetStore.requestReload(reason: "live-loop")
-            }
-        }
+        // Wakes for the car tiles are now scheduled by the short reload-policy
+        // date above: chronod re-requests on that date and every bake hands it
+        // a fresh snapshot of the current line. The previous belt-and-braces
+        // `WidgetCenter.reloadAllTimelines()` loop is deliberately gone — it is
+        // the budget-metered path (drive logs 2026-10-26: 6–16 s bursts then
+        // 60–90 s starvations), and firing it alongside policy wakes would let
+        // it eat the very budget the policy dates draw from.
         return Timeline(entries: entries.isEmpty ? [placeholder(in: context)] : entries, policy: policy)
     }
 

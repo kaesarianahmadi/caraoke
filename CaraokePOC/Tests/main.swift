@@ -1205,13 +1205,14 @@ final class TestRunner {
                   !WidgetTimelineBuilder.isExpired(
                     payload: pausedPayload(startMs: nowMs - 100_000), now: now))
             // A pause that outlived the song by more than pausedHoldMs is dead.
+            let hold = WidgetTimelineBuilder.pausedHoldMs
             check("pausedCorpseExpires",
                   WidgetTimelineBuilder.isExpired(
-                    payload: pausedPayload(startMs: nowMs - 200_000 - 601_000), now: now))
+                    payload: pausedPayload(startMs: nowMs - 200_000 - hold - 1_000), now: now))
             // Just inside the hold: still holds (no flap at the boundary).
             check("pausedJustInsideHoldNotExpired",
                   !WidgetTimelineBuilder.isExpired(
-                    payload: pausedPayload(startMs: nowMs - 200_000 - 599_000), now: now))
+                    payload: pausedPayload(startMs: nowMs - 200_000 - hold + 1_000), now: now))
             // Playing payloads keep the old semantics exactly.
             check("playingPastSpanExpires",
                   WidgetTimelineBuilder.isExpired(
