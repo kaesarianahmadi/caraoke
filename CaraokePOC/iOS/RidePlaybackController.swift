@@ -181,6 +181,7 @@ final class RidePlaybackController: ObservableObject {
     private var lastWidgetStatus: String?
     private var lastWidgetSignature: String?
     private var lastWidgetArtworkHex: String?
+    private var lastWidgetLine: String?
     /// Track start in wall-clock epoch ms — only recomputed while playing, so
     /// a paused track keeps the true start the widget extrapolates from.
     private var trackStartEpochMs = 0
@@ -219,6 +220,7 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetTitle = nil
         lastWidgetIsPlaying = nil
         lastWidgetStatus = nil
+        lastWidgetLine = nil
         trackStartEpochMs = 0
         trackStartKey = nil
         lastReloadedTrackStartMs = 0
@@ -676,14 +678,18 @@ final class RidePlaybackController: ObservableObject {
         let isTitleChanged = snapshot.title != lastWidgetTitle
         let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
         let isStatusChanged = snapshot.status.rawValue != lastWidgetStatus
-        // Line changes deliberately reload nothing: the payload just written
-        // already carries the full timed lyric list plus `trackStartEpochMs`,
-        // and the widget's baked timeline walks it entry by entry on its own.
-        // Reloading per line spent the whole daily budget in two tracks and
-        // left chronod ignoring the reloads that mattered — the song change,
-        // the seek, the artwork landing. When that self-advancing timeline
-        // runs out or drifts anyway, the heartbeat's bounded self-heal below
-        // reloads on its own — still never per line.
+        // Per-line reloads are allowed in exactly one state: the app is in the
+        // FOREGROUND and playing. Evidence (2026-10-26): the competitor's
+        // extension bakes ~1.5 s apart while their app runs and their CarPlay
+        // tile steps per lyric line — while their backgrounded users still
+        // review "requires occasional refreshing". Foreground reload requests
+        // are the ones chronod grants without metering. Backgrounded per-line
+        // reloads are precisely what exhausted the daily budget in build 56
+        // and must stay banned; the baked timeline plus the heartbeat's
+        // bounded self-heal covers that case.
+        let appActive = UIApplication.shared.applicationState == .active
+        let isLineReloadCandidate = snapshot.currentLine != lastWidgetLine
+            && appActive && snapshot.isPlaying
         // Artwork (and its colour) often lands a beat AFTER the track change —
         // Spotify serves it over the network — so the widget must reload again
         // or it keeps the artwork-less timeline it was first handed.
@@ -694,11 +700,13 @@ final class RidePlaybackController: ObservableObject {
         // picked up until the next song.
         let forced = forceWidgetReload
         forceWidgetReload = false
-        guard forced || isTitleChanged || isPlayStateChanged || isStatusChanged || isArtworkChanged else { return }
+        guard forced || isTitleChanged || isPlayStateChanged || isStatusChanged
+                || isArtworkChanged || isLineReloadCandidate else { return }
         lastWidgetTitle = snapshot.title
         lastWidgetIsPlaying = snapshot.isPlaying
         lastWidgetStatus = snapshot.status.rawValue
         lastWidgetArtworkHex = artworkColorHex
+        lastWidgetLine = snapshot.currentLine
         // Name the trigger, so the reload log says why this bake happened.
         // Coalesced triggers are rare enough that naming the first is honest;
         // a burst is visible as consecutive lines with different reasons.
@@ -708,6 +716,7 @@ final class RidePlaybackController: ObservableObject {
         if isPlayStateChanged { causes.append("playstate") }
         if isStatusChanged { causes.append("status") }
         if isArtworkChanged { causes.append("artwork") }
+        if isLineReloadCandidate { causes.append("line") }
         scheduleWidgetReload(reason: causes.joined(separator: "+"))
         Self.log.notice("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
     }
