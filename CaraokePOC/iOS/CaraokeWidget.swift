@@ -210,13 +210,21 @@ struct CaraokeWidgetProvider: TimelineProvider {
         if !payload.isPlaying || payload.lines.isEmpty {
             policy = .atEnd
         } else if context.family == .systemSmall {
-            // Single spent entry (see `looping` above): the car tile declares
-            // it has nothing left. chronod treats that as an immediate refresh
-            // request and re-wakes the extension promptly — the mechanism the
-            // competitor's single-entry archives ride. The old short
-            // `.after(now + 4 s)` dates were deferred ~86 s on device
-            // (2026-10-26 log), so the date is not worth asking for.
-            policy = .atEnd
+            // The car tiles bake exactly ONE entry (see `looping` above), so the
+            // timeline is spent the instant chronod reads it. `.atEnd` with no
+            // date is not re-requested on any predictable schedule — drive logs
+            // (2026-10-26) show 6–16 s bursts while the user touches the screen,
+            // then 60–90 s with zero wakes while idle, which is the freeze.
+            //
+            // Ask for a wake just before the line on screen stops being the
+            // line that should be on screen. chronod defers background reloads,
+            // so the request only has to be *earlier* than the boundary; the
+            // deferral is then absorbed while the tile is still correct. Cost is
+            // one request per lyric line, against the force-reload loop's one
+            // per line at 1 Hz — strictly cheaper, and it is the path the
+            // competitor's single-entry archives demonstrably ride.
+            policy = WidgetTimelineBuilder.nextLineBoundary(payload: payload, now: now)
+                .map { TimelineReloadPolicy.after($0) } ?? .atEnd
         } else if covered {
             // A whole song fits in one timeline, so no periodic reload is
             // needed — reloading every few seconds is what exhausted

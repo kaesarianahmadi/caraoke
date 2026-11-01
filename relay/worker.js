@@ -369,9 +369,49 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/sessions") || url.pathname.startsWith("/crashes")) {
-      const id = env.LyricsSession.idFromName("caraoke-ride");
-      return env.LyricsSession.get(id).fetch(request);
+      // One Durable Object per device, keyed by its Live Activity push token.
+      //
+      // A single shared object ("caraoke-ride") meant every phone on the relay
+      // wrote the same session slot, so a second driver starting a ride replaced
+      // the first one's schedule — and the first phone then got pushes computed
+      // from the other phone's lyrics. The activity push token is per-device and
+      // per-activity, which is the natural key, but it arrives only in the
+      // register body — so the DO is resolved after the body is read, in
+      // `routeSession` below.
+      return routeSession(request, env);
     }
     return new Response("not found", { status: 404 });
   },
 };
+
+/// Resolves the per-device Durable Object.
+///
+/// `GET`/`DELETE` on `/crashes` are operator diagnostics for the whole
+/// deployment, so they keep the shared object. Everything carrying a session —
+/// and the crash `POST` — is scoped to the device's activity push token, with a
+/// stable fallback for bodies that have no token yet (the very first register,
+/// which has nothing to route on).
+async function routeSession(request, env) {
+  const url = new URL(request.url);
+  const isCrashDiagnostics = url.pathname.startsWith("/crashes") && request.method !== "POST";
+  let key = "caraoke-shared";
+  if (!isCrashDiagnostics) {
+    const body = await request.text();
+    let token = "";
+    try {
+      token = JSON.parse(body)?.activityPushToken ?? "";
+    } catch {
+      // Malformed body: let the DO answer 400 exactly as it did before.
+    }
+    if (/^[0-9a-f]{32,}$/i.test(token)) key = "caraoke-ride-" + token.slice(-32);
+    const id = env.LyricsSession.idFromName(key);
+    // Re-wrap so the DO can read the body the body-buffering above consumed.
+    return env.LyricsSession.get(id).fetch(new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body,
+    }));
+  }
+  const id = env.LyricsSession.idFromName(key);
+  return env.LyricsSession.get(id).fetch(request);
+}

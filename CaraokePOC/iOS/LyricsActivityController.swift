@@ -87,7 +87,8 @@ final class CaraokeActivityController {
         case .sendNow:
             cancelPendingUpdate() // superseded by newer content
             Task {
-                await activity.update(ActivityContent(state: content, staleDate: nil))
+                await activity.update(ActivityContent(state: content,
+                                                      staleDate: Self.staleDate(for: snapshot, at: Date())))
             }
         case .coalesce(let fireIn):
             pendingContent = content
@@ -131,7 +132,8 @@ final class CaraokeActivityController {
             self.pendingContent = nil
             self.pendingTask = nil
             self.throttle.noteSent(now: Date())
-            await activity.update(ActivityContent(state: content, staleDate: nil))
+            await activity.update(ActivityContent(state: content,
+                                                  staleDate: Self.staleDate(forContent: content)))
         }
     }
 
@@ -163,7 +165,8 @@ final class CaraokeActivityController {
             )
             let content = Self.content(from: snapshot)
             Task {
-                await existing.update(ActivityContent(state: content, staleDate: nil))
+                await existing.update(ActivityContent(state: content,
+                                                      staleDate: Self.staleDate(for: snapshot, at: Date())))
             }
             onDiagnostic?("Live Activity reattached")
             return
@@ -183,14 +186,16 @@ final class CaraokeActivityController {
             do {
                 requested = try Activity.request(
                     attributes: LyricsActivityAttributes(),
-                    content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil),
+                    content: ActivityContent(state: Self.content(from: snapshot),
+                                             staleDate: Self.staleDate(for: snapshot, at: Date())),
                     pushType: .token
                 )
                 onDiagnostic?("Live Activity started (push-capable)")
             } catch {
                 requested = try Activity.request(
                     attributes: LyricsActivityAttributes(),
-                    content: ActivityContent(state: Self.content(from: snapshot), staleDate: nil)
+                    content: ActivityContent(state: Self.content(from: snapshot),
+                                             staleDate: Self.staleDate(for: snapshot, at: Date()))
                 )
                 onDiagnostic?("Live Activity started (no push: \(error.localizedDescription))")
             }
@@ -278,5 +283,43 @@ final class CaraokeActivityController {
             durationMs: snapshot.durationMs,
             boldText: UserDefaults.standard.object(forKey: AppearanceSettings.boldTextKey) as? Bool ?? true
         )
+    }
+
+    /// The moment this content stops being trustworthy. Coverage can arrive from
+    /// two directions — the app process while it is alive, and the relay's APNs
+    /// pushes while it is not — so the budget is shared by both.
+    ///
+    /// Why it matters: every update used to be sent with `staleDate: nil`, which
+    /// declares the content permanently valid. A stalled activity then looked
+    /// live to the system *and* to the user — no dimming, no refresh, nothing on
+    /// screen saying the lyrics had stopped. With a bounded date the system fades
+    /// content when updates genuinely stop, so a freeze becomes visible instead
+    /// of silent.
+    ///
+    /// While playing the activity is re-fed within a line or two (the relay
+    /// pushes per line, the app coalesces to 1.5 s), so the grace is generous —
+    /// fading a healthy activity mid-song would be its own bug. It is still
+    /// bounded by the track's remaining time: a content state that outlives its
+    /// own track is certainly wrong. A paused activity is deliberately kept alive
+    /// (a red-light pause is minutes, not seconds) but must not claim freshness
+    /// forever if the app dies while paused.
+    private static func staleDate(forContent content: LyricsActivityAttributes.ContentState,
+                                  at now: Date = Date()) -> Date {
+        let grace: TimeInterval
+        if content.isPlaying {
+            var cap: TimeInterval = 90
+            if let duration = content.durationMs, duration > 0 {
+                let remaining = (Double(duration) - Double(content.positionMs)) / 1000.0
+                cap = min(cap, max(remaining + 30, 20))
+            }
+            grace = cap
+        } else {
+            grace = 600
+        }
+        return now.addingTimeInterval(grace)
+    }
+
+    private static func staleDate(for snapshot: LyricSnapshot, at now: Date) -> Date {
+        staleDate(forContent: content(from: snapshot), at: now)
     }
 }

@@ -49,3 +49,7 @@ tools/playport/
 # The analysis toolchain itself lives in ~/Tools, outside this repo entirely.
 rea/targets/
 rea/jadx-out/
+rea/dynamic-lyrics/raw/
+rea/dynamic-lyrics/out/
+rea/metadata/
+rea/dynamic-lyrics/raw/mac_pkg/

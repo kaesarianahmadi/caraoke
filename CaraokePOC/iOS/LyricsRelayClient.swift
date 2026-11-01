@@ -20,6 +20,9 @@ final class LyricsRelayClient {
 
     private var schedule: LyricsRelayPayload?
     private var pendingPushToken: Data?
+    /// The token hex this client last armed the relay with. `end()` re-sends it
+    /// so the relay can route the teardown to this device's session.
+    private var lastSentTokenHex: String?
 
     init(baseURL: URL? = FeatureFlags.relayBaseURL,
          session: URLSession = .shared) {
@@ -54,9 +57,18 @@ final class LyricsRelayClient {
 
     /// Ride stop: tell the relay to end and drop the session so no stale
     /// pushes continue into a tile we're about to dismiss.
+    ///
+    /// Carries the push token so the relay can route to this device's session:
+    /// sessions are keyed by the activity token (one Durable Object per device),
+    /// and an end request without it would land on the shared fallback object
+    /// and leave the real session armed.
     func end() {
         guard isEnabled else { return }
-        guard let body = try? JSONSerialization.data(withJSONObject: ["action": "end"]) else { return }
+        let body = try? JSONSerialization.data(withJSONObject: [
+            "action": "end",
+            "activityPushToken": lastSentTokenHex ?? pendingPushToken.map(Self.hex) ?? "",
+        ])
+        guard let body else { return }
         var request = URLRequest(url: baseURL!.appendingPathComponent("sessions"))
         request.httpMethod = "POST"
         request.httpBody = body
@@ -64,6 +76,10 @@ final class LyricsRelayClient {
         Task { [weak self] in
             _ = try? await self?.session.data(for: request)
         }
+    }
+
+    private static func hex(_ data: Data) -> String {
+        data.map { String(format: "%02x", $0) }.joined()
     }
 
     /// Called on every push-token emit from the activity (first arrival +
@@ -78,10 +94,22 @@ final class LyricsRelayClient {
     /// Best effort; failures are reported via `onStatus` (the foreground
     /// playback path itself is unaffected).
     private func trySend() {
-        guard isEnabled, let schedule, let token = pendingPushToken else { return }
+        guard isEnabled, let schedule, let token = pendingPushToken else {
+            // The relay is configured but one half is missing. Silence here is
+            // what makes a dark relay indistinguishable from a working one: with
+            // no push token the activity never gets APNs coverage while the car
+            // is locked, and the app falls back to the local arm without saying
+            // so. Surface it instead.
+            if isEnabled { onStatus?("Relay idle: waiting for the Live Activity push token") }
+            return
+        }
         var payload = schedule
-        payload.activityPushToken = token.map { String(format: "%02x", $0) }.joined()
-        guard let body = try? LyricsRelayPayloadEncoder.encode(payload) else { return }
+        payload.activityPushToken = Self.hex(token)
+        lastSentTokenHex = payload.activityPushToken
+        guard let body = try? LyricsRelayPayloadEncoder.encode(payload) else {
+            onStatus?("Relay idle: schedule could not be encoded")
+            return
+        }
 
         var request = URLRequest(url: baseURL!.appendingPathComponent("sessions"))
         request.httpMethod = "POST"

@@ -219,12 +219,49 @@ enum WidgetTimelineBuilder {
     /// bounded self-fetch, so repair within a minute instead.
     static let pausedHoldMs = 60_000
 
+    /// Wake lead for the CarPlay tiles. A one-entry `.atEnd` bake is spent the
+    /// instant chronod reads it, and a spent timeline with no date is not
+    /// re-requested on any predictable schedule (drive log 2026-10-26: 6–16 s
+    /// bursts, then 60–90 s with zero wakes). Asking for a wake just before the
+    /// active line rolls over converts that into a date-driven cadence — one
+    /// request per lyric line, which is exactly the cadence the competitor's
+    /// tiles ride, and far cheaper than a force-reload per line at 1 Hz.
+    /// Lead is generous because chronod defers background reloads.
+    static let tileRolloverLeadMs = 3_000
+
     /// Pulse cadence for an in-flight resync. WidgetKit renders static
     /// snapshots, so the fade in/out is emitted as alternating entries.
     static let resyncPulseStep: TimeInterval = 0.45
     static let resyncPulseLow = 0.3
     /// Longest pulse tail a single timeline carries.
     static let resyncPulseWindowMs = 20_000
+
+    /// When the tile should ask to be woken again: the moment the line now on
+    /// screen stops being the line that should be on screen, less the wake lead.
+    /// Returns nil when there is nothing scheduled (no playing lyric line
+    /// ahead), and never a date in the past — chronod treats those as spent.
+    static func nextLineBoundary(payload: SharedWidgetPayload, now: Date) -> Date? {
+        guard payload.isPlaying,
+              payload.status == LyricStatus.playing.rawValue,
+              !payload.lines.isEmpty else { return nil }
+        let startEpoch = Double(payload.trackStartEpochMs) / 1000.0
+        guard startEpoch > 0 else { return nil }
+        let positionMs = Int((now.timeIntervalSince1970 - startEpoch) * 1000.0)
+        // The first lyric still ahead of the playhead. During an instrumental
+        // intro, or before the first line, that is lines[0].
+        guard let boundary = payload.lines.first(where: { $0.timeMs > positionMs }) else { return nil }
+        let boundaryDate = Date(timeIntervalSince1970: startEpoch + Double(boundary.timeMs) / 1000.0)
+        let wake = boundaryDate.addingTimeInterval(-Double(tileRolloverLeadMs) / 1000.0)
+        // A lateral margin keeps a wake scheduled even when the playhead sits
+        // exactly on the next boundary.
+        let floor = now.addingTimeInterval(1)
+        let candidate = max(wake, floor)
+        // A boundary the playhead has already passed wakes immediately; anything
+        // further out is bounded by the payload's own span so a stalled app
+        // cannot park a wake on a boundary that will never arrive.
+        guard candidate <= boundaryDate.addingTimeInterval(30) else { return nil }
+        return candidate
+    }
 
     /// Entries from `now` forward. Empty lyrics / paused / non-playing states
     /// produce a single static entry (nothing to advance). A payload flagged
