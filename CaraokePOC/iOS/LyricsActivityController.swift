@@ -308,8 +308,8 @@ final class CaraokeActivityController {
         let grace: TimeInterval
         if content.isPlaying {
             var cap: TimeInterval = 90
-            if let duration = content.durationMs, duration > 0 {
-                let remaining = (Double(duration) - Double(content.positionMs)) / 1000.0
+            if let duration = content.durationMs, let positionMs = content.positionMs, duration > 0 {
+                let remaining = (Double(duration) - Double(positionMs)) / 1000.0
                 cap = min(cap, max(remaining + 30, 20))
             }
             grace = cap
