@@ -137,20 +137,14 @@ struct SharedWidgetSettings: Codable, Sendable, Equatable {
     /// Hero lyric weight: bold (default) or regular. Sourced from the
     /// appearance settings UI's `appearance.boldText` UserDefaults key.
     var boldText: Bool
-    /// Burns the timeline stamp into the corner of every tile. Diagnostic
-    /// only — see `WidgetDebugStamp` in the widget extension.
-    ///
-    /// **ON for test builds. Set both defaults to `false` for a release build:**
-    /// here and in `init(from:)` below. On by default rather than behind a
-    /// toggle because the app and the widget extension cannot share
-    /// UserDefaults without an App Group, so the only ways to enable it are the
-    /// shared keychain settings or a default.
+    /// Enable bake detail in system logs. Diagnostic text is never painted
+    /// over widgets, even when an older saved setting enables this flag.
     var debugStamp: Bool
 
     init(theme: String = "artwork",
          coverStyle: String = "vinyl",
          boldText: Bool = true,
-         debugStamp: Bool = true) {
+         debugStamp: Bool = false) {
         self.theme = theme
         self.coverStyle = coverStyle
         self.boldText = boldText
@@ -167,7 +161,7 @@ struct SharedWidgetSettings: Codable, Sendable, Equatable {
         theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? "artwork"
         coverStyle = try container.decodeIfPresent(String.self, forKey: .coverStyle) ?? "vinyl"
         boldText = try container.decodeIfPresent(Bool.self, forKey: .boldText) ?? true
-        debugStamp = try container.decodeIfPresent(Bool.self, forKey: .debugStamp) ?? true
+        debugStamp = try container.decodeIfPresent(Bool.self, forKey: .debugStamp) ?? false
     }
 }
 

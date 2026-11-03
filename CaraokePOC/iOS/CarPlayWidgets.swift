@@ -181,23 +181,6 @@ private struct CaraokeCarPlayIdentity: View {
 
 private extension CaraokeWidgetEntry {
     var theme: WidgetTheme { WidgetTheme(rawValue: settings.theme) ?? .artwork }
-
-    var widgetPalette: LyricTilePalette {
-        let t = theme
-        return LyricTilePalette(
-            cardBackground: .clear,
-            cardBorder: .clear,
-            titleText: t.textColor,
-            artistText: t.mutedTextColor,
-            badgeText: t.mutedTextColor,
-            heroText: t.textColor,
-            nextText: t.mutedTextColor,
-            metaText: t.mutedTextColor,
-            trackBackground: t.textColor.opacity(0.18),
-            trackFill: t.textColor.opacity(0.92),
-            glow: t.textColor.opacity(0.7)
-        )
-    }
 }
 
 private struct CaraokeCarPlayChrome<Content: View>: View {
@@ -211,7 +194,6 @@ private struct CaraokeCarPlayChrome<Content: View>: View {
 
     var body: some View {
         content
-            .overlay(alignment: .bottomLeading) { WidgetDebugStampView(stamp: entry.debugStamp) }
             .widgetURL(URL(string: "caraoke://lyrics"))
             .containerBackground(for: .widget) {
                 WidgetArtworkBackground(theme: entry.theme, artworkData: entry.artworkData)
@@ -219,30 +201,6 @@ private struct CaraokeCarPlayChrome<Content: View>: View {
     }
 }
 
-/// The bake stamp, rendered small in a corner of the tile.
-///
-/// Present on every CarPlay tile and on the Home Screen widget. Nil — and so
-/// invisible — unless `SharedWidgetSettings.debugStamp` is on, which is
-/// currently the default for test builds. Read it off the car screen when the
-/// tile freezes: see `WidgetDebugStamp` for what each field means and
-/// `rea/findings-carplay-lyric-sync.md` §9 for the three readings.
-struct WidgetDebugStampView: View {
-    let stamp: WidgetDebugStamp?
-
-    var body: some View {
-        if let stamp {
-            Text(stamp.line)
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white)
-                .padding(.horizontal, 3)
-                .padding(.vertical, 1)
-                .background(Color.black.opacity(0.65))
-                .clipShape(RoundedRectangle(cornerRadius: 2))
-                .padding(2)
-                .accessibilityLabel("Timeline \(stamp.index + 1) of \(stamp.total)")
-        }
-    }
-}
 
 // MARK: - Layer 1 — Player
 
@@ -278,28 +236,11 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            LyricTileView(
-                title: entry.title,
-                artist: entry.artist,
-                currentLine: entry.currentLine,
-                previousLines: entry.previousLines,
-                nextLine: entry.nextLine,
-                upcomingLines: entry.upcomingLines,
-                isPlaying: entry.isPlaying,
-                progress: entry.progress,
-                status: entry.status,
-                surface: .carPlayLyrics,
-                palette: entry.widgetPalette,
-                artworkData: entry.artworkData,
-                resyncPulse: entry.resyncPulse,
-                needsResync: entry.status != .playing || entry.resyncPulse < 1,
-                showsProgressBar: false,
-                boldText: entry.settings.boldText
-            )
-            // No cover on this tile to tap, so the resync button lives on the
-            // lyric area itself (user direction, build 66).
-            CaraokeCarPlayResyncButton(entry: entry)
-                .padding(2)
+            CompactLyricsView(currentLine: entry.currentLine,
+                previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
+                title: entry.title, artist: entry.artist, status: entry.status,
+                fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText)
+            CaraokeCarPlayResyncButton(entry: entry, glyphSize: 12, hitTarget: 28)
         }
     }
 }
@@ -311,56 +252,35 @@ private struct CaraokeCarPlayHybridWidgetView: View {
 
     var body: some View {
         let t = entry.theme
-        GeometryReader { geo in
-            // Lyrics allocate 65% of the tile height.
-            let lyricHeight = geo.size.height * 0.65
-            VStack(spacing: 0) {
+        GeometryReader { geometry in
+            VStack(spacing: 4) {
                 ZStack(alignment: .topTrailing) {
-                    LyricTileView(
-                        title: entry.title,
-                        artist: entry.artist,
-                        currentLine: entry.currentLine,
-                        previousLines: entry.previousLines,
-                        nextLine: entry.nextLine,
-                        upcomingLines: entry.upcomingLines,
-                        isPlaying: entry.isPlaying,
-                        progress: entry.progress,
-                        status: entry.status,
-                        surface: .carPlaySmall,
-                        palette: entry.widgetPalette,
-                        artworkData: entry.artworkData,
-                        resyncPulse: entry.resyncPulse,
-                        needsResync: entry.status != .playing || entry.resyncPulse < 1,
-                        showsProgressBar: false,
-                        customBoxHeight: lyricHeight,
-                        customPadding: 8,
-                        boldText: entry.settings.boldText
-                    )
-                    // User direction, build 66: the resync button appears on
-                    // BOTH the cover and the lyric lines — the cover is too
-                    // small to be the only tap target.
-                    CaraokeCarPlayResyncButton(entry: entry, glyphSize: 12)
-                        .padding(2)
+                    CompactLyricsView(currentLine: entry.currentLine,
+                        previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
+                        title: entry.title, artist: entry.artist, status: entry.status,
+                        fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText)
+                    CaraokeCarPlayResyncButton(entry: entry, glyphSize: 11, hitTarget: 28)
                 }
-                .frame(height: lyricHeight)
-
                 HStack(spacing: 6) {
-                    CaraokeCarPlayCover(entry: entry, size: 24, showsResyncGlyph: true)
-                    CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
-                                           mutedColor: t.mutedTextColor, titleSize: 11.5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    // Build 66: no Previous button on the hybrid — the space it
-                    // took is what truncated the title ("Wa…"). Play/pause +
-                    // Next stay; the reclaimed width flows to the title above.
+                    CaraokeCarPlayCover(entry: entry, size: 26)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(entry.title.isEmpty ? "Caraoke" : entry.title)
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(entry.artist)
+                            .font(.system(size: 10)).foregroundStyle(t.mutedTextColor)
+                    }
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
                     CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
-                                           buttonWidth: 26, buttonHeight: 28,
-                                           showPrevious: false)
+                        buttonWidth: 24, buttonHeight: 32, showPrevious: false)
                 }
+                .foregroundStyle(t.textColor)
                 .padding(.horizontal, 8)
-                .padding(.top, 2)
-                .padding(.bottom, 4)
+                .padding(.bottom, 6)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
     }
 }

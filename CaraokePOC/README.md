@@ -44,7 +44,7 @@ line (plus the next line) on CarPlay through a system-rendered Live Activity.
 | **Paywall** | `iOS/PaywallView.swift` | Three plans, yearly recommended, lifetime secondary (PRD D6: after first lyric moment) |
 | **Settings** | `iOS/SettingsView.swift` | LRCLIB attribution + sponsor link, ride stats, cache reset, support links |
 | Ride intents | `iOS/RideModeIntents.swift` | `LiveActivityIntent` start/stop — the one legal background start |
-| Widget refresh intent | `iOS/WidgetRefreshIntent.swift` | System continuation at lyric boundaries (at most 3 s between checks); obsolete sessions finish normally. Widget resync repairs data without replacing the chain. Device crash-free/latency acceptance remains required. |
+| Widget refresh intent | `iOS/WidgetRefreshIntent.swift` | Explicit typed follow-on result; normal stop removes `opensIntent` without erasing its metadata. Boundary scheduling checks at least once per second; actual cycle heartbeat, not token presence, selects timeline recovery. Device dispatch/latency still needs verification. |
 | Widget bundle | `iOS/CaraokeWidgetBundle.swift` | Entry point |
 | StoreKit config | `Caraoke.storekit` | Local StoreKit testing in Xcode (verify/resync when opening in Xcode) |
 | Secrets template | `iOS/Resources/Secrets.example.plist` | Copy to `Secrets.plist`, add your Spotify client ID (gitignored) |

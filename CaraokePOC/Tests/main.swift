@@ -1238,7 +1238,6 @@ final class TestRunner {
                 checkEqual("settingsKeepsThemeAcrossAddedField", decoded.theme, "spooky")
                 checkEqual("settingsKeepsCoverStyleAcrossAddedField", decoded.coverStyle, "cd")
                 checkEqual("settingsKeepsBoldTextAcrossAddedField", decoded.boldText, false)
-                checkEqual("settingsDefaultsDebugStamp", decoded.debugStamp, true)
             } else {
                 check("settingsDecodesOlderBlob", false)
             }
@@ -1330,12 +1329,12 @@ final class TestRunner {
                 lines: [SharedLyricLine(timeMs: 0, text: "first"),
                         SharedLyricLine(timeMs: 1_500, text: "second"),
                         SharedLyricLine(timeMs: 10_000, text: "third")])
-            checkEqual("refreshWakesAtNextLyric", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1.5)
-            checkEqual("refreshAdvancesPastExactBoundary", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now.addingTimeInterval(1.5)), 3)
+            checkEqual("refreshCapsTrackChangeDetection", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1)
+            checkEqual("refreshAdvancesPastExactBoundary", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now.addingTimeInterval(1.5)), 1)
             check("refreshNearBoundaryAvoidsBusyLoop", abs(WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now.addingTimeInterval(1.49)) - 0.05) < 0.0001)
             payload.isPlaying = false
-            checkEqual("refreshPausedChecksResume", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 3)
-            checkEqual("refreshMissingPayloadChecksAgain", WidgetRefreshSession.nextRefreshDelay(payload: nil, now: now), 3)
+            checkEqual("refreshPausedChecksResume", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1)
+            checkEqual("refreshMissingPayloadChecksAgain", WidgetRefreshSession.nextRefreshDelay(payload: nil, now: now), 1)
         }
 
         // MARK: summary

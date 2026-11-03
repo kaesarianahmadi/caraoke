@@ -149,11 +149,19 @@ struct HomeView: View {
                 Text("Live Lyrics")
                     .font(.system(size: 22, weight: .bold))
                 Spacer()
-                Toggle(isOn: model.isOn, intent: SetRideModeIntent(enabled: !model.isOn)) {
-                    Text("Live Lyrics")
+                Button(intent: SetRideModeIntent(enabled: !model.isOn)) {
+                    ZStack(alignment: model.isOn ? .trailing : .leading) {
+                        Capsule().fill(model.isOn ? AppTheme.ok : AppTheme.muted(scheme).opacity(0.35))
+                        Circle().fill(.white).padding(2)
+                            .frame(width: 31, height: 31)
+                    }
+                    .frame(width: 51, height: 31)
+                    .frame(minHeight: 44)
                 }
-                .labelsHidden().tint(AppTheme.ok)
+                .buttonStyle(.plain)
                 .accessibilityLabel("Live Lyrics")
+                .accessibilityValue(model.isOn ? "On" : "Off")
+                .accessibilityHint(model.isOn ? "Turn off live lyrics" : "Start live lyrics")
             }
             Text("Show lyrics on the Lock Screen, CarPlay, and Apple Watch.")
                 .font(.system(size: 14))

@@ -325,6 +325,11 @@ final class RideModeViewModel: ObservableObject {
         activity.startIdle()
     }
 
+    func refreshWidgetSnapshot() {
+        guard isOn, !Self.useSimulatedPlayback else { return }
+        realPlayback.refreshWidgetSnapshot()
+    }
+
     /// Fills the UI from the widget's shared payload. Opening the app from a
     /// widget used to show an empty page for the few seconds the pipeline needs
     /// to poll the player; the payload the widget was just rendering is

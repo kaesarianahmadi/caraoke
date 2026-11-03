@@ -75,16 +75,19 @@ enum SharedWidgetStore {
     private static let payloadAccount = "state"
     private static let settingsAccount = "settings"
     private static let refreshSessionAccount = "refresh-session"
+    private static let refreshHeartbeatAccount = "refresh-heartbeat"
 
     static func startWidgetRefreshSession() -> String {
         var session = WidgetRefreshSession()
         let token = session.start()
         SharedKeychain.set(Data(token.utf8), service: service, account: refreshSessionAccount)
+        SharedKeychain.remove(service: service, account: refreshHeartbeatAccount)
         return token
     }
 
     static func stopWidgetRefreshSession() {
         SharedKeychain.remove(service: service, account: refreshSessionAccount)
+        SharedKeychain.remove(service: service, account: refreshHeartbeatAccount)
     }
 
     static func isWidgetRefreshSession(_ token: String) -> Bool {
@@ -93,9 +96,20 @@ enum SharedWidgetStore {
         return WidgetRefreshSession(token: current).contains(token)
     }
 
+    static func noteWidgetRefreshCycle(_ session: String, now: Date = Date()) {
+        guard isWidgetRefreshSession(session) else { return }
+        SharedKeychain.set(Data("\(session)|\(now.timeIntervalSince1970)".utf8),
+                          service: service, account: refreshHeartbeatAccount)
+    }
+
     static var hasWidgetRefreshSession: Bool {
-        guard let data = SharedKeychain.data(service: service, account: refreshSessionAccount) else { return false }
-        return !data.isEmpty
+        guard let data = SharedKeychain.data(service: service, account: refreshHeartbeatAccount),
+              let text = String(data: data, encoding: .utf8) else { return false }
+        let fields = text.split(separator: "|")
+        guard fields.count == 2, let timestamp = TimeInterval(fields[1]),
+              isWidgetRefreshSession(String(fields[0])) else { return false }
+        let age = Date().timeIntervalSince1970 - timestamp
+        return age >= 0 && age < 10
     }
 
     private static let spotifyService = "com.caraoke.spotify"

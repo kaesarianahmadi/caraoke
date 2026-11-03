@@ -17,7 +17,7 @@ final class CaraokeActivityController {
     /// Rapid line changes are coalesced (never dropped) to one update per
     /// this interval; the newest line always lands, at worst this late.
     /// Track changes and play/pause flips always send immediately.
-    static let minLineUpdateInterval: TimeInterval = 1.5
+    static let minLineUpdateInterval: TimeInterval = 0.25
 
     private static let log = Logger(subsystem: "com.caraoke.poc", category: "activity")
 
@@ -49,15 +49,7 @@ final class CaraokeActivityController {
         !ActivityAuthorizationInfo().areActivitiesEnabled
     }
 
-    init() {
-        // Clean up activities orphaned by a previous app termination.
-        Task {
-            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-            for stale in Activity<LyricsActivityAttributes>.activities {
-                await stale.end(nil, dismissalPolicy: .immediate)
-            }
-        }
-    }
+    init() {}
 
     /// Single entry point, called on every snapshot change. Gates everything
     /// through policy + throttle. Playback pauses do NOT end the activity

@@ -65,21 +65,13 @@ private struct FamilyAdaptiveTile: View {
     @Environment(\.activityFamily) private var activityFamily
 
     var body: some View {
-        LyricTileView(
-            title: context.state.title,
-            artist: context.state.artist,
-            currentLine: context.state.currentLine,
+        CompactLyricsView(currentLine: context.state.currentLine,
             previousLines: context.state.previousLines ?? [],
-            nextLine: context.state.nextLine,
             upcomingLines: context.state.upcomingLines ?? (context.state.nextLine.map { [$0] } ?? []),
-            isPlaying: context.state.isPlaying,
-            progress: context.state.progress,
-            status: status(of: context.state),
-            positionMs: context.state.positionMs ?? 0,
-            durationMs: context.state.durationMs,
-            surface: activityFamily == .small ? .carPlaySmall : .lockBanner,
-            boldText: context.state.boldText ?? true
-        )
+            title: context.state.title, artist: context.state.artist,
+            status: status(of: context.state), fontSize: activityFamily == .small ? 15 : 18,
+            boldText: context.state.boldText ?? true)
+            .frame(height: activityFamily == .small ? 100 : 138)
     }
 }
 

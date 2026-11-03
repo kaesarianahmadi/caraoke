@@ -263,3 +263,72 @@ classification. Local macOS execution cannot prove the Apple daemon no longer cr
 CarPlay meets the competitor's latency. Those require a new device run with repeated resync,
 stop/start, locked-phone playback and multiple track changes. No zero-latency guarantee is made.
 
+
+## 10. Build 83 regression audit and local three-surface repair
+
+Source: Taildrop `sysdiagnose_2026.11.03_19-46-09+0700_iPhone-OS_iPhone_23F84.tar.gz`.
+The extension updates to version 83 at 18:20:59.436. No `refresh intent cycle=` or
+`WidgetRefreshIntent.perform()` execution appears after that installation. At 18:41:11.691,
+the in-app Toggle emits a SwiftUI `Environment<Optional<AppIntentExecutor>>` access fault;
+its start body creates an activity and prepares the next intent, but cycle 0 never follows.
+Resync taps now return a plain result, so they cannot repair bootstrap. Older `chronod`
+crashes in this archive precede installation; they are not evidence of a new build 83 crash.
+
+The leading source-level regression is the mixed empty/continuation opaque result. iOS 18.2+
+has an erased result overload; build 82's unconditional continuation had no empty branch.
+This is a diagnosis, not a proven trace of the framework's internal overload selection.
+The local repair uses explicit `IntentResultContainer<String, WidgetRefreshIntent, Never, Never>`
+for start, refresh and resync. Stop removes the optional follow-on from the SAME result type,
+never throws cancellation and never calls `perform()` from a timer. A native macOS AppIntents
+executable proved both the continuing and normal-stop result paths. iOS metadata extraction
+is unavailable locally, so CI and a device run must validate iOS dispatch.
+
+The in-app control is now an intent Button retaining switch appearance/accessibility, not the
+faulting intent Toggle. Resync uses `LiveActivityIntent` for app-process execution and returns
+a fresh typed chain. Token presence no longer claims liveness: a matching cycle heartbeat must
+be less than ten seconds old. Entry logs precede all session guards. Each app-side cycle ticks
+the real playback engine before requesting a widget reload. Boundary checks are capped at one
+second; Live Activity line-update coalescing is reduced from 1.5 s to 0.25 s. These remove known
+client-side delay, not iOS dispatch, Spotify polling or archive-rendering latency guarantees.
+The asynchronous activity-controller initializer that could end a newly created activity was removed.
+
+### Three surfaces only
+
+Binary associated types prove separate Dynamic Lyrics lyric-only and hybrid trees: the hybrid
+is a VStack of the lyric viewport followed by artwork/title/artist/playback controls. The Live
+Activity uses a masked, offset-based vertical lyric view. Measured horizontal text scrolling also
+exists, but neither exact font/inset values nor the current per-surface branch settings are known.
+The identified competitor screenshots show centered wrapped lyrics, faded context and a bottom
+player strip. They do not establish a universal no-truncation guarantee or original source code.
+
+`CompactLyricsView` is scoped to the Live Activity banner/small mirror, CarPlay Hybrid and lyrics-only
+tiles. It measures full wrapped strings at the available width/height, preserves the entire active
+line, sheds context before reducing a common font, and never applies a lyric lineLimit. The hybrid
+footer uses the remaining measured height rather than a fixed 65% lyric box; metadata wraps.
+Other Home Screen/in-app lyric layouts, Dynamic Island regions and Player-tile design remain unchanged.
+Visible diagnostic stamp overlays are removed for all widgets; system diagnostic logs remain.
+
+Native macOS SwiftUI snapshots exercised the actual new lyric view at 162x100, 162x162 and 342x138,
+including the long Oasis line that truncated in the user's screenshot. A composite checks the
+hybrid footer composition too. This is not an iOS simulator or CarPlay visual proof. Exact 100%
+competitor binary parity (including private ClockEffect animation) is NOT claimed. Local changes
+stay unpushed with project build number 83 until the user explicitly authorizes a release.
+
+The iOS 26.5 AppIntents swiftinterface was also read from the public SDK mirror at
+https://github.com/xybp888/iOS-SDKs/tree/master/iPhoneOS26.5.sdk/System/Library/Frameworks/AppIntents.framework .
+It confirms both overloads exist and the typed factory is disfavored by inference; `opensIntent`
+is deprecated, not unavailable. The explicit result compiles against the local native AppIntents
+framework. This does not prove the modern erased overload is itself broken or that the competitor
+uses the typed container: its binary reflection reports `IntentResultContainer<String, Never, Never, Never>`.
+The actual observed build 83 failure is missing cycle dispatch plus the in-app executor fault.
+
+
+
+Verification for the local repair: standalone core suite 316 passed / 0 failed, all 38 iOS files
+parsed, app/extension conditional intent branches parsed, native AppIntents smoke exercised
+parameter defaults, typed continuation, cycle increment and nil-follow-on stop. Native SwiftUI
+snapshots exercised the actual final compact lyric view at all three recorded sizes. The old
+debug-default assertion was removed rather than re-pinned; it tested an incidental default,
+not user-visible correctness. No Xcode, iOS SDK typecheck, iOS metadata extraction, CI run,
+CarPlay render or locked-phone endurance run was performed for these local changes.
+

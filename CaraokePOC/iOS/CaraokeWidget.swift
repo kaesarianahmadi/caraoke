@@ -351,9 +351,6 @@ struct CaraokeWidgetEntryView: View {
                 }
             }
         }
-        // Same stamp as the CarPlay tiles — this is the surface to compare
-        // against, since it shares the provider, the bake and the payload.
-        .overlay(alignment: .bottomLeading) { WidgetDebugStampView(stamp: entry.debugStamp) }
     }
 }
 

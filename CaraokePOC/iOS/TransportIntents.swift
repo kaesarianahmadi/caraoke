@@ -2,21 +2,20 @@
 import AppIntents
 import WidgetKit
 
-/// Transport buttons for the Home Screen widgets. Plain `AppIntent` on
-/// purpose: a widget button runs in the widget extension, and the
-/// `LiveActivityIntent` trio this used to use only performs in the app
-/// process — the buttons silently did nothing. Both kinds route through
-/// `TransportControl`, which drives whichever player is the active source.
-/// (The Live Activity itself carries no transport buttons.)
+/// Transport buttons stay extension-side. Resync is a LiveActivityIntent so
+/// the system runs its repair and follow-on in the audio-holding app process.
 
-struct ResyncWidgetIntent: AppIntent {
+struct ResyncWidgetIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Resync Caraoke Lyrics"
     static let description = IntentDescription("Refreshes widget lyrics timeline.")
 
-    func perform() async throws -> some IntentResult {
-        // Repair the clock without replacing/cancelling the running app chain.
+    func perform() async throws -> IntentResultContainer<String, WidgetRefreshIntent, Never, Never> {
+#if !CARAOKE_WIDGET_EXTENSION
+        await AppModel.shared.startRideSession()
+#endif
         await WidgetResync.run()
-        return .result()
+        let session = SharedWidgetStore.startWidgetRefreshSession()
+        return .result(value: session, opensIntent: WidgetRefreshIntent(session: session))
     }
 }
 

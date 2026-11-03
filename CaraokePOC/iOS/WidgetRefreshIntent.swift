@@ -8,8 +8,8 @@ struct WidgetRefreshIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Refresh Caraoke Widgets"
     static let isDiscoverable = false
 
-    @Parameter(title: "Session") var session: String
-    @Parameter(title: "Cycle") var cycle: Int
+    @Parameter(title: "Session", default: "") var session: String
+    @Parameter(title: "Cycle", default: 0) var cycle: Int
 
     init() {}
 
@@ -18,17 +18,29 @@ struct WidgetRefreshIntent: LiveActivityIntent {
         self.cycle = cycle
     }
 
-    func perform() async throws -> some IntentResult & OpensIntent {
-        guard SharedWidgetStore.isWidgetRefreshSession(session) else { return .result() }
+    func perform() async throws -> IntentResultContainer<String, WidgetRefreshIntent, Never, Never> {
+        var result: IntentResultContainer<String, WidgetRefreshIntent, Never, Never> =
+            .result(value: session, opensIntent: WidgetRefreshIntent(session: session, cycle: cycle &+ 1))
+        Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
+            .notice("refresh entry cycle=\(cycle, privacy: .public)")
+        guard SharedWidgetStore.isWidgetRefreshSession(session) else {
+            result.opensIntent = nil
+            return result
+        }
 #if !CARAOKE_WIDGET_EXTENSION
         let active = await MainActor.run {
             guard SharedWidgetStore.isWidgetRefreshSession(session) else { return false }
             AppModel.shared.startRideSession()
             AppModel.shared.ride.ensureActivity()
+            AppModel.shared.ride.refreshWidgetSnapshot()
             return true
         }
-        guard active else { return .result() }
+        guard active else {
+            result.opensIntent = nil
+            return result
+        }
 #endif
+        SharedWidgetStore.noteWidgetRefreshCycle(session)
         let delay = WidgetRefreshSession.nextRefreshDelay(payload: SharedWidgetStore.read(), now: Date())
         Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
             .notice("refresh intent cycle=\(cycle, privacy: .public) nextIn=\(delay, privacy: .public)")
@@ -36,10 +48,11 @@ struct WidgetRefreshIntent: LiveActivityIntent {
         do {
             try await Task.sleep(for: .seconds(delay))
         } catch is CancellationError {
-            return .result()
+            result.opensIntent = nil
+            return result
         }
-        guard SharedWidgetStore.isWidgetRefreshSession(session) else { return .result() }
-        return .result(opensIntent: WidgetRefreshIntent(session: session, cycle: cycle &+ 1))
+        if !SharedWidgetStore.isWidgetRefreshSession(session) { result.opensIntent = nil }
+        return result
     }
 }
 #endif

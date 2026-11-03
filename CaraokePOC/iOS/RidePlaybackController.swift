@@ -250,6 +250,11 @@ final class RidePlaybackController: ObservableObject {
         coordinator.pin = pin
     }
 
+    /// Publish the boundary before the intent asks the extension to read state.
+    func refreshWidgetSnapshot() {
+        engine.tick()
+    }
+
     private func wire() {
         coordinator.statePublisher
             .sink { [weak self] state in self?.handle(state) }

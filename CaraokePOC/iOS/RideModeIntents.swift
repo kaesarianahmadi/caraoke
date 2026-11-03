@@ -16,12 +16,12 @@ struct StartRideModeIntent: LiveActivityIntent {
         "Turns on Ride Mode and starts the lyrics Live Activity for whatever plays next."
     )
 
-    func perform() async throws -> some IntentResult & OpensIntent {
+    func perform() async throws -> IntentResultContainer<String, WidgetRefreshIntent, Never, Never> {
         let session = await MainActor.run {
             AppModel.shared.startRideSession()
             return SharedWidgetStore.startWidgetRefreshSession()
         }
-        return .result(opensIntent: WidgetRefreshIntent(session: session))
+        return .result(value: session, opensIntent: WidgetRefreshIntent(session: session))
     }
 }
 
@@ -42,7 +42,7 @@ struct SetRideModeIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Set Live Lyrics"
     static let isDiscoverable = false
 
-    @Parameter(title: "Enabled") var enabled: Bool
+    @Parameter(title: "Enabled", default: true) var enabled: Bool
 
     init() {}
 
@@ -50,16 +50,19 @@ struct SetRideModeIntent: LiveActivityIntent {
         self.enabled = enabled
     }
 
-    func perform() async throws -> some IntentResult & OpensIntent {
+    func perform() async throws -> IntentResultContainer<String, WidgetRefreshIntent, Never, Never> {
         if !enabled {
             await AppModel.shared.stopRideSession()
-            return .result()
+            var result: IntentResultContainer<String, WidgetRefreshIntent, Never, Never> =
+                .result(value: "stopped", opensIntent: WidgetRefreshIntent(session: ""))
+            result.opensIntent = nil
+            return result
         }
         let session = await MainActor.run {
             AppModel.shared.startRideSession()
             return SharedWidgetStore.startWidgetRefreshSession()
         }
-        return .result(opensIntent: WidgetRefreshIntent(session: session))
+        return .result(value: session, opensIntent: WidgetRefreshIntent(session: session))
     }
 }
 

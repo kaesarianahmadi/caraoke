@@ -68,6 +68,7 @@ targets:
       - iOS/VinylWidgetView.swift
       - iOS/LyricsActivityAttributes.swift
       - iOS/LyricTileView.swift
+      - iOS/CompactLyricsView.swift
       - iOS/AppTheme.swift
       - iOS/TransportIntents.swift
       - iOS/WidgetRefreshIntent.swift

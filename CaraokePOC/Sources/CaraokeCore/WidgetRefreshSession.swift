@@ -21,9 +21,9 @@ struct WidgetRefreshSession {
     /// Wake at the next lyric, capped so track changes, seeks and resume are
     /// discovered promptly. The short floor avoids a zero-delay intent loop.
     static func nextRefreshDelay(payload: SharedWidgetPayload?, now: Date) -> TimeInterval {
-        guard let payload, payload.isPlaying, payload.trackStartEpochMs > 0 else { return 3 }
+        guard let payload, payload.isPlaying, payload.trackStartEpochMs > 0 else { return 1 }
         let position = now.timeIntervalSince1970 * 1000 - Double(payload.trackStartEpochMs)
-        guard let next = payload.lines.first(where: { Double($0.timeMs) > position }) else { return 3 }
-        return min(3, max(0.05, (Double(next.timeMs) - position) / 1000))
+        guard let next = payload.lines.first(where: { Double($0.timeMs) > position }) else { return 1 }
+        return min(1, max(0.05, (Double(next.timeMs) - position) / 1000))
     }
 }
