@@ -121,8 +121,8 @@ final class SpotifyAuth: NSObject, ObservableObject {
     static let redirectURI = "caraoke://callback"
     static let callbackScheme = "caraoke"
     static let scopes = "user-read-currently-playing user-read-playback-state user-modify-playback-state"
-    /// A 401 arriving this soon after a successful refresh means the grant
-    /// itself is dead — reconnect instead of refresh-looping.
+    /// Bound repeated 401 refreshes, but an API 401 is not proof that the
+    /// refresh grant was revoked. Only the token endpoint can establish that.
     static let revokedWindow: TimeInterval = 30
 
     @Published private(set) var isConnected: Bool
@@ -180,10 +180,8 @@ func validAccessToken() async throws -> String {
     /// Called when the API returns 401 despite a policy-valid token.
     func handleUnauthorized() async {
         if let last = lastRefreshAt, now().timeIntervalSince(last) < Self.revokedWindow {
-            // Fresh token still rejected — the grant was revoked.
-            store.clear()
-            isConnected = false
-            needsReconnect = true
+            // Keep the refresh token. A stale in-flight API response can 401
+            // just after another process rotated the shared access token.
             return
         }
         _ = try? await refreshNow()

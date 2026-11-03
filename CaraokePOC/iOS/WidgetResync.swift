@@ -19,6 +19,7 @@ enum WidgetResync {
         let durationMs: Int
         let progressMs: Int
         let isPlaying: Bool
+        let capturedAt: Date
     }
 
     static func run() async {
@@ -55,16 +56,18 @@ enum WidgetResync {
     @discardableResult
     static func refreshNowPlaying(timeout: TimeInterval = 8) async -> SharedWidgetPayload? {
         guard var payload = SharedWidgetStore.read() else { return nil }
-        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
 
         guard payload.source == "spotify",
               let token = await TransportControl.accessToken(),
               let playing = await spotifyNowPlaying(token: token, timeout: timeout) else { return nil }
+        // Match the app poller's request-midpoint clock. Token refresh and
+        // network time must not move the playback anchor back to request start.
+        let nowMs = Int(playing.capturedAt.timeIntervalSince1970 * 1000)
 
         // Same song with lyrics already loaded: the only thing that drifts is
         // the clock, so re-anchor it and keep everything else — including a
         // chained next song, which is still the one that follows this track.
-        if playing.title == payload.title, !payload.lines.isEmpty {
+        if playing.title == payload.title, playing.artist == payload.artist, !payload.lines.isEmpty {
             payload.trackStartEpochMs = nowMs - playing.progressMs
             payload.durationMs = playing.durationMs
             payload.isPlaying = playing.isPlaying
@@ -77,7 +80,8 @@ enum WidgetResync {
 
         let lines = await syncedLyrics(title: playing.title, artist: playing.artist,
                                        durationMs: playing.durationMs, timeout: timeout)
-        let position = SyncEngine.position(atMs: playing.progressMs, lines: lines,
+        let elapsedMs = playing.isPlaying ? max(0, Int(Date().timeIntervalSince(playing.capturedAt) * 1000)) : 0
+        let position = SyncEngine.position(atMs: playing.progressMs + elapsedMs, lines: lines,
                                            durationMs: playing.durationMs,
                                            isPlaying: playing.isPlaying)
         let status: LyricStatus
@@ -120,7 +124,9 @@ enum WidgetResync {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = timeout
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
+        let requestedAt = Date()
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let item = json["item"] as? [String: Any],
               let title = item["name"] as? String else { return nil }
@@ -130,7 +136,8 @@ enum WidgetResync {
             artist: artists.joined(separator: ", "),
             durationMs: item["duration_ms"] as? Int ?? 0,
             progressMs: json["progress_ms"] as? Int ?? 0,
-            isPlaying: json["is_playing"] as? Bool ?? false
+            isPlaying: json["is_playing"] as? Bool ?? false,
+            capturedAt: requestedAt.addingTimeInterval(Date().timeIntervalSince(requestedAt) / 2)
         )
     }
 

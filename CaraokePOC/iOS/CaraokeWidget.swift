@@ -207,22 +207,15 @@ struct CaraokeWidgetProvider: TimelineProvider {
         // final line and would make every timeline look complete.
         let covered = built.contains { $0.lineIndex == payload.lines.count - 1 }
         let policy: TimelineReloadPolicy
-        if !payload.isPlaying || payload.lines.isEmpty {
+        if context.family == .systemSmall, SharedWidgetStore.hasWidgetRefreshSession {
+            // Intent cycles own lyric stepping. Keep a later recovery wake
+            // rather than competing at each boundary or parking a dead chain forever.
+            policy = .after(now.addingTimeInterval(30))
+        } else if !payload.isPlaying || payload.lines.isEmpty {
             policy = .atEnd
         } else if context.family == .systemSmall {
-            // The car tiles bake exactly ONE entry (see `looping` above), so the
-            // timeline is spent the instant chronod reads it. `.atEnd` with no
-            // date is not re-requested on any predictable schedule — drive logs
-            // (2026-10-26) show 6–16 s bursts while the user touches the screen,
-            // then 60–90 s with zero wakes while idle, which is the freeze.
-            //
-            // Ask for a wake just before the line on screen stops being the
-            // line that should be on screen. chronod defers background reloads,
-            // so the request only has to be *earlier* than the boundary; the
-            // deferral is then absorbed while the tile is still correct. Cost is
-            // one request per lyric line, against the force-reload loop's one
-            // per line at 1 Hz — strictly cheaper, and it is the path the
-            // competitor's single-entry archives demonstrably ride.
+            // Without an active intent session, keep the existing boundary
+            // request so a standalone tile can repair itself on WidgetKit's clock.
             policy = WidgetTimelineBuilder.nextLineBoundary(payload: payload, now: now)
                 .map { TimelineReloadPolicy.after($0) } ?? .atEnd
         } else if covered {
@@ -252,13 +245,6 @@ struct CaraokeWidgetProvider: TimelineProvider {
         }
         Self.log.notice("timeline entries=\(entries.count, privacy: .public) covered=\(covered, privacy: .public) policy=\(String(describing: policy), privacy: .public)")
 
-        // Wakes for the car tiles are now scheduled by the short reload-policy
-        // date above: chronod re-requests on that date and every bake hands it
-        // a fresh snapshot of the current line. The previous belt-and-braces
-        // `WidgetCenter.reloadAllTimelines()` loop is deliberately gone — it is
-        // the budget-metered path (drive logs 2026-10-26: 6–16 s bursts then
-        // 60–90 s starvations), and firing it alongside policy wakes would let
-        // it eat the very budget the policy dates draw from.
         return Timeline(entries: entries.isEmpty ? [placeholder(in: context)] : entries, policy: policy)
     }
 

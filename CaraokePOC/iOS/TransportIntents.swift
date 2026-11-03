@@ -13,10 +13,10 @@ struct ResyncWidgetIntent: AppIntent {
     static let title: LocalizedStringResource = "Resync Caraoke Lyrics"
     static let description = IntentDescription("Refreshes widget lyrics timeline.")
 
-    func perform() async throws -> some IntentResult & OpensIntent {
-        let session = SharedWidgetStore.startWidgetRefreshSession()
+    func perform() async throws -> some IntentResult {
+        // Repair the clock without replacing/cancelling the running app chain.
         await WidgetResync.run()
-        return .result(opensIntent: WidgetRefreshIntent(session: session))
+        return .result()
     }
 }
 

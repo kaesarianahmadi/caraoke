@@ -31,7 +31,13 @@ enum SharedKeychain {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess else { return nil }
+        let status = SecItemCopyMatching(query as CFDictionary, &out)
+        guard status == errSecSuccess else {
+            if status != errSecItemNotFound {
+                log.error("keychain read failed service=\(service, privacy: .public) account=\(account, privacy: .public) status=\(status)")
+            }
+            return nil
+        }
         return out as? Data
     }
 
@@ -85,6 +91,11 @@ enum SharedWidgetStore {
         guard let data = SharedKeychain.data(service: service, account: refreshSessionAccount),
               let current = String(data: data, encoding: .utf8) else { return false }
         return WidgetRefreshSession(token: current).contains(token)
+    }
+
+    static var hasWidgetRefreshSession: Bool {
+        guard let data = SharedKeychain.data(service: service, account: refreshSessionAccount) else { return false }
+        return !data.isEmpty
     }
 
     private static let spotifyService = "com.caraoke.spotify"

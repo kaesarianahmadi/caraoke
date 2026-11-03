@@ -101,6 +101,10 @@ struct SpotifyTokenClient {
         let expires_in: Int
     }
 
+    private struct OAuthErrorResponse: Decodable {
+        let error: String
+    }
+
     let session: URLSession
 
     init(session: URLSession = .shared) {
@@ -126,16 +130,11 @@ struct SpotifyTokenClient {
     /// PKCE refresh can rotate the refresh token; keep the old one if the
     /// response omits it.
     func refresh(_ token: SpotifyToken, clientID: String, now: Date = Date()) async throws -> SpotifyToken {
-        let response: TokenResponse
-        do {
-            response = try await post([
-                "grant_type": "refresh_token",
-                "refresh_token": token.refreshToken,
-                "client_id": clientID,
-            ])
-        } catch SpotifyAuthError.http(let status) where status == 400 || status == 401 {
-            throw SpotifyAuthError.refreshRejected
-        }
+        let response = try await post([
+            "grant_type": "refresh_token",
+            "refresh_token": token.refreshToken,
+            "client_id": clientID,
+        ])
         return SpotifyToken(
             accessToken: response.access_token,
             refreshToken: response.refresh_token ?? token.refreshToken,
@@ -154,7 +153,14 @@ struct SpotifyTokenClient {
         request.timeoutInterval = 10
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard http.statusCode == 200 else { throw SpotifyAuthError.http(http.statusCode) }
+        guard http.statusCode == 200 else {
+            if params["grant_type"] == "refresh_token", http.statusCode == 400,
+               let error = try? JSONDecoder().decode(OAuthErrorResponse.self, from: data),
+               error.error == "invalid_grant" {
+                throw SpotifyAuthError.refreshRejected
+            }
+            throw SpotifyAuthError.http(http.statusCode)
+        }
         return try JSONDecoder().decode(TokenResponse.self, from: data)
     }
 

@@ -219,19 +219,47 @@ Apple documents the contract: [OpensIntent](https://developer.apple.com/document
 After an intent returns another intent, the system runs it. This is not equivalent to calling
 `perform()` on a Swift value.
 
-### Local correction
+### Build 82 and drive re-audit
 
-`WidgetRefreshIntent` now uses `LiveActivityIntent`, reloads, awaits five seconds, checks its
-shared session token, then returns the next cycle via `opensIntent`. Live Lyrics uses a native
-intent-backed Toggle; the Start Ride shortcut and widget resync also return the first cycle.
-Stop Ride removes the shared token. A new start replaces it, invalidating old delayed cycles.
-The app's per-line force-reload path is removed; payload writes and critical state reloads remain.
+Build 82 used a five-second sleep and threw `CancellationError` when its shared session
+was replaced or stopped. The real-car recording confirms successful background system dispatch,
+not just compilation. The sysdiagnose contains two `chronod` crashes: capture times
+16:17:11.4585 (PID 115) and 16:19:14.8158 (PID 1189). Both trap in `dispatch_group_leave`
+from `LNActionExecutorPassthroughDelegate` with `Unbalanced call to dispatch_group_leave()`.
 
-Turning Live Lyrics off and on (or tapping resync) starts the new chain after installation.
-No automatic intent-dispatch claim is made for a session restored solely from app preferences.
-The app process resumes its existing playback pipeline when the system runs a valid cycle.
+The first follows a CarPlay resync at 16:17:10 and a `ClientCancelled` error at 16:17:11.339.
+The second follows two overlapping resyncs at 16:19:10, a new cycle 0 at 16:19:11.644 while
+the old chain was awaiting, and another `ClientCancelled` at 16:19:14.698. This implicates
+cancellation/replacement in the executor crash; it does NOT prove all extension `opensIntent`
+results are unsupported. There are 149 cycle-start records in the extracted 16:10–16:25 window,
+with gaps/restarts, not 145 uninterrupted cycles across the crashes.
 
-Device acceptance: AppIntents execution logs name `WidgetRefreshIntent`, cycles advance while
-the phone is backgrounded, CarPlay lyrics keep changing without screen interaction, and stop
-ends the chain. Local core checks cannot prove iOS system dispatch or CarPlay rendering.
+Before the first crash, chronod also ignored granted widget requests while a timelineExhausted
+task was current and another request queued. Budget exemption was not proof of timely rendering.
+The fixed five-second sleep adds up to a polling interval of lyric delay plus dispatch/render time.
+
+### Local correction after the drive
+
+- Invalidated sessions and cancelled sleeps return a successful empty result, without another
+  continuation. No `CancellationError` is thrown deliberately into LinkServices.
+- Resync remains an extension-side data repair, but no longer rotates the session token or
+  launches a second chain. Start Ride / the Live Lyrics control own chain creation; Stop clears it.
+- Refresh sleeps until the next lyric boundary, bounded to 0.05–3 seconds; missing/paused payloads
+  check again in three seconds. No pre-boundary lead is used for the intent, which would bake
+  the previous lyric. Active small-widget sessions request a later 30-second recovery wake,
+  not a competing per-line policy wake.
+- Spotify already preserved credentials on ordinary network failures. The previous explanation
+  claiming `catch { store.clear() }` was false. This correction retains the grant on API 401s and
+  generic token-endpoint errors too; only explicit OAuth `invalid_grant` invalidates it.
+  The drive does not establish a token wipe as the cause of recovery/re-login.
+- Widget resync now timestamps Spotify progress at the request midpoint, after token acquisition,
+  instead of stamping the whole operation's start; lyric-fetch time is extrapolated for new tracks.
+  Same-title tracks also require an artist match before existing lyrics are reused.
+- Shared Keychain read failures now record OSStatus (never token contents). `AfterFirstUnlock`
+  items are intended to remain accessible after a normal screen lock; no lock failure was proven.
+
+Local regression checks cover session replacement/stop, boundary timing, and OAuth response
+classification. Local macOS execution cannot prove the Apple daemon no longer crashes or that
+CarPlay meets the competitor's latency. Those require a new device run with repeated resync,
+stop/start, locked-phone playback and multiple track changes. No zero-latency guarantee is made.
 

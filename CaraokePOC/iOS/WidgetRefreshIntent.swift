@@ -2,8 +2,8 @@
 import AppIntents
 import os
 
-/// Return the next intent to the system; never call `perform()` from an app timer.
-/// The five-second wait bounds reload requests and leaves cancellation observable.
+/// System-dispatched continuation. Stopped/replaced cycles finish normally;
+/// throwing cancellation here exercises a crashing LinkServices path on iOS 26.5.2.
 struct WidgetRefreshIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Refresh Caraoke Widgets"
     static let isDiscoverable = false
@@ -19,19 +19,26 @@ struct WidgetRefreshIntent: LiveActivityIntent {
     }
 
     func perform() async throws -> some IntentResult & OpensIntent {
-        guard SharedWidgetStore.isWidgetRefreshSession(session) else { throw CancellationError() }
+        guard SharedWidgetStore.isWidgetRefreshSession(session) else { return .result() }
 #if !CARAOKE_WIDGET_EXTENSION
-        try await MainActor.run {
-            guard SharedWidgetStore.isWidgetRefreshSession(session) else { throw CancellationError() }
+        let active = await MainActor.run {
+            guard SharedWidgetStore.isWidgetRefreshSession(session) else { return false }
             AppModel.shared.startRideSession()
             AppModel.shared.ride.ensureActivity()
+            return true
         }
+        guard active else { return .result() }
 #endif
+        let delay = WidgetRefreshSession.nextRefreshDelay(payload: SharedWidgetStore.read(), now: Date())
         Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
-            .notice("refresh intent cycle=\(cycle, privacy: .public)")
+            .notice("refresh intent cycle=\(cycle, privacy: .public) nextIn=\(delay, privacy: .public)")
         SharedWidgetStore.requestReload(reason: "intent-cycle")
-        try await Task.sleep(for: .seconds(5))
-        guard SharedWidgetStore.isWidgetRefreshSession(session) else { throw CancellationError() }
+        do {
+            try await Task.sleep(for: .seconds(delay))
+        } catch is CancellationError {
+            return .result()
+        }
+        guard SharedWidgetStore.isWidgetRefreshSession(session) else { return .result() }
         return .result(opensIntent: WidgetRefreshIntent(session: session, cycle: cycle &+ 1))
     }
 }

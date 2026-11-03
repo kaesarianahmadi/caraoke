@@ -594,10 +594,23 @@ final class TestRunner {
             let refreshed = awaitResult { try await tokenClient.refresh(token, clientID: "cid", now: fixedNow) }
             check("spotifyRefreshRotation", refreshed.value?.accessToken == "at2" && refreshed.value?.refreshToken == "r")
 
-            // 400 → refreshRejected (user must reconnect)
-            MockURLProtocol.handler = { _ in (MockURLProtocol.httpResponse(400), Data("{}".utf8)) }
+            // Only an explicit invalid_grant response requires reconnecting.
+            MockURLProtocol.handler = { _ in
+                (MockURLProtocol.httpResponse(400), Data(#"{"error":"invalid_grant"}"#.utf8))
+            }
             let rejected = awaitResult { try await tokenClient.refresh(token, clientID: "cid") }
-            check("spotifyRefreshRejected", rejected.error.map { String(describing: $0).contains("refreshRejected") } == true)
+            check("spotifyRefreshRejected", (rejected.error as? SpotifyAuthError) == .refreshRejected)
+            for status in [400, 401, 429, 503] {
+                MockURLProtocol.handler = { _ in
+                    (MockURLProtocol.httpResponse(status), Data(#"{"error":"temporarily_unavailable"}"#.utf8))
+                }
+                let failure = awaitResult { try await tokenClient.refresh(token, clientID: "cid") }
+                check("spotifyRefreshRetainsGrantForHTTP\(status)",
+                      (failure.error as? SpotifyAuthError) == .http(status))
+            }
+            MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+            let offline = awaitResult { try await tokenClient.refresh(token, clientID: "cid") }
+            check("spotifyRefreshOfflineIsNotRevocation", (offline.error as? URLError)?.code == .notConnectedToInternet)
 
             // currently-playing parsing
             let playingJSON = Data(#"{"progress_ms":45000,"is_playing":true,"item":{"name":"Song X","duration_ms":200000,"artists":[{"name":"Artist X"}],"album":{"name":"Album X"}}}"#.utf8)
@@ -1307,6 +1320,22 @@ final class TestRunner {
             let second = session.start()
             check("refreshNewSessionAccepted", session.contains(second))
             check("refreshPreviousRideCannotResume", !session.contains(first))
+        }
+
+        do {
+            let now = Date(timeIntervalSince1970: 1_000)
+            var payload = SharedWidgetPayload(title: "t", artist: "a", currentLine: "first",
+                isPlaying: true, progress: 0, status: LyricStatus.playing.rawValue,
+                trackStartEpochMs: 1_000_000, durationMs: 20_000,
+                lines: [SharedLyricLine(timeMs: 0, text: "first"),
+                        SharedLyricLine(timeMs: 1_500, text: "second"),
+                        SharedLyricLine(timeMs: 10_000, text: "third")])
+            checkEqual("refreshWakesAtNextLyric", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1.5)
+            checkEqual("refreshAdvancesPastExactBoundary", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now.addingTimeInterval(1.5)), 3)
+            check("refreshNearBoundaryAvoidsBusyLoop", abs(WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now.addingTimeInterval(1.49)) - 0.05) < 0.0001)
+            payload.isPlaying = false
+            checkEqual("refreshPausedChecksResume", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 3)
+            checkEqual("refreshMissingPayloadChecksAgain", WidgetRefreshSession.nextRefreshDelay(payload: nil, now: now), 3)
         }
 
         // MARK: summary
