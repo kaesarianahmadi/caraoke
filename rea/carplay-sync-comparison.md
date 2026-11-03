@@ -189,5 +189,88 @@ without a bump would be rejected by Apple.
 - Widget family sets are not recoverable from either binary (WidgetKit builds them at runtime), so we
   cannot prove their CarPlay tile is `systemSmall` from the artefact alone.
 - Relay deployment state was not confirmed (root route 404s).
-- None of these candidates has been reproduced on device in this pass; A is the only one that is
-  self-evident from our own source.
+## 9. The answer — found 2026-11-03, and the reason candidates A–E never mattered
+
+Read from two sources, both conclusive: the competitor's **unencrypted intent metadata**
+(`rea/dynamic-lyrics/raw/ios/Payload/Dynamic Lyrics.app/{,PlugIns/lyricsWidgetExtension.appex/}Metadata.appintents/extract.actionsdata`,
+a plist), and a **30-minute `log collect`** from the user's phone while plugged into CarPlay
+(`/tmp/chrono.txt`, 115 231 lines, 13:31:49–14:01:36 + a second capture taking it to 14:01:29).
+
+### What was wrong with everything above
+
+A–E all assumed the reload *request* was the lever — policy dates, entry counts, which surface is
+graded, layout. None of them is. The lever is **whether the extension has a recent `SystemIntent`
+run on record**, which decides the *tier* chronod admits the request at.
+
+### The proof, side by side, same 30 minutes, same device
+
+| | Theirs | Ours |
+|:--|:--|:--|
+| `Allowing reload because an intent recently ran for the extension: <ext>` | **1 313 lines** | **0** |
+| Reload class | `externalRequest(…)-immediate-free-1` (free tier) | `externalRequestThrottledRetry(...)` |
+| Follow-on scheduled by chronod | `Scheduled DAS standard refresh` | `timelineExhausted-…-budgeted-1` |
+| Measured wake gaps | **300 gaps × exactly 5 s** | 13:36 → 13:41 → 13:47 → 13:52 (minutes) |
+| Grant bursts | every 5 s for the whole window | none |
+
+Our own `ResyncWidgetIntent` **did run** (twice, `13:59:16` and `14:01:06`, `Successfully ran
+action`) and the only reload it got was `systemRequest(userTappedFailedWidget)` — never the grant
+line. The reason is on the same log line:
+
+```
+identifier: ResyncWidgetIntent, mangledTypeName: 14CaraokeWidgets18ResyncWidgetIntentV,
+openAppWhenRun: NO, outputFlags: 0, outputType: (null), systemProtocols:
+```
+
+**Empty `systemProtocols`.** An intent with no system protocol is a button, nothing more.
+
+### Their protocol declarations (the whole trick, both targets)
+
+```
+WidgetRefreshAppIntent → com.apple.link.systemProtocol.AudioStarting    discoverable=false
+RefreshAppIntent       → com.apple.link.systemProtocol.SessionStarting  discoverable=false
+```
+
+`discoverable=false` on all of them: they are internal, invoked by their own code, not user taps.
+Swift mapping (verified against Apple docs this session):
+
+| Their `systemProtocol` | Swift protocol, iOS 26 | Note |
+|:--|:--|:--|
+| `AudioStarting` | `AudioPlaybackIntent` | `AudioStartingIntent` is the iOS 16 spelling; **deprecated on 26** |
+| `SessionStarting` | `LiveActivityIntent` | `LiveActivityStartingIntent` also deprecated |
+| `LiveActivityStartingIntent` | `LiveActivityIntent` | (the string the older `bg_36` log showed on their app target) |
+
+### Also corrected here
+
+- **§12/§13's "the tile can't be fluid, only the Live Activity can" was wrong.** Their *widget*
+  tiles get granted 40+ times per window, sustained at 5 s, with the extension backgrounded
+  throughout. The LA is a separate, already-working surface of ours (41 `immediate-free-2
+  payloadChanged` + 69 `containerApp` exempt in the same window).
+- **Killing the app stops everything** — after the user swiped Caraoke away, our extension produced
+  **0 chronod events for 20 minutes** while their backgrounded extension kept its 5 s cadence.
+- The earlier reading of `-1` and `-2` as "free tier" and "the bypass" was inverted in the first
+  pass: `-1` is what the intent-granted widget reload rides; `-2` is the `containerApp` activity tier.
+
+### Fix (build 81)
+
+`iOS/WidgetRefreshIntent.swift` — `AudioPlaybackIntent`, `@Parameter nonce: Int` (so successive runs
+aren't collapsed into one system cache entry, as all of theirs carry `random: Int`), registered in
+**both** targets because the protocol attaches to the extension's AppIntents metadata.
+`SharedWidgetStore.requestReload` now runs it immediately before every reload, and
+`RidePlaybackController`'s `appActive` gate on per-line reloads is removed — that gate existed only
+to keep the *ungranted* path out of the background, which is the driving case this is for.
+
+Not yet verified on device. The check is the same grep: after the next drive, chronod must print
+`Allowing reload because an intent recently ran for the extension: app.caraoke.ios.widgets`, and our
+follow-on must read `Scheduled DAS standard refresh` rather than `…-budgeted-1`.
+
+### What this comparison still does NOT establish
+
+- No function bodies on their side, ever — the metadata above is declaration-level, and it is enough.
+- **Whether their 5 s re-arm is `RefreshAppIntent` re-invoking itself** (a `while` loop inside a
+  `SessionStarting` intent, which is what keeps their app process alive) or a chronod-scheduled
+  repeat is **not** established. `bg_36`'s intent-cluster times do not line up with the grant times;
+  only their activity's ~1/s `Tick second` is explained. Our design runs the intent from
+  `requestReload` instead, which is engine-agnostic and needs no long-lived loop.
+
+Build number: `CURRENT_PROJECT_VERSION: "81"`. This is the first push since 80.
+

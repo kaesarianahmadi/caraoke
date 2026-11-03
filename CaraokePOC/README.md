@@ -44,6 +44,7 @@ line (plus the next line) on CarPlay through a system-rendered Live Activity.
 | **Paywall** | `iOS/PaywallView.swift` | Three plans, yearly recommended, lifetime secondary (PRD D6: after first lyric moment) |
 | **Settings** | `iOS/SettingsView.swift` | LRCLIB attribution + sponsor link, ride stats, cache reset, support links |
 | Ride intents | `iOS/RideModeIntents.swift` | `LiveActivityIntent` start/stop — the one legal background start |
+| Widget refresh intent | `iOS/WidgetRefreshIntent.swift` | `AudioPlaybackIntent` refresh — carries a `SystemIntent` protocol so chronod admits the following reload at the free tier (see `AGENTS.md` / `rea/carplay-sync-comparison.md`) |
 | Widget bundle | `iOS/CaraokeWidgetBundle.swift` | Entry point |
 | StoreKit config | `Caraoke.storekit` | Local StoreKit testing in Xcode (verify/resync when opening in Xcode) |
 | Secrets template | `iOS/Resources/Secrets.example.plist` | Copy to `Secrets.plist`, add your Spotify client ID (gitignored) |
