@@ -292,10 +292,6 @@ final class RideModeViewModel: ObservableObject {
         rideModel.resetStats()
     }
 
-    func toggle() {
-        isOn ? stopRide() : startRide()
-    }
-
     func startRide() {
         guard !isOn else { return }
         isOn = true
@@ -348,6 +344,7 @@ final class RideModeViewModel: ObservableObject {
     }
 
     func stopRide() {
+        SharedWidgetStore.stopWidgetRefreshSession()
         guard isOn else { return }
         isOn = false
         UserDefaults.standard.set(false, forKey: Self.rideModeKey)

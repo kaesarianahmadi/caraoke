@@ -1295,6 +1295,20 @@ final class TestRunner {
                     now: now))
         }
 
+        // A delayed intent from an older ride must not refresh or renew the new ride.
+        do {
+            var session = WidgetRefreshSession()
+            let first = session.start()
+            check("refreshCurrentSessionAccepted", session.contains(first))
+            let restored = WidgetRefreshSession(token: session.token)
+            check("refreshSessionSurvivesCrossProcessRead", restored.contains(first))
+            session.stop()
+            check("refreshStoppedSessionRejected", !session.contains(first))
+            let second = session.start()
+            check("refreshNewSessionAccepted", session.contains(second))
+            check("refreshPreviousRideCannotResume", !session.contains(first))
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {

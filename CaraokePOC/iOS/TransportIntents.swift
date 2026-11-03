@@ -8,17 +8,15 @@ import WidgetKit
 /// process — the buttons silently did nothing. Both kinds route through
 /// `TransportControl`, which drives whichever player is the active source.
 /// (The Live Activity itself carries no transport buttons.)
-/// The budget-bypass refresh intent now lives in `WidgetRefreshIntent.swift`,
-/// because it must also compile into the app target and this file cannot
-/// (it pulls in `TransportControl`, which is extension-only).
 
 struct ResyncWidgetIntent: AppIntent {
     static let title: LocalizedStringResource = "Resync Caraoke Lyrics"
     static let description = IntentDescription("Refreshes widget lyrics timeline.")
 
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & OpensIntent {
+        let session = SharedWidgetStore.startWidgetRefreshSession()
         await WidgetResync.run()
-        return .result()
+        return .result(opensIntent: WidgetRefreshIntent(session: session))
     }
 }
 

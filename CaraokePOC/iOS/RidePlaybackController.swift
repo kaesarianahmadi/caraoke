@@ -181,7 +181,6 @@ final class RidePlaybackController: ObservableObject {
     private var lastWidgetStatus: String?
     private var lastWidgetSignature: String?
     private var lastWidgetArtworkHex: String?
-    private var lastWidgetLine: String?
     /// Track start in wall-clock epoch ms — only recomputed while playing, so
     /// a paused track keeps the true start the widget extrapolates from.
     private var trackStartEpochMs = 0
@@ -220,7 +219,6 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetTitle = nil
         lastWidgetIsPlaying = nil
         lastWidgetStatus = nil
-        lastWidgetLine = nil
         trackStartEpochMs = 0
         trackStartKey = nil
         lastReloadedTrackStartMs = 0
@@ -678,44 +676,22 @@ final class RidePlaybackController: ObservableObject {
         let isTitleChanged = snapshot.title != lastWidgetTitle
         let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
         let isStatusChanged = snapshot.status.rawValue != lastWidgetStatus
-        // Per-line reloads now run in BOTH states, because the reason they were
-        // banned is gone. Evidence, in order:
-        //   * 2026-10-26 — a raw `reloadAllTimelines()` loop from the app while
-        //     backgrounded exhausted the daily budget (build 56) and build 75
-        //     measured chronod metering it to 6–16 s bursts then 60–90 s
-        //     starvations. The gate was added for that.
-        //   * 2026-11-03 (device log, 30 min plugged into CarPlay) — that
-        //     metering is the *un-granted* path. The competitor's extension is
-        //     backgrounded for the whole window and still gets a reload
-        //     admitted every 5 s, because each one is preceded by a run of an
-        //     intent carrying a `SystemIntent` protocol, which makes chronod
-        //     print "Allowing reload because an intent recently ran" and admit
-        //     the reload at the free tier. Our tiles showed the metered
-        //     follow-on instead: `timelineExhausted-…-budgeted-1`.
-        // `SharedWidgetStore.requestReload` now runs `WidgetRefreshIntent`
-        // (AudioPlaybackIntent) immediately before every ask, so backgrounded
-        // requests take the granted path. The `appActive` gate would keep the
-        // driving case — the one this exists for — banned, so it is gone.
-        // The coalescer below still bounds the rate.
-        let isLineReloadCandidate = snapshot.currentLine != lastWidgetLine
-            && snapshot.isPlaying
+        // The system-run refresh chain owns lyric stepping; do not compete
+        // with it using per-line WidgetCenter requests from the app.
         // Artwork (and its colour) often lands a beat AFTER the track change —
         // Spotify serves it over the network — so the widget must reload again
         // or it keeps the artwork-less timeline it was first handed.
         let isArtworkChanged = artworkColorHex != lastWidgetArtworkHex
-        // A drift correction has to be able to reach the widget on its own:
-        // nothing about the track, play state or status changed, so without
-        // this the heartbeat's fix was written to the shared store and never
-        // picked up until the next song.
+        // A drift correction must reach the widget even without a track change;
+        // otherwise a rewritten clock can remain stuck in the cached archive.
         let forced = forceWidgetReload
         forceWidgetReload = false
         guard forced || isTitleChanged || isPlayStateChanged || isStatusChanged
-                || isArtworkChanged || isLineReloadCandidate else { return }
+                || isArtworkChanged else { return }
         lastWidgetTitle = snapshot.title
         lastWidgetIsPlaying = snapshot.isPlaying
         lastWidgetStatus = snapshot.status.rawValue
         lastWidgetArtworkHex = artworkColorHex
-        lastWidgetLine = snapshot.currentLine
         // Name the trigger, so the reload log says why this bake happened.
         // Coalesced triggers are rare enough that naming the first is honest;
         // a burst is visible as consecutive lines with different reasons.
@@ -725,7 +701,6 @@ final class RidePlaybackController: ObservableObject {
         if isPlayStateChanged { causes.append("playstate") }
         if isStatusChanged { causes.append("status") }
         if isArtworkChanged { causes.append("artwork") }
-        if isLineReloadCandidate { causes.append("line") }
         scheduleWidgetReload(reason: causes.joined(separator: "+"))
         Self.log.notice("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
     }

@@ -1,53 +1,38 @@
 #if os(iOS)
 import AppIntents
-import WidgetKit
+import os
 
-/// The budget-bypass refresh intent.
-///
-/// **Why this exists.** An intent with NO `systemProtocol` is just a button.
-/// Device log, 2026-11-03, phone plugged into CarPlay for 30 minutes:
-/// `ResyncWidgetIntent` ran twice and chronod never once printed "intent
-/// recently ran" for our extension — 0 lines, against the competitor's 1 313.
-/// Their tiles are admitted to reload every 5 s regardless; ours showed
-/// `timelineExhausted-…-budgeted-1`, the metered path.
-///
-/// **What they do.** Their widget extension's intent metadata
-/// (`extract.actionsdata`, both their targets — the attribute is registered on
-/// the extension, not the app) declares exactly two system protocols:
-///
-///     WidgetRefreshAppIntent → AudioStarting   (Swift: AudioPlaybackIntent)
-///     RefreshAppIntent       → SessionStarting (Swift: LiveActivityIntent)
-///
-/// `AudioStartingIntent` / `LiveActivityStartingIntent` are the iOS 16/17
-/// spellings and are deprecated on 26; `AudioPlaybackIntent` (iOS 17+) is the
-/// current `SystemIntent` with the same meaning. Running such an intent is what
-/// makes chronod allow the *next* reload at the free tier, with a
-/// self-re-arming follow-on, instead of metering it.
-///
-/// **Two details copied deliberately:** a changing parameter, so successive
-/// runs aren't collapsed into one system cache entry (all of their intents
-/// carry `random: Int`); and registration in both targets.
-///
-/// `perform()` is intentionally empty. The reload still happens in
-/// `SharedWidgetStore.requestReload`; this intent exists only so chronod has a
-/// recent run to grant against. Reloading in here too would double every ask.
-struct WidgetRefreshIntent: AudioPlaybackIntent {
+/// Return the next intent to the system; never call `perform()` from an app timer.
+/// The five-second wait bounds reload requests and leaves cancellation observable.
+struct WidgetRefreshIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Refresh Caraoke Widgets"
-    static let description = IntentDescription("Refreshes the Caraoke lyric tiles.")
+    static let isDiscoverable = false
 
-    @Parameter(title: "Nonce")
-    var nonce: Int
+    @Parameter(title: "Session") var session: String
+    @Parameter(title: "Cycle") var cycle: Int
 
-    init() {
-        self.nonce = Int.random(in: 0..<Int.max)
+    init() {}
+
+    init(session: String, cycle: Int = 0) {
+        self.session = session
+        self.cycle = cycle
     }
 
-    init(nonce: Int) {
-        self.nonce = nonce
-    }
-
-    func perform() async throws -> some IntentResult {
-        .result()
+    func perform() async throws -> some IntentResult & OpensIntent {
+        guard SharedWidgetStore.isWidgetRefreshSession(session) else { throw CancellationError() }
+#if !CARAOKE_WIDGET_EXTENSION
+        try await MainActor.run {
+            guard SharedWidgetStore.isWidgetRefreshSession(session) else { throw CancellationError() }
+            AppModel.shared.startRideSession()
+            AppModel.shared.ride.ensureActivity()
+        }
+#endif
+        Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
+            .notice("refresh intent cycle=\(cycle, privacy: .public)")
+        SharedWidgetStore.requestReload(reason: "intent-cycle")
+        try await Task.sleep(for: .seconds(5))
+        guard SharedWidgetStore.isWidgetRefreshSession(session) else { throw CancellationError() }
+        return .result(opensIntent: WidgetRefreshIntent(session: session, cycle: cycle &+ 1))
     }
 }
 #endif

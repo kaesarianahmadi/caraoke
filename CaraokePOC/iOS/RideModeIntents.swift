@@ -16,12 +16,12 @@ struct StartRideModeIntent: LiveActivityIntent {
         "Turns on Ride Mode and starts the lyrics Live Activity for whatever plays next."
     )
 
-    func perform() async throws -> some IntentResult {
-        await AppModel.shared.startRideSession()
-        // Hold the intent open so the first playback read flows through the
-        // pipeline while the LiveActivityIntent grant is in effect.
-        try? await Task.sleep(for: .seconds(3))
-        return .result()
+    func perform() async throws -> some IntentResult & OpensIntent {
+        let session = await MainActor.run {
+            AppModel.shared.startRideSession()
+            return SharedWidgetStore.startWidgetRefreshSession()
+        }
+        return .result(opensIntent: WidgetRefreshIntent(session: session))
     }
 }
 
@@ -34,6 +34,32 @@ struct StopRideModeIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult {
         await AppModel.shared.stopRideSession()
         return .result()
+    }
+}
+
+/// The in-app switch must enter App Intents dispatch, not call `perform()` itself.
+struct SetRideModeIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Set Live Lyrics"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Enabled") var enabled: Bool
+
+    init() {}
+
+    init(enabled: Bool) {
+        self.enabled = enabled
+    }
+
+    func perform() async throws -> some IntentResult & OpensIntent {
+        if !enabled {
+            await AppModel.shared.stopRideSession()
+            return .result()
+        }
+        let session = await MainActor.run {
+            AppModel.shared.startRideSession()
+            return SharedWidgetStore.startWidgetRefreshSession()
+        }
+        return .result(opensIntent: WidgetRefreshIntent(session: session))
     }
 }
 

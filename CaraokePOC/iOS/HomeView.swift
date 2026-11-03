@@ -149,8 +149,11 @@ struct HomeView: View {
                 Text("Live Lyrics")
                     .font(.system(size: 22, weight: .bold))
                 Spacer()
-                Toggle("", isOn: Binding(get: { model.isOn }, set: { _ in model.toggle() }))
-                    .labelsHidden().tint(AppTheme.ok)
+                Toggle(isOn: model.isOn, intent: SetRideModeIntent(enabled: !model.isOn)) {
+                    Text("Live Lyrics")
+                }
+                .labelsHidden().tint(AppTheme.ok)
+                .accessibilityLabel("Live Lyrics")
             }
             Text("Show lyrics on the Lock Screen, CarPlay, and Apple Watch.")
                 .font(.system(size: 14))

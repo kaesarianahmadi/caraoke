@@ -68,6 +68,24 @@ enum SharedWidgetStore {
     private static let service = "app.caraoke.widget"
     private static let payloadAccount = "state"
     private static let settingsAccount = "settings"
+    private static let refreshSessionAccount = "refresh-session"
+
+    static func startWidgetRefreshSession() -> String {
+        var session = WidgetRefreshSession()
+        let token = session.start()
+        SharedKeychain.set(Data(token.utf8), service: service, account: refreshSessionAccount)
+        return token
+    }
+
+    static func stopWidgetRefreshSession() {
+        SharedKeychain.remove(service: service, account: refreshSessionAccount)
+    }
+
+    static func isWidgetRefreshSession(_ token: String) -> Bool {
+        guard let data = SharedKeychain.data(service: service, account: refreshSessionAccount),
+              let current = String(data: data, encoding: .utf8) else { return false }
+        return WidgetRefreshSession(token: current).contains(token)
+    }
 
     private static let spotifyService = "com.caraoke.spotify"
     private static let spotifyTokenAccount = "token"
@@ -84,13 +102,6 @@ enum SharedWidgetStore {
     /// (track change, play/pause, seek, artwork, tap) — never a value that
     /// changes every call, or the log stops being groupable.
     static func requestReload(reason: String) {
-        // The protocol-carrying intent runs FIRST. A reload is only admitted at
-        // the free tier while the extension has a recent `SystemIntent` run on
-        // record (see `WidgetRefreshIntent`), and chronod's grant cadence is
-        // 5 s — so anything that reloads on a beat hands it a fresh run on that
-        // same beat. Fire-and-forget: a grant that lands late costs the next
-        // reload, not this one.
-        Task { try? await WidgetRefreshIntent().perform() }
         reloadLog.notice("reloadAllTimelines reason=\(reason, privacy: .public)")
         WidgetCenter.shared.reloadAllTimelines()
     }
