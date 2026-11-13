@@ -11,12 +11,14 @@ struct LyricsPageView: View {
     @ObservedObject var model: RideModeViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title) private var lyricSize: CGFloat = LyricType.pageLyric
     @State private var coverHex: String?
 
     /// Darkened cover wash for high contrast in all modes.
     private var wash: LinearGradient? { CoverArtworkView.wash(coverHex) }
     private var fg: Color { .white }
-    private var muted: Color { .white.opacity(0.60) }
+    private var muted: Color { .white.opacity(0.75) }
     private var surface: Color { .white.opacity(0.14) }
     private var border: Color { .white.opacity(0.18) }
 
@@ -75,20 +77,31 @@ struct LyricsPageView: View {
             artwork
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.trackTitle.isEmpty ? "Caraoke" : model.trackTitle)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(fg)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(size: 13))
+                    .font(.subheadline)
                     .foregroundColor(muted)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            Button(intent: ResyncWidgetIntent()) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(fg)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(surface))
+                    .overlay(Circle().stroke(border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Resync lyrics")
+            .accessibilityHint("Samples the selected player and restarts lyric updates")
             Button { dismiss() } label: {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(fg)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(Circle().fill(surface))
                     .overlay(Circle().stroke(border, lineWidth: 1))
             }
@@ -133,13 +146,17 @@ struct LyricsPageView: View {
                     // Song name and author at the top of the lyrics window
                     VStack(alignment: .leading, spacing: 6) {
                         Text(model.trackTitle.isEmpty ? "Caraoke" : model.trackTitle)
-                            .font(.system(size: 26, weight: .bold))
+                            .font(.title.bold())
                             .foregroundColor(fg)
                         if !model.trackArtist.isEmpty {
                             Text(model.trackArtist)
-                                .font(.system(size: 18, weight: .medium))
+                                .font(.headline)
                                 .foregroundColor(muted)
                         }
+                        Text(model.isOn ? model.lyricStatus.homeBadge : "Live Lyrics off")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(muted)
+                            .accessibilityLabel("Lyrics status: \(model.isOn ? model.lyricStatus.homeBadge : "Live Lyrics off")")
                     }
                     .id("lyric_header")
                     .padding(.bottom, 16)
@@ -148,9 +165,9 @@ struct LyricsPageView: View {
                         ForEach(Array(model.allLines.enumerated()), id: \.offset) { index, line in
                             let isHero = isLineHero(index: index, lineText: line.text)
                             let isPast = isLineInPast(index: index)
-                            Text(line.text)
-                                .font(LyricType.font(size: LyricType.pageLyric, weight: isHero ? LyricType.lyricHeroWeight : .regular))
-                                .foregroundColor(isHero ? fg : (isPast ? muted.opacity(0.55) : muted.opacity(0.90)))
+                            Text(LyricSegmenter.segmentedDisplayText(for: line.text))
+                                .font(LyricType.font(size: lyricSize, weight: isHero ? LyricType.lyricHeroWeight : .regular))
+                                .foregroundColor(isHero ? fg : (isPast ? muted.opacity(0.8) : muted))
                                 .multilineTextAlignment(.leading)
                                 .lineSpacing(LyricType.lyricLineSpacing)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -160,9 +177,9 @@ struct LyricsPageView: View {
                     } else if !model.currentLine.isEmpty || !model.upcomingLines.isEmpty {
                         // Fallback when full track is still arriving
                         ForEach(fallbackLines) { row in
-                            Text(row.text)
-                                .font(LyricType.font(size: LyricType.pageLyric, weight: row.isHero ? LyricType.lyricHeroWeight : .regular))
-                                .foregroundColor(row.isHero ? fg : muted.opacity(row.opacity))
+                            Text(LyricSegmenter.segmentedDisplayText(for: row.text))
+                                .font(LyricType.font(size: lyricSize, weight: row.isHero ? LyricType.lyricHeroWeight : .regular))
+                                .foregroundColor(row.isHero ? fg : muted)
                                 .multilineTextAlignment(.leading)
                                 .lineSpacing(LyricType.lyricLineSpacing)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -173,7 +190,7 @@ struct LyricsPageView: View {
                         // Empty / loading state
                         VStack(alignment: .leading, spacing: 10) {
                             Text(emptyStatusText)
-                                .font(.system(size: 18, weight: .medium))
+                                .font(.headline)
                                 .foregroundColor(muted)
                         }
                         .padding(.top, 20)
@@ -217,15 +234,15 @@ struct LyricsPageView: View {
 
     private func scrollToActiveLine(proxy: ScrollViewProxy, lineIndex: Int?, lineText: String) {
         if let lineIndex {
-            withAnimation(.easeInOut(duration: 0.42)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.42)) {
                 proxy.scrollTo("line_\(lineIndex)", anchor: UnitPoint(x: 0.5, y: 0.45))
             }
         } else if let index = model.allLines.firstIndex(where: { $0.text == lineText }) {
-            withAnimation(.easeInOut(duration: 0.42)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.42)) {
                 proxy.scrollTo("line_\(index)", anchor: UnitPoint(x: 0.5, y: 0.45))
             }
         } else if lineText.isEmpty {
-            withAnimation(.easeInOut(duration: 0.42)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.42)) {
                 proxy.scrollTo("lyric_header", anchor: UnitPoint(x: 0.5, y: 0.45))
             }
         }
@@ -236,6 +253,7 @@ struct LyricsPageView: View {
         case .loading: return "Finding lyrics…"
         case .noLyrics: return "No lyrics found for this song"
         case .idle: return model.isOn ? "Waiting for playback…" : "Turn switch on to stream lyrics"
+        case .expired: return "Lyrics are out of date"
         case .stale: return "Ride ended"
         default: return "Lyrics will appear when singing begins"
         }

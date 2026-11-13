@@ -31,6 +31,9 @@
   strong{color:var(--fg)}
   a{color:var(--accent)}
   code{background:var(--card);border:1px solid var(--line);padding:2px 6px;border-radius:6px;font-size:13px;color:var(--accent)}
+  pre{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;margin:0 0 14px;overflow-x:auto}
+  pre code{background:none;border:0;padding:0;color:var(--fg);white-space:pre;font-size:12.5px;line-height:1.55}
   .callout{background:var(--card);border-left:3px solid var(--accent);
     padding:16px 18px;border-radius:0 12px 12px 0;margin:20px 0}
   .callout p{margin:0;color:var(--fg);font-size:14.5px}
@@ -64,7 +67,7 @@
   <p class="intro">Setup guides and troubleshooting for CarPlay, Lock Screen, Dynamic Island, widgets, and StandBy.</p>
 
   <div class="callout">
-    <p><strong>Start here:</strong> enable <strong>Live Lyrics</strong> inside Caraoke, and make sure Live Activities are allowed in <em>iOS Settings → Caraoke</em>. Lyrics can only mirror to CarPlay, the Lock Screen, and the Dynamic Island when Live Activities are on.</p>
+    <p><strong>Start here:</strong> open Caraoke → <strong>Settings</strong> (gear on Home) → <strong>Connect music</strong> and pick Apple Music or connect Spotify. Then switch <strong>Live Lyrics</strong> on from Home, and allow <strong>Live Activities</strong> in <em>iOS Settings → Caraoke → Live Activities</em>. Lyrics can only mirror to CarPlay, the Lock Screen, and the Dynamic Island when Live Activities are on.</p>
   </div>
 
   <nav class="toc">
@@ -73,36 +76,40 @@
       <li><a href="#dynamic-island">Lock Screen &amp; Dynamic Island</a></li>
       <li><a href="#widgets">Home Screen widgets</a></li>
       <li><a href="#standby">StandBy mode</a></li>
+      <li><a href="#locked-phone">Locked phone &amp; background limits</a></li>
       <li><a href="#problems">Troubleshooting</a></li>
       <li><a href="#client-id">Custom Spotify Client ID</a></li>
       <li><a href="#premium">Subscription &amp; billing</a></li>
+      <li><a href="#logs">Collecting logs for support</a></li>
       <li><a href="#support">Contact support</a></li>
     </ul>
   </nav>
 
   <h2 id="carplay">1. CarPlay setup</h2>
-  <p>Caraoke mirrors real-time synchronized lyrics to CarPlay using ActivityKit and CarPlay widgets.</p>
+  <p>Caraoke mirrors synchronized lyrics to CarPlay using ActivityKit and the CarPlay widget tile.</p>
   <ol>
     <li>Connect your iPhone to your car via wireless or wired CarPlay.</li>
-    <li>Open Caraoke on your iPhone and toggle <strong>Live Lyrics</strong> on.</li>
-    <li>Start playing music in Spotify or Apple Music.</li>
-    <li>On the CarPlay screen, switch to the dashboard view to see lyrics alongside maps.</li>
+    <li>On iPhone, open Caraoke → <strong>Settings</strong> (gear on Home) → <strong>Connect music</strong>. Choose Apple Music, or connect Spotify.</li>
+    <li>On Home, switch <strong>Live Lyrics</strong> on.</li>
+    <li>Allow Live Activities: <em>iOS Settings → Caraoke → Live Activities</em>.</li>
+    <li>Start playing music, then open the CarPlay dashboard to see lyrics alongside maps.</li>
   </ol>
-  <p>CarPlay interaction is read-only by design — no tapping required, and nothing to configure while driving.</p>
+  <p>Nothing needs configuring while driving. The tile includes <strong>Resync</strong> and playback controls when you need them.</p>
 
   <h2 id="dynamic-island">2. Lock Screen &amp; Dynamic Island</h2>
-  <p>On iPhone 14 Pro and later, lyrics also appear in the Dynamic Island while music plays.</p>
+  <p>On iPhone 14 Pro and later, lyrics can also appear in the Dynamic Island while music plays.</p>
   <h3>Enable</h3>
   <ol>
-    <li>Toggle <strong>Live Lyrics</strong> on in Caraoke.</li>
-    <li>Start playing music.</li>
-    <li>Lyrics appear automatically on the Lock Screen and in the Dynamic Island.</li>
+    <li>Open Caraoke → <strong>Settings</strong> (gear on Home) → <strong>Connect music</strong> and choose your music source.</li>
+    <li>On Home, switch <strong>Live Lyrics</strong> on.</li>
+    <li>Allow Live Activities: <em>iOS Settings → Caraoke → Live Activities</em>.</li>
+    <li>Start playing music. Lyrics appear on the Lock Screen and in the Dynamic Island when iOS delivers the Live Activity.</li>
   </ol>
   <h3>If lyrics don't appear</h3>
   <ul>
+    <li>Confirm Live Activities are enabled in <em>iOS Settings → Caraoke → Live Activities</em>.</li>
     <li>Toggle Live Lyrics off and on again.</li>
-    <li>Restart Caraoke.</li>
-    <li>Confirm Live Activities are enabled in <em>iOS Settings → Caraoke</em>.</li>
+    <li>Open Caraoke once so it can re-read the player and re-arm the current track.</li>
   </ul>
 
   <h2 id="widgets">3. Home Screen widgets</h2>
@@ -130,42 +137,63 @@
     <li>Start playing music — lyrics appear full-screen.</li>
   </ol>
 
-  <h2 id="problems">5. Troubleshooting</h2>
+  <h2 id="locked-phone">5. Locked phone &amp; background limits</h2>
+  <p>iOS suspends Caraoke about 30 seconds after you leave the app. To keep the current song's lines moving while the phone is locked, Caraoke hands that song's lyric timeline to a push relay before it is suspended.</p>
+  <div class="callout">
+    <p><strong>One song at a time — not continuous background sync.</strong> The relay is armed only for the track that was playing. If you change track, pause, or seek while Caraoke is suspended, the tile can hold the previous line or keep counting until you tap <strong>Resync</strong> (immediate sample and re-arm) or reopen Caraoke (normal polling resumes, but no immediate sample or re-arm). Background delivery is not guaranteed.</p>
+  </div>
+  <ul>
+    <li><strong>Track change, pause, or seek while suspended:</strong> tap Resync (arrow.clockwise) or the album art / vinyl disc on the widget or touchscreen CarPlay tile, or tap Resync in the phone Lyrics page header. Opening Caraoke only resumes normal polling.</li>
+    <li><strong>Activity lifetime:</strong> iOS ends a Live Activity after roughly 8 hours. Reopen Caraoke to start a fresh one.</li>
+    <li><strong>Delays:</strong> Low Power Mode, Focus, or Live Activities being off can delay or hide updates.</li>
+    <li><strong>While unlocked:</strong> with Caraoke open, it polls the player about once a second and re-aligns within a couple of seconds after a seek.</li>
+  </ul>
+
+  <h2 id="problems">6. Troubleshooting</h2>
 
   <h3>Lyrics not updating, or stuck on "Paused"</h3>
-  <p>Make sure either Apple Music or Spotify is selected as the active source. If you use Spotify, confirm the authorization completed (Settings → Music Sources).</p>
+  <p>Make sure the active source is the app that is actually playing. Open Caraoke → <strong>Settings</strong> (gear on Home) → <strong>Connect music</strong> and select Apple Music or Spotify. For Spotify, confirm the row shows connected; if not, expand the Spotify row and choose <strong>Reconnect</strong>.</p>
+
+  <h3>Lyrics freeze or drift after locking the phone</h3>
+  <ol>
+    <li>Tap <strong>Resync</strong> (the circular arrow) in the phone Lyrics page header, or on the Caraoke widget / touchscreen CarPlay tile; the album art and vinyl disc act as Resync too. When Caraoke handles the tap, it samples the selected player immediately. The widget-extension fallback repairs Spotify only — Apple Music needs the app path.</li>
+    <li>Or open Caraoke from the widget. Normal polling resumes, but opening the app does not force an immediate sample or relay re-arm — use Resync for that.</li>
+    <li>Still stale? Switch Live Lyrics off, then on.</li>
+    <li>Confirm <strong>Settings → Connect music</strong> matches the app that is actually playing.</li>
+    <li>Paused or seeked from the car? Resume playback, then seek once in the track. With Caraoke open, it re-aligns within a couple of seconds.</li>
+    <li>No tile at all? Check <em>iOS Settings → Caraoke → Live Activities</em>, then switch Live Lyrics off and on.</li>
+    <li>The Lock Screen and Dynamic Island have no Resync control — open Caraoke or use the phone Lyrics page header instead.</li>
+  </ol>
 
   <h3>Widget not updating automatically</h3>
-  <p>iOS limits how often widgets may refresh. To force an update, tap the vinyl disc or album art in the widget, or enable Live Lyrics for real-time updates.</p>
+  <p>iOS chooses when widgets refresh on its own; continuous background updates are not guaranteed. To force an update, tap the vinyl disc, album art, or <strong>Resync</strong> in the widget, or use Live Lyrics for line-by-line updates while the activity is delivered.</p>
 
   <h3>Missing lyrics for some songs</h3>
-  <p>Caraoke queries multiple lyrics providers with automatic fallback:</p>
-  <ul>
-    <li>LRCLIB first (primary source).</li>
-    <li>NetEase second (fallback source).</li>
-    <li>If neither has the track, synced lyrics simply may not exist for it.</li>
-  </ul>
+  <p>Caraoke races LRCLIB and YouTube Music (InnerTube) at the same time and uses the first valid synchronized lyric sheet that comes back. There is no NetEase fallback.</p>
+  <p>If neither provider returns synchronized lyrics, the song plays without lines — the title, artist, and progress still update.</p>
 
   <h3>Spotify keeps disconnecting</h3>
   <ol>
-    <li>Open Settings → Music Sources → Spotify Setup.</li>
-    <li>Re-authorize Spotify.</li>
-    <li>If it persists, use your own Custom Client ID (section 6).</li>
+    <li>Open Caraoke → <strong>Settings</strong> (gear on Home) → <strong>Connect music</strong>, then expand the <strong>Spotify</strong> row.</li>
+    <li>Choose <strong>Reconnect</strong> to re-authorize.</li>
+    <li>If it persists, use your own free Client ID (section 7).</li>
   </ol>
 
   <h3>Lyrics feel out of sync</h3>
-  <p>Seek within the track once; Caraoke re-aligns to the playback position reported by the music source. Bluetooth latency in some cars can shift the perceived timing by a fraction of a second.</p>
+  <p>Seek within the track once; with Caraoke open, it re-aligns to the playback position reported by the music source. Bluetooth latency in some cars can shift the perceived timing by a fraction of a second.</p>
 
-  <h2 id="client-id">6. Custom Spotify Client ID</h2>
-  <p>Power users can supply their own Spotify developer credentials instead of the shared default.</p>
+  <h2 id="client-id">7. Custom Spotify Client ID</h2>
+  <p>Spotify support is a <strong>limited beta</strong>. The built-in shared credentials are tied to a Spotify development-mode app, which Spotify limits to a 5-user allowlist. If you see an authorization error or HTTP 403, connect with your own free Client ID — the app owner is exempt from that allowlist.</p>
   <ol>
-    <li>Open the <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a>.</li>
-    <li>Create an app and copy the Client ID.</li>
-    <li>In Caraoke: Settings → Music Sources → Spotify Setup → Advanced.</li>
-    <li>Paste the Client ID and save.</li>
+    <li>Open the <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a> and log in.</li>
+    <li>Create an app named Caraoke and select <strong>Web API</strong>.</li>
+    <li>Under <strong>App Settings → Redirect URIs</strong>, add exactly <code>caraoke://spotify-callback</code>.</li>
+    <li>Copy the <strong>Client ID</strong> from Basic Information.</li>
+    <li>In Caraoke: <strong>Settings</strong> (gear on Home) → <strong>Connect music</strong> → tap the <strong>Spotify</strong> row to expand it → paste the Client ID → <strong>Save &amp; Connect</strong>.</li>
   </ol>
+  <p>To repair a broken connection, reopen the Spotify row and choose <strong>Reconnect</strong>. <strong>Disconnect</strong> is in the same expanded panel.</p>
 
-  <h2 id="premium">7. Subscription &amp; billing</h2>
+  <h2 id="premium">8. Subscription &amp; billing</h2>
   <p>Every plan starts with a <strong>3-day free trial</strong>, and all plans unlock the same full feature set — Live Lyrics, CarPlay, Lock Screen, Dynamic Island, widgets, and future updates.</p>
   <ul>
     <li><strong>Lifetime:</strong> $14.99 one-time (launch offer, normally $27)</li>
@@ -174,10 +202,24 @@
   </ul>
   <p>Subscriptions renew automatically unless cancelled at least 24 hours before the period ends. Manage or cancel in your Apple ID settings (Settings → [your name] → Subscriptions). Use <strong>Restore purchases</strong> in the app to recover an existing purchase on a new device.</p>
 
-  <h2 id="support">8. Contact support</h2>
+  <h2 id="logs">9. Collecting logs for support</h2>
+  <p>For timing or refresh bugs, a fresh device log helps more than a screenshot. Use a new, uniquely named archive for every report so an older capture is never mistaken for the current one.</p>
+  <h3>With a Mac and a USB cable</h3>
+  <ol>
+    <li>Connect the iPhone by USB, unlock it, and tap <strong>Trust</strong> if prompted.</li>
+    <li>Open <strong>Console.app</strong> on the Mac, select the iPhone in the sidebar, and click <strong>Start streaming</strong>.</li>
+    <li>Filter by process <code>Caraoke</code> (add <code>CaraokeWidgets</code> for widget issues), reproduce the problem, then save the session.</li>
+  </ol>
+  <p>Or from Terminal, name the archive with the build, date, and time:</p>
+  <pre><code>sudo log collect --device-name "Your iPhone" --last 10m \
+  --output ~/Desktop/caraoke-build84-20261114-0135.logarchive</code></pre>
+  <p>Replace the build number and timestamp with the build under test and the current local time. Do not reuse or rename an older archive — collect a fresh one while the issue is visible.</p>
+  <p>Logs can contain device and app activity, so review the archive before sending it. Also include the TestFlight or App Store build number, iOS version, iPhone model, CarPlay connection type (wired or wireless), and music source (Spotify or Apple Music).</p>
+
+  <h2 id="support">10. Contact support</h2>
   <div class="contact">
     <p><strong>Email:</strong> <a href="mailto:support@caraoke.app">support@caraoke.app</a></p>
-    <p>Include your iPhone model, iOS version, and music source (Spotify or Apple Music) so we can reproduce the issue quickly.</p>
+    <p>Include your iPhone model, iOS version, build number, music source (Spotify or Apple Music), and — for timing or refresh bugs — the log archive from section 9.</p>
   </div>
 
   <footer>

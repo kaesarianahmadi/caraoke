@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Privacy Policy — Caraoke: Live Lyrics</title>
-<meta name="description" content="Caraoke has no server and no accounts. We do not collect, store, or share your personal data.">
+<meta name="description" content="How Caraoke processes lyrics, relay, crash, analytics, Spotify, and purchase data.">
 <meta name="theme-color" content="#06080B">
 <link rel="icon" href="assets/icon.png">
 <style>
@@ -26,8 +26,9 @@
   ul{padding-left:22px;margin-bottom:14px}
   strong{color:var(--fg)}
   a{color:var(--accent)}
-  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
-  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table{width:100%;table-layout:fixed;border-collapse:collapse;margin:16px 0;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top;overflow-wrap:anywhere}
+  code{overflow-wrap:anywhere}
   th{color:var(--fg);font-weight:650}
   .summary{background:var(--card);border-left:3px solid var(--accent);padding:16px 18px;
     border-radius:0 12px 12px 0;margin:20px 0}
@@ -47,55 +48,82 @@
   </header>
 
   <h1>Privacy Policy</h1>
-  <p class="eff">Effective date: launch date. Contact: <a href="mailto:support@caraoke.app">support@caraoke.app</a></p>
+  <p class="eff">Draft for review — not yet published. Effective date: pending legal review. Contact: <a href="mailto:support@caraoke.app">support@caraoke.app</a></p>
 
   <div class="summary">
-    <p><strong>The short version:</strong> Caraoke has no server and no accounts. We do not collect, store, or share your personal data. Trading personal data is antithetical to a utility product, so the entire product is designed to function on-device.</p>
+    <p><strong>Status:</strong> This policy is being corrected to match the app's actual data flows and must be reviewed before publication. Caraoke has no user accounts, but it does use a lyrics relay, crash reporting, usage analytics, Spotify authorization, and purchase infrastructure.</p>
   </div>
 
-  <h2>What the app processes, and where it stays</h2>
+  <h2>What the app processes, and where it goes</h2>
   <table>
-    <tr><th>Data</th><th>Where it lives</th><th>Purpose</th></tr>
+    <tr><th>Data</th><th>Where it lives / goes</th><th>Purpose</th></tr>
     <tr>
-      <td>Spotify OAuth tokens</td>
-      <td>Your device's Keychain only</td>
-      <td>Read what song is playing (official Spotify Web API)</td>
+      <td>Spotify OAuth tokens and your Client ID</td>
+      <td>Device shared Keychain; token requests go to Spotify</td>
+      <td>Read currently-playing track and playback state, and send playback control commands (play, pause, skip)</td>
     </tr>
     <tr>
-      <td>Currently-playing track (title / artist / position)</td>
-      <td>On-device, in memory</td>
-      <td>Keep lyrics synchronized; sent as part of HTTPS requests to LRCLIB and Spotify</td>
+      <td>Track title, artist, duration, playback position</td>
+      <td>On-device; title/artist sent to LRCLIB and YouTube Music; duration also to LRCLIB</td>
+      <td>Match synchronized lyrics to the playing track</td>
+    </tr>
+    <tr>
+      <td>Live Activity push token, track title/artist, full lyric schedule, track start/end times, playing state</td>
+      <td>Posted to the Caraoke lyrics relay (Cloudflare Worker + Durable Object)</td>
+      <td>Push line-by-line lyrics while iOS has suspended the app</td>
     </tr>
     <tr>
       <td>Cached lyrics</td>
-      <td>Your device's Caches folder (clearable in Settings)</td>
-      <td>Offline rides and respectful use of LRCLIB</td>
+      <td>Device Caches folder (no in-app clear control currently)</td>
+      <td>Offline use and fewer provider requests</td>
     </tr>
     <tr>
-      <td>Purchase / subscription state</td>
-      <td>Processed by Apple via StoreKit</td>
-      <td>Entitlements; Apple's privacy policy governs this</td>
+      <td>Crash reports and diagnostics</td>
+      <td>Sentry, plus the relay's crash storage (most recent 20 records)</td>
+      <td>Diagnose crashes, watchdog terminations, and non-fatal errors</td>
+    </tr>
+    <tr>
+      <td>Usage signals</td>
+      <td>TelemetryDeck</td>
+      <td>Aggregate feature usage: <code>paywall_viewed</code>, <code>purchase_completed</code> (product ID), <code>playback_source</code> (source type), <code>ride_started</code></td>
+    </tr>
+    <tr>
+      <td>Purchase and subscription records</td>
+      <td>Apple StoreKit and RevenueCat</td>
+      <td>Entitlements, purchase validation, restore</td>
     </tr>
   </table>
 
   <h2>Third parties</h2>
   <ul>
-    <li><strong>LRCLIB (lrclib.net):</strong> when a song plays, Caraoke requests matching lyrics over HTTPS. Requests include the track's title, artist, and duration. LRCLIB is a free community lyrics database; its own terms apply. No account, no identifier beyond standard connection metadata.</li>
-    <li><strong>Apple (Apple Music via MediaPlayer, StoreKit):</strong> playback is read with Apple's public framework; purchases are processed by Apple.</li>
-    <li><strong>Spotify (Web API):</strong> only if you connect Spotify yourself. Read-only scopes. Disconnect in Settings at any time, which removes the Keychain token.</li>
+    <li><strong>LRCLIB (lrclib.net) and YouTube Music (InnerTube):</strong> Caraoke races both providers when matching a song. Requests include the track title and artist; LRCLIB also receives duration. No Caraoke account is used. Their own terms and privacy policies apply.</li>
+    <li><strong>Caraoke lyrics relay (Cloudflare):</strong> receives the Live Activity push token, track title/artist, full lyric schedule, start/end times, and playing state. One Durable Object is used per device, keyed by the push token. The relay also stores crash payloads (currently the most recent 20 records). Security review and deployment of access controls for these records are unresolved; do not treat crash reports as private or access-controlled.</li>
+    <li><strong>Sentry:</strong> receives crash and non-fatal error diagnostics, including stack traces and device/app metadata. Automatic session tracking and watchdog-termination tracking are enabled.</li>
+    <li><strong>TelemetryDeck:</strong> receives the usage signals listed above. It is designed for privacy-friendly analytics, but it is still a third-party analytics service.</li>
+    <li><strong>RevenueCat:</strong> receives purchase and subscription records and entitlement state, linked to the app user identifier RevenueCat uses. Apple StoreKit remains the transaction source.</li>
+    <li><strong>Spotify:</strong> if you connect it, Caraoke requests <code>user-read-currently-playing</code>, <code>user-read-playback-state</code>, and <code>user-modify-playback-state</code>. This means Caraoke can read playback state and send playback control commands. Disconnecting removes the local token; it does not revoke the authorization grant at Spotify. Revoke access in your Spotify account settings.</li>
+    <li><strong>Apple:</strong> Apple Music playback is read through MediaPlayer; purchases are processed by Apple.</li>
   </ul>
 
-  <h2>What we never do</h2>
+  <h2>Retention and deletion</h2>
   <ul>
-    <li>No analytics SDKs, no advertising, no tracking, no third-party SDKs at all</li>
-    <li>No listening history, no user profiles, no server-side storage</li>
-    <li>No data sales or sharing</li>
+    <li>Cached lyric text remains in the app's Caches folder until iOS or an app update removes it; there is currently no in-app control to clear it. Disconnecting Spotify removes the local token from the shared Keychain but does not revoke the authorization grant at Spotify; revoke access in your Spotify account settings.</li>
+    <li>Stopping a ride deletes the relay session only if the end request reaches the relay. If the app goes offline before that request succeeds, the session may remain until it expires. The most recent 20 crash records may remain in relay storage until cleared; no deletion timeline is guaranteed. Sentry, TelemetryDeck, RevenueCat, and Cloudflare retain data under their own policies.</li>
+    <li>Uninstalling the app removes local app data, but it is not a guaranteed deletion of records already held by the relay, Sentry, TelemetryDeck, RevenueCat, Cloudflare, or Apple. Contact <a href="mailto:support@caraoke.app">support@caraoke.app</a> to request deletion; deletion of server-side records is not guaranteed.</li>
+  </ul>
+
+  <h2>What we do not do</h2>
+  <ul>
+    <li>No advertising and no sale of personal data</li>
+    <li>No Caraoke accounts and no listening-history profile</li>
+    <li>No promise that data is anonymous; the app uses third-party services listed above</li>
+    <li>No promise that crash reports are private or access-controlled</li>
   </ul>
 
   <h2>Your controls</h2>
-  <p>Settings → “Clear downloaded lyrics cache” removes all cached lyrics. Disconnecting Spotify removes the stored token. Deleting the app removes everything.</p>
-  <p><strong>Children:</strong> the app is rated 4+ and collects nothing.</p>
-  <p>Changes to this policy will be posted on this page with a new effective date.</p>
+  <p>There is currently no in-app control to clear cached lyrics; uninstalling the app removes local app data. Disconnecting Spotify removes the local token but does not revoke access at Spotify — revoke it in your Spotify account settings. Stop Live Lyrics to end the relay session. For other requests, contact support.</p>
+  <p><strong>Children:</strong> Caraoke is not designed for children and offers no accounts. If you believe a child's information was submitted, contact support.</p>
+  <p>This draft must be reviewed and published with an effective date before it is relied on. Changes will be posted on this page.</p>
 
   <footer>
     <div>&copy; 2026 Caraoke.</div>

@@ -1,5 +1,6 @@
 import Foundation
 import WidgetKit
+import os
 
 /// Widget-side resync. One repair, two triggers: `ResyncWidgetIntent` when the
 /// user taps a widget's record/cover, and the widget provider itself when a
@@ -57,9 +58,16 @@ enum WidgetResync {
     static func refreshNowPlaying(timeout: TimeInterval = 8) async -> SharedWidgetPayload? {
         guard var payload = SharedWidgetStore.read() else { return nil }
 
-        guard payload.source == "spotify",
-              let token = await TransportControl.accessToken(),
-              let playing = await spotifyNowPlaying(token: token, timeout: timeout) else { return nil }
+        let log = Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
+        guard payload.source == "spotify" else {
+            log.notice("timeline self-repair requires app for source=\(payload.source, privacy: .public)")
+            return nil
+        }
+        guard let token = await TransportControl.accessToken() else {
+            log.error("timeline self-repair failed: Spotify credentials unavailable")
+            return nil
+        }
+        guard let playing = await spotifyNowPlaying(token: token, timeout: timeout) else { return nil }
         // Match the app poller's request-midpoint clock. Token refresh and
         // network time must not move the playback anchor back to request start.
         let nowMs = Int(playing.capturedAt.timeIntervalSince1970 * 1000)
@@ -125,9 +133,21 @@ enum WidgetResync {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = timeout
         let requestedAt = Date()
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let log = Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            log.error("Spotify resync request failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        guard let http = response as? HTTPURLResponse else { return nil }
+        guard http.statusCode == 200 else {
+            log.notice("Spotify resync response HTTP \(http.statusCode, privacy: .public)")
+            return nil
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let item = json["item"] as? [String: Any],
               let title = item["name"] as? String else { return nil }
         let artists = (item["artists"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []

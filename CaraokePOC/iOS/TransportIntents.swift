@@ -1,6 +1,7 @@
 #if os(iOS)
 import AppIntents
 import WidgetKit
+import os
 
 /// Transport buttons stay extension-side. Resync is a LiveActivityIntent so
 /// the system runs its repair and follow-on in the audio-holding app process.
@@ -10,12 +11,18 @@ struct ResyncWidgetIntent: LiveActivityIntent {
     static let description = IntentDescription("Refreshes widget lyrics timeline.")
 
     func perform() async throws -> IntentResultContainer<String, WidgetRefreshIntent, Never, Never> {
-#if !CARAOKE_WIDGET_EXTENSION
-        await AppModel.shared.startRideSession()
-#endif
-        await WidgetResync.run()
+        Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
+            .notice("resync requested")
         let session = SharedWidgetStore.startWidgetRefreshSession()
-        return .result(value: session, opensIntent: WidgetRefreshIntent(session: session))
+#if !CARAOKE_WIDGET_EXTENSION
+        await AppModel.shared.ride.resync(session: session)
+#else
+        await WidgetResync.run()
+#endif
+        var result: IntentResultContainer<String, WidgetRefreshIntent, Never, Never> =
+            .result(value: session, opensIntent: WidgetRefreshIntent(session: session))
+        if !SharedWidgetStore.isWidgetRefreshSession(session) { result.opensIntent = nil }
+        return result
     }
 }
 

@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 // Under SwiftPM, CaraokeCore is an imported module. When the Xcode project
 // (project.yml) compiles the same sources into the test bundle directly,
 // there is no separate module — the import is dropped via canImport.
@@ -152,5 +153,105 @@ final class LyricTimingTests: XCTestCase {
         model.stop(at: 5000)
         model.resetStats()
         XCTAssertEqual(model.totalRideMs, 0)
+    }
+    // MARK: Display segmentation
+
+    func testSegmentedDisplayTextBreaksAtWholeWords() {
+        let text = "I guess I got what I prayed for"
+        let shown = LyricSegmenter.segmentedDisplayText(for: text)
+        XCTAssertTrue(shown.split(separator: "\n").allSatisfy {
+            $0.split(whereSeparator: { $0.isWhitespace }).count <= 5
+        })
+        XCTAssertEqual(shown.replacingOccurrences(of: "\n", with: ""), text)
+    }
+
+    func testSegmentedDisplayTextBoundsLongLines() {
+        let shown = LyricSegmenter.segmentedDisplayText(for: "Now you're in my bed forever and ever tonight")
+        XCTAssertTrue(shown.split(separator: "\n").allSatisfy {
+            $0.split(whereSeparator: { $0.isWhitespace }).count <= 5
+        })
+    }
+
+    func testSegmentedDisplayTextPreservesPunctuationEmojiWhitespaceAndTokens() {
+        XCTAssertEqual(LyricSegmenter.segmentedDisplayText(for: "Great balls of fire, …"), "Great balls of fire, …")
+        XCTAssertEqual(LyricSegmenter.segmentedDisplayText(for: "🎶 everywhere 🎶"), "🎶 everywhere 🎶")
+        let spaced = "  a  b\tc d e f"
+        XCTAssertEqual(LyricSegmenter.segmentedDisplayText(for: spaced).replacingOccurrences(of: "\n", with: ""), spaced)
+        XCTAssertEqual(LyricSegmenter.segmentedDisplayText(for: "a b c d e\nf g h i j"), "a b c d e\nf g h i j")
+        XCTAssertEqual(LyricSegmenter.segmentedDisplayText(for: "supercalifragilisticexpialidocious"), "supercalifragilisticexpialidocious")
+    }
+
+    @MainActor
+    func testSpotifyOlderPollCannotOverwriteNewerPoll() async {
+        let firstStarted = expectation(description: "first request started")
+        let protocolState = SpotifyPollProtocol.State(firstStarted: firstStarted)
+        SpotifyPollProtocol.state = protocolState
+        defer { SpotifyPollProtocol.state = nil }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [SpotifyPollProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let source = SpotifySource(session: session, tokenProvider: SpotifyTestToken())
+        var titles: [String] = []
+        let subscription = source.statePublisher.sink { state in
+            if let title = state?.title { titles.append(title) }
+        }
+        let older = Task { await source.pollOnce() }
+        await fulfillment(of: [firstStarted], timeout: 5)
+        _ = await source.pollOnce()
+        protocolState.finishFirst()
+        _ = await older.value
+        XCTAssertEqual(titles, ["new"])
+        withExtendedLifetime(subscription) {}
+    }
+
+}
+
+@MainActor
+private final class SpotifyTestToken: SpotifyTokenProviding {
+    var isConnected: Bool { true }
+    func validAccessToken() async throws -> String { "token" }
+    func handleUnauthorized() async {}
+}
+
+private final class SpotifyPollProtocol: URLProtocol {
+    final class State {
+        let firstStarted: XCTestExpectation
+        private let lock = NSLock()
+        private var first: SpotifyPollProtocol?
+        private var count = 0
+
+        init(firstStarted: XCTestExpectation) { self.firstStarted = firstStarted }
+
+        func start(_ request: SpotifyPollProtocol) {
+            lock.lock()
+            count += 1
+            let isFirst = count == 1
+            if isFirst { first = request }
+            lock.unlock()
+            if isFirst { firstStarted.fulfill() } else { request.respond(title: "new") }
+        }
+
+        func finishFirst() {
+            lock.lock()
+            let request = first
+            first = nil
+            lock.unlock()
+            request?.respond(title: "old")
+        }
+    }
+
+    static var state: State?
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() { Self.state?.start(self) }
+    override func stopLoading() {}
+
+    private func respond(title: String) {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        let data = Data("{\"item\":{\"name\":\"\(title)\"},\"is_playing\":true}".utf8)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
     }
 }

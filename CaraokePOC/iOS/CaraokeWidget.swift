@@ -207,7 +207,10 @@ struct CaraokeWidgetProvider: TimelineProvider {
         // final line and would make every timeline look complete.
         let covered = built.contains { $0.lineIndex == payload.lines.count - 1 }
         let policy: TimelineReloadPolicy
-        if context.family == .systemSmall, SharedWidgetStore.hasWidgetRefreshSession {
+        if WidgetTimelineBuilder.isExpired(payload: payload, now: now) {
+            // Failed self-repair must not resubmit an already-spent timeline.
+            policy = .after(now.addingTimeInterval(60))
+        } else if context.family == .systemSmall, SharedWidgetStore.hasWidgetRefreshSession {
             // Intent cycles own lyric stepping. Keep a later recovery wake
             // rather than competing at each boundary or parking a dead chain forever.
             policy = .after(now.addingTimeInterval(30))

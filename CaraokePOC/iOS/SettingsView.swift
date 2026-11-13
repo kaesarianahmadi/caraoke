@@ -3,9 +3,10 @@ import UIKit
 
 /// Settings screen (design: design/screens/settings.html — locked 2026-09-05).
 /// Sections: Connect music (service marks), Appearance (bottom-sheet picker),
-/// Support us, Contact & about. The Caraoke Plus entry rides the top of
-/// Connect music; Spotify's bring-your-own-Client-ID flow expands under its
-/// row; LRCLIB attribution lives in the Connect-music note.
+/// Support &amp; about (offline Help &amp; setup, feedback, rate, share, version).
+/// The Caraoke Plus entry rides the top of Connect music; Spotify's
+/// bring-your-own-Client-ID flow expands under its row. Privacy policy and
+/// terms links sit under Support & about.
 /// Reached from the home screen's gear button — no tab bar per PRD D7.
 struct SettingsView: View {
     @ObservedObject var model: RideModeViewModel
@@ -141,7 +142,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            Text("Pick the app Caraoke listens to for track and timing data.")
+            Text("Choose the player Caraoke reads now-playing data from. Transport controls act on that player.")
                 .gNote(scheme)
         }
     }
@@ -216,6 +217,7 @@ struct SettingsView: View {
                 Text("How to get your Spotify Client ID:")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(AppTheme.fg(scheme))
+                    .accessibilityAddTraits(.isHeader)
 
                 // Step 1: Dashboard Link
                 HStack(spacing: 8) {
@@ -226,6 +228,7 @@ struct SettingsView: View {
                         HStack(spacing: 4) {
                             Text("Open Spotify Developer Dashboard")
                                 .font(.system(size: 12, weight: .medium))
+                                .fixedSize(horizontal: false, vertical: true)
                             Image(systemName: "arrow.up.right.square")
                                 .font(.system(size: 11))
                         }
@@ -241,6 +244,7 @@ struct SettingsView: View {
                     Text("Log in, tap 'Create app', name it 'Caraoke' and select 'Web API'.")
                         .font(.system(size: 12))
                         .foregroundColor(AppTheme.muted(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // Step 3: Redirect URI with Copy
@@ -252,11 +256,15 @@ struct SettingsView: View {
                         Text("Under App Settings → Redirect URIs, add:")
                             .font(.system(size: 12))
                             .foregroundColor(AppTheme.muted(scheme))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     HStack {
                         Text("caraoke://spotify-callback")
                             .font(.system(size: 12, weight: .semibold).monospaced())
                             .foregroundColor(AppTheme.fg(scheme))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .accessibilityLabel("Spotify redirect URI, caraoke colon slash slash spotify-callback")
                         Spacer()
                         Button {
                             UIPasteboard.general.string = "caraoke://spotify-callback"
@@ -275,7 +283,9 @@ struct SettingsView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(Capsule().fill(AppTheme.fg(scheme).opacity(0.08)))
+                            .contentShape(Rectangle())
                         }
+                        .accessibilityLabel(copiedRedirect ? "Redirect URI copied" : "Copy redirect URI")
                     }
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -290,6 +300,7 @@ struct SettingsView: View {
                     Text("Copy your Client ID from Basic Information and paste below:")
                         .font(.system(size: 12))
                         .foregroundColor(AppTheme.muted(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -302,6 +313,7 @@ struct SettingsView: View {
                     .padding(10)
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(AppTheme.fg(scheme).opacity(0.06)))
+                    .accessibilityLabel("Spotify Client ID")
 
                 Button {
                     if let clip = UIPasteboard.general.string {
@@ -322,6 +334,7 @@ struct SettingsView: View {
                 Text(spotifyErrorMessage)
                     .font(.system(size: 12))
                     .foregroundColor(AppTheme.warn)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // Action buttons
@@ -434,6 +447,18 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionLabel("Support & about")
             group {
+                NavigationLink {
+                    HelpView()
+                } label: {
+                    gRow {
+                        iconCircle("questionmark")
+                        Text("Help & setup").gLabel()
+                        Image(systemName: "chevron.right").gChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the offline setup and troubleshooting guide")
+                rowDivider()
                 // Feedback (design chat-bubble mark).
                 Button {
                     if let url = URL(string: "mailto:support@caraoke.app?subject=Caraoke%20feedback") {
@@ -454,6 +479,17 @@ struct SettingsView: View {
                 rowDivider()
                 aboutRow
             }
+            HStack(spacing: 10) {
+                Link("Privacy Policy", destination: URL(string: "https://caraokeapp.com/privacy")!)
+                    .foregroundColor(AppTheme.accent(scheme))
+                Text("·")
+                    .foregroundColor(AppTheme.muted(scheme))
+                Link("Terms of Use", destination: URL(string: "https://caraokeapp.com/terms")!)
+                    .foregroundColor(AppTheme.accent(scheme))
+            }
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 4)
+            .padding(.top, 8)
         }
     }
 

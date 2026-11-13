@@ -73,10 +73,57 @@ CarPlay uses for Live Activities. This is the Apple-documented pattern
 
 ## Ride Mode start/stop
 
-`HomeView` shows one master `Toggle`; `RideModeViewModel.toggle()` starts a
-fake 1-second clock that walks the demo track, updates the on-screen preview
-and pushes the snapshot into the Live Activity; `stopRide()` cancels the clock
-and ends the activity.
+`HomeView` shows one master `Live Lyrics` toggle. With
+`RideModeViewModel.useSimulatedPlayback = false` (shipped default), the real
+pipeline runs: Apple Music / Spotify → `NowPlayingCoordinator` → `SyncEngine`
+→ LRCLIB / YouTube Music lyrics → Live Activity, with the locked-phone relay
+armed per track. The bundled demo clock remains only as the simulated path
+behind that flag; it is off because it does not survive iOS suspension.
+`stopRide()` ends the activity.
+
+## Support docs & shipped behavior
+
+Canonical user docs: <https://caraokeapp.com/docs>. `caraoke.live/docs`
+returns 401 and is not linkable. Deep links: `#carplay`, `#dynamic-island`,
+`#widgets`, `#standby`, `#locked-phone`, `#problems`, `#client-id`,
+`#premium`, `#logs`, `#support`.
+
+- **Setup path:** Home gear → **Connect music** (Apple Music, or Spotify
+  expanded inline) → Home → **Live Lyrics** → iOS Settings → Caraoke →
+  Live Activities. There is no "Music Sources → Advanced" screen.
+- **Spotify is a limited beta.** Built-in shared credentials use a Spotify
+  development-mode app with a 5-user allowlist (403 for everyone else). The
+  fix is the user's own free Client ID; the redirect URI must be exactly
+  `caraoke://spotify-callback`. Paste it in Connect music → Spotify →
+  **Save & Connect**.
+- **Lyrics providers:** `FallbackLyricsProvider` races LRCLIB and YouTube
+  Music (InnerTube) concurrently and takes the first valid synced result.
+  No NetEase provider exists. If neither returns synced lyrics, the song
+  plays without lines; title, artist, and progress still update.
+- **Locked-phone limit:** iOS suspends Caraoke about 30 s after backgrounding.
+  The relay advances the *current* track only — track change, pause, or seek
+  while suspended can leave the tile on the prior line until the user taps
+  Resync (immediate sample/re-arm) or reopens Caraoke (normal polling resumes,
+  but no forced immediate sample/re-arm). There is no guaranteed continuous
+  background sync. iOS ends a Live Activity after roughly 8 hours; Low Power
+  Mode / Focus / Live Activities off can delay or hide updates.
+- **Resync:** tap Resync (arrow.clockwise) or album art / vinyl on the widget
+  or touchscreen CarPlay tile, or tap Resync in the phone Lyrics page header
+  (the widget-extension fallback repairs Spotify only). Opening Caraoke only
+  resumes polling. Then toggle Live Lyrics off/on, confirm Connect music
+  matches the playing app, and seek once after resuming. Lock Screen and
+  Dynamic Island have no Resync control.
+
+For timing or refresh bugs, collect a fresh, uniquely named USB log archive —
+never reuse an older one:
+
+```sh
+sudo log collect --device-name "Your iPhone" --last 10m \
+  --output ~/Desktop/caraoke-build84-20261114-0135.logarchive
+```
+
+Include the build number, iOS version, iPhone model, CarPlay connection type,
+and music source. Logs may contain device/app activity; review before sharing.
 
 ## No copyrighted lyrics
 
@@ -106,3 +153,51 @@ swiftc -Onone -module-cache-path .build/modulecache \
   Sources/CaraokeCore/*.swift Tests/main.swift -o .build/testrunner
 .build/testrunner
 ```
+
+### Local audit — 2026-11-14 (unreleased, build remains 84)
+
+- Resync samples the selected player in the app process, restores a persisted
+  ride's playback pipeline, re-arms the current relay schedule, and bypasses
+  unchanged-snapshot deduplication. Phone Resync uses the same system intent.
+  Session/generation checks prevent late repairs from restarting stopped rides.
+- Spotify ignores older overlapping poll responses. Explicit phone transport
+  source selection takes precedence over an old widget payload; failed commands
+  no longer leave an optimistic play/pause state behind.
+- Exhausted widget self-repair retries request a later wake instead of immediately
+  resubmitting a spent timeline. Lyrics-only CarPlay Resync is below the lyrics;
+  Hybrid uses its footer cover, matching the observed competitor hybrid recording.
+  No competitor lyrics-only placement was available to verify exact parity.
+- Display segmentation inserts whole-word visual breaks, at most five words per
+  segment before native wrapping. Provider lines/timestamps remain unchanged;
+  no per-word synchronization or new provider is invented.
+- Phone typography, controls, offline Help & setup, canonical documentation links,
+  localized purchase pricing, billing disclosures and purchase error handling updated.
+  A RevenueCat failure/cancellation cannot start a second StoreKit purchase.
+- Local standalone gate: 318 checks passed; iOS files and conditional extension
+  intent branches parsed. Actual SpotifySource smoke confirmed an old delayed
+  response cannot replace a newer sample. Native macOS snapshots exercised the
+  actual compact lyric renderer at 162×118, 162×100 and 342×138. Mobile documentation
+  navigation exercised at 390 px: no horizontal overflow or broken section anchors.
+- `swift test` is unavailable here: Command Line Tools cannot resolve SDK
+  `PlatformPath`. No iOS typecheck, simulator rendering, sandbox purchase or
+  locked-phone CarPlay endurance was verified. CI requires later push authorization.
+- Native macOS AppIntents smoke exercised typed continuation/normal-stop results
+  and rejected replaced/stopped sessions. This does not prove iOS system dispatch.
+- Relay regression (`node relay/worker.test.mjs`) rejects public diagnostic reads
+  and deletes while retaining crash ingestion. The deployed `/crashes` route still
+  returned unauthenticated HTTP 200; no report body was fetched. An authorized relay
+  deployment is required to remove that live exposure.
+- Corrected privacy/terms drafts disclose the relay and SDK data flows; mobile
+  privacy/terms pages were checked at 390 px with no viewport overflow. These local
+  drafts require review/publication; the currently published policy remains outdated.
+
+**Release blockers retained:** Sentry build-84 hang/watchdog issues
+[7798393633](https://caraokeapp.sentry.io/issues/7798393633/) and
+[7814932213](https://caraokeapp.sentry.io/issues/7814932213/) remain unresolved;
+their latest stacks show an idle run loop, not a proven root cause. Spotify
+[7791303967](https://caraokeapp.sentry.io/issues/7791303967/) records an upstream
+502 on `/me/player/pause`. Relay route reachability does not verify APNs delivery;
+TelemetryDeck ingestion does not grant analytics query access. The existing
+inaudible audio keep-alive is an App Review policy risk, not a guaranteed approved
+background mode. Spotify production access and lyric-provider/content rights also
+need clearance. Do not represent this audit as App Store approval or perfect sync.

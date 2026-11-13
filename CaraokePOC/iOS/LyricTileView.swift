@@ -493,7 +493,7 @@ struct LyricTileView: View {
                         .foregroundColor(colors.heroText)
                         .lineLimit(1)
                 }
-                Text("Tap the cover to resync")
+                Text(surface == .home ? "Open lyrics to resync" : "Tap the cover to resync")
                     .font(LyricType.font(size: spec.font))
                     .foregroundColor(colors.metaText)
                     .multilineTextAlignment(.center)
@@ -533,8 +533,9 @@ struct LyricTileView: View {
         // same way and the tile does not change its edge treatment on a state
         // change.
         Group {
-            if (surface == .lockBanner || surface == .carPlaySmall || surface == .carPlayLyrics
-                || surface == .home), let h = boxH {
+            if surface == .home {
+                measured.frame(maxWidth: .infinity, minHeight: boxH, alignment: alignment)
+            } else if (surface == .lockBanner || surface == .carPlaySmall || surface == .carPlayLyrics), let h = boxH {
                 // Strict fixed height: never shrinks when lines drop to 2, never
                 // expands when lines wrap. Prevents container jump across all surfaces.
                 measured.frame(maxWidth: .infinity,
@@ -690,11 +691,11 @@ struct LyricTileView: View {
             ? budget.maxRows(fitting: customBoxHeight ?? spec.boxHeight ?? spec.maxBoxHeight
                              ?? surface.profile.blockHeight)
             : budget.neighborRows
-        Text(row.text)
+        Text(row.kind == .hero ? LyricSegmenter.segmentedDisplayText(for: row.text) : row.text)
             .font(LyricType.font(size: spec.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
             .multilineTextAlignment(.center)
-            .lineLimit(allowance)
+            .lineLimit(surface == .home && row.kind == .hero ? nil : allowance)
             .lineSpacing(customLineSpacing ?? spec.lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: spec.maxLyricWidth ?? .infinity, alignment: .center)

@@ -1,13 +1,7 @@
 import SwiftUI
 import StoreKit
 
-/// Custom Paywall matching competitor design (IMG_5088):
-/// - OLED dark card surface
-/// - Feature highlights
-/// - Monthly ($1.99 with 3-Day Free Trial)
-/// - Yearly ($9.99 with Best Value badge)
-/// - Lifetime ($14.99 with $27.00 strikethrough & 45% Off)
-/// - One-tap primary CTA button + Restore Purchases
+/// Purchase options and restore actions.
 struct PaywallView: View {
     @ObservedObject var purchases: PurchaseManager
     let onDismiss: () -> Void
@@ -28,8 +22,11 @@ struct PaywallView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 24))
-                            .foregroundColor(.white.opacity(0.4))
+                            .foregroundColor(.white.opacity(0.7))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Close paywall")
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
                 }
@@ -86,6 +83,18 @@ struct PaywallView: View {
                                 .font(.caption)
                                 .foregroundColor(AppTheme.warn)
                         }
+                        Text("Subscriptions renew automatically. Cancel in Settings at least 24 hours before renewal.")
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                        if let message = purchases.purchaseMessage {
+                            Text(message)
+                                .font(.subheadline)
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 20)
+                        }
 
                         // CTA Button
                         Button {
@@ -101,7 +110,7 @@ struct PaywallView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 52)
+                            .frame(minHeight: 52)
                             .background(
                                 LinearGradient(
                                     colors: [Color(hex: 0xFFD600), Color(hex: 0xFFA000)],
@@ -112,22 +121,17 @@ struct PaywallView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .shadow(color: Color(hex: 0xFFB800).opacity(0.3), radius: 10, y: 3)
                         }
-                        .disabled(purchases.purchaseInFlight)
+                        .disabled(purchases.purchaseInFlight || !purchases.products.contains(where: { $0.id == selectedProductID }))
                         .padding(.horizontal, 20)
                         .padding(.top, 4)
 
                         // Bottom Actions
-                        HStack(spacing: 16) {
-                            Button("Restore Purchases") {
-                                Task { await purchases.restore() }
-                            }
-                            Text("•").foregroundColor(.white.opacity(0.2))
-                            Link("Terms of Use", destination: URL(string: "https://caraoke.live/docs")!)
-                            Text("•").foregroundColor(.white.opacity(0.2))
-                            Link("Privacy Policy", destination: URL(string: "https://caraoke.live/docs")!)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 16) { legalActions }
+                            VStack(spacing: 12) { legalActions }
                         }
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.45))
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.7))
                         .padding(.bottom, 20)
                     }
                 }
@@ -138,19 +142,28 @@ struct PaywallView: View {
         }
     }
 
+    @ViewBuilder
+    private var legalActions: some View {
+        Button("Restore Purchases") {
+            Task { await purchases.restore() }
+        }
+        .disabled(purchases.purchaseInFlight)
+        Link("Terms of Use", destination: URL(string: "https://caraokeapp.com/terms")!)
+        Link("Privacy Policy", destination: URL(string: "https://caraokeapp.com/privacy")!)
+    }
+
     private var ctaButtonText: String {
         if selectedProductID == CaraokeProducts.monthly {
-            return purchases.ctaText(for: selectedProductID, defaultText: "Start 3-Day Free Trial")
+            return "Subscribe Monthly"
         } else if selectedProductID == CaraokeProducts.lifetime {
-            return purchases.ctaText(for: selectedProductID, defaultText: "Get Lifetime Access")
+            return "Get Lifetime Access"
         } else {
-            return purchases.ctaText(for: selectedProductID, defaultText: "Subscribe Yearly")
+            return "Subscribe Yearly"
         }
     }
 
     private func handlePurchase() {
         guard let product = purchases.products.first(where: { $0.id == selectedProductID }) else {
-            // If offline/unloaded, fallback action
             return
         }
         Task {
@@ -189,41 +202,18 @@ struct PaywallView: View {
                             .opacity(isSelected ? 1 : 0)
                     )
 
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text(offer.title)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-
-                        if let badge = offer.trialBadge {
-                            Text(badge)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(isSelected ? .black : Color(hex: 0xFFB800))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(isSelected ? Color(hex: 0xFFB800) : Color(hex: 0xFFB800).opacity(0.18))
-                                .clipShape(Capsule())
-                        }
-                    }
-
-                    Text(offer.subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.55))
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    if let orig = offer.originalPriceText {
-                        Text(orig)
-                            .font(.system(size: 12))
-                            .strikethrough(true, color: .white.opacity(0.5))
-                            .foregroundColor(.white.opacity(0.4))
-                    }
-                    Text(offer.fallbackPriceText)
-                        .font(.system(size: 15, weight: .bold))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(offer.title)
+                        .font(.headline)
                         .foregroundColor(.white)
+                    Text(offer.productID == CaraokeProducts.lifetime ? "One-time purchase" : (offer.productID == CaraokeProducts.monthly ? "Renews monthly" : "Renews yearly"))
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.7))
                 }
+                Spacer(minLength: 8)
+                Text(purchases.priceText(for: offer))
+                    .font(.headline)
+                    .foregroundColor(.white)
             }
             .padding(14)
             .background(
@@ -236,5 +226,7 @@ struct PaywallView: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(purchases.purchaseInFlight)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

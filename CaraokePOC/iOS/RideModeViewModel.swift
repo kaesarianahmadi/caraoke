@@ -157,9 +157,6 @@ final class RideModeViewModel: ObservableObject {
         case .appleMusic: source = "appleMusic"
         case .auto: source = nil // let the running pipeline decide
         }
-        if action == .playPause {
-            lyricStatus = (lyricStatus == .playing) ? .paused : .playing
-        }
         let outcome = await TransportControl.perform(action, source: source, isPlaying: isPlaybackActive)
         switch outcome {
         case .failed(let msg), .noActivePlayer(let msg):
@@ -180,7 +177,7 @@ final class RideModeViewModel: ObservableObject {
         // Diagnostics (why the activity did/didn't appear) go to the console
         // log — the locked Home design has no diagnostic line.
         activity.onDiagnostic = { message in
-            Logger(subsystem: "com.caraoke.poc", category: "ride").info("\(message, privacy: .public)")
+            Logger(subsystem: "com.caraoke.poc", category: "ride").notice("\(message, privacy: .public)")
         }
         // Re-publish object changes when Spotify auth changes.
         spotifyAuth.objectWillChange
@@ -293,7 +290,10 @@ final class RideModeViewModel: ObservableObject {
     }
 
     func startRide() {
-        guard !isOn else { return }
+        guard !isOn else {
+            ensureActivity()
+            return
+        }
         isOn = true
         Analytics.signal("ride_started")
         UserDefaults.standard.set(true, forKey: Self.rideModeKey)
@@ -328,6 +328,14 @@ final class RideModeViewModel: ObservableObject {
     func refreshWidgetSnapshot() {
         guard isOn, !Self.useSimulatedPlayback else { return }
         realPlayback.refreshWidgetSnapshot()
+    }
+
+    /// A user resync must sample the selected player, not replay the cached clock.
+    func resync(session: String? = nil) async {
+        if let session, !SharedWidgetStore.isWidgetRefreshSession(session) { return }
+        startRide()
+        guard !Self.useSimulatedPlayback else { return }
+        await realPlayback.resync()
     }
 
     /// Fills the UI from the widget's shared payload. Opening the app from a

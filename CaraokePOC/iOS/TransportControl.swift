@@ -63,7 +63,7 @@ enum TransportControl {
     }
 
     private static func resolvedSource(payload: String?, override: String?) -> String? {
-        knownSource(payload) ?? knownSource(override) ?? audibleSource()
+        knownSource(override) ?? knownSource(payload) ?? audibleSource()
     }
 
     /// Which player is audibly running, independent of our shared payload.

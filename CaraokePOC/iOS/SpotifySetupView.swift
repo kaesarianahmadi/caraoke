@@ -32,6 +32,7 @@ struct SpotifySetupView: View {
                                 Text(spotifyAuth.isConnected ? "Connected" : "Requires Spotify Developer App")
                                     .font(.system(size: 13))
                                     .foregroundColor(spotifyAuth.isConnected ? AppTheme.ok : AppTheme.muted(scheme))
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         .padding(.top, 10)
@@ -41,11 +42,17 @@ struct SpotifySetupView: View {
                             Text("How to connect your Spotify:")
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(AppTheme.fg(scheme))
+                                .accessibilityAddTraits(.isHeader)
 
                             stepRow(number: "1", text: "Open developer.spotify.com/dashboard and log in.")
                             stepRow(number: "2", text: "Create an app named 'Caraoke' (Web API).")
                             stepRow(number: "3", text: "In App Settings, add Redirect URI:\ncaraoke://spotify-callback")
                             stepRow(number: "4", text: "Copy your Client ID and paste it below.")
+
+                            Text("Spotify is a limited beta. If the built-in credentials are not allowlisted, create your own app as above — your own Client ID bypasses Caraoke's shared limit.")
+                                .font(.system(size: 12))
+                                .foregroundColor(AppTheme.muted(scheme))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(16)
                         .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -66,11 +73,13 @@ struct SpotifySetupView: View {
                                 .padding(12)
                                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .fill(AppTheme.fg(scheme).opacity(0.06)))
+                                .accessibilityLabel("Spotify Client ID")
 
                             if let errorMessage {
                                 Text(errorMessage)
                                     .font(.system(size: 12))
                                     .foregroundColor(AppTheme.warn)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
 
                             HStack(spacing: 12) {

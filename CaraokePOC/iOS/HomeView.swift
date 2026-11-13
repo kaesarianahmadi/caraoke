@@ -1,13 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Home screen (following competitor layout IMG_5085):
-/// - Header: Caraoke logo + Help "?" button (docs/FAQ) + Settings gear (no Shazam)
-/// - Master Live Lyrics switch card
-/// - Dedicated sections: Live Activities, Dynamic Island, Home Screen Widgets (taps to WidgetSettingsView)
-/// - Real-time synced lyric card
-/// - Connected music sources (Apple Music / Spotify)
-/// - Bottom floating mini-player with artwork, track info, provider badge, and transport controls
+/// Home screen with live lyrics, widget access, music sources and playback controls.
 struct HomeView: View {
     @ObservedObject var model: RideModeViewModel
     @State private var showSettings = false
@@ -85,21 +79,22 @@ struct HomeView: View {
             // Wordmark only — the icon next to it was removed and the type
             // scaled up 25 % (user direction).
             Text("Caraoke")
-                .font(.system(size: 35, weight: .bold))
-                .tracking(-0.02 * 35)
+                .font(.largeTitle.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .foregroundColor(AppTheme.fg(scheme))
             Spacer()
 
             // Help & Common Problems "?" button
             Button {
-                if let url = URL(string: "https://caraoke.live/docs") {
+                if let url = URL(string: "https://caraokeapp.com/docs") {
                     UIApplication.shared.open(url)
                 }
             } label: {
                 Image(systemName: "questionmark")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(AppTheme.fg(scheme))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(Circle().fill(AppTheme.surface(scheme)))
                     .overlay(Circle().stroke(AppTheme.border(scheme), lineWidth: 1))
             }
@@ -112,7 +107,7 @@ struct HomeView: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 17, weight: .regular))
                     .foregroundColor(AppTheme.fg(scheme))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(Circle().fill(AppTheme.surface(scheme)))
                     .overlay(Circle().stroke(AppTheme.border(scheme), lineWidth: 1))
             }
@@ -124,21 +119,22 @@ struct HomeView: View {
 
     private var howToBanner: some View {
         Button {
-            if let url = URL(string: "https://caraoke.live/docs") { UIApplication.shared.open(url) }
+            if let url = URL(string: "https://caraokeapp.com/docs") { UIApplication.shared.open(url) }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "speaker.wave.2.fill")
                 Text("How to display lyrics everywhere")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .bold))
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 46)
-            // Caraoke orange, not the reference app's blue.
-            .background(AppTheme.accent(scheme).gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .foregroundStyle(AppTheme.fg(scheme))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(minHeight: 48)
+            .background(AppTheme.surface(scheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -147,7 +143,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Text("Live Lyrics")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.title2.weight(.bold))
                 Spacer()
                 Button(intent: SetRideModeIntent(enabled: !model.isOn)) {
                     ZStack(alignment: model.isOn ? .trailing : .leading) {
@@ -164,8 +160,12 @@ struct HomeView: View {
                 .accessibilityHint(model.isOn ? "Turn off live lyrics" : "Start live lyrics")
             }
             Text("Show lyrics on the Lock Screen, CarPlay, and Apple Watch.")
-                .font(.system(size: 14))
+                .font(.subheadline)
                 .foregroundStyle(AppTheme.muted(scheme))
+            Label(model.isOn ? model.lyricStatus.homeBadge : "Live Lyrics off", systemImage: model.isOn ? "waveform" : "waveform.slash")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.muted(scheme))
+                .accessibilityLabel("Lyrics status: \(model.isOn ? model.lyricStatus.homeBadge : "Live Lyrics off")")
             if model.liveActivityGateMessage != nil {
                 gateBanner
             }
@@ -190,14 +190,14 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Widget")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.title2.weight(.bold))
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(AppTheme.muted(scheme))
                 }
                 Text("Add live lyrics to the Home Screen and CarPlay.")
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundStyle(AppTheme.muted(scheme))
                 HomeWidgetPreview(title: model.trackTitle, artist: model.trackArtist,
                                   currentLine: model.currentLine, nextLine: model.nextLine,
@@ -257,13 +257,13 @@ struct HomeView: View {
             palette: .activity,
             boldText: boldText
         )
-        .frame(height: 167)
+        .frame(minHeight: 167)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.08), radius: 12, y: 4)
         .accessibilityLabel("Now playing")
     }
 
-    // MARK: - Floating Mini-Player (competitor ref: small bottom docked bar)
+    // MARK: - Floating Mini-Player
 
     private var floatingMiniPlayer: some View {
         let hasTrack = !model.trackTitle.isEmpty
@@ -284,7 +284,7 @@ struct HomeView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(hasTrack ? model.trackTitle : "Caraoke")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(.white)
                             .lineLimit(1)
 
@@ -310,6 +310,7 @@ struct HomeView: View {
                                     .foregroundColor(Color(hex: 0x8E8E93))
                             }
                         }
+                        .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
@@ -319,14 +320,14 @@ struct HomeView: View {
             .accessibilityLabel("Open lyrics page")
 
             // Transport drives the active source (Apple Music or Spotify).
-            HStack(spacing: 16) {
+            HStack(spacing: 0) {
                 Button {
                     Task { await model.transport(.previous) }
                 } label: {
                     Image(systemName: "backward.fill")
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.8))
-                        .frame(width: 28, height: 32)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Previous song")
@@ -337,7 +338,7 @@ struct HomeView: View {
                     Image(systemName: model.isPlaybackActive ? "pause.fill" : "play.fill")
                         .font(.system(size: 18))
                         .foregroundColor(.white)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(model.isPlaybackActive ? "Pause" : "Play")
@@ -348,7 +349,7 @@ struct HomeView: View {
                     Image(systemName: "forward.fill")
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.8))
-                        .frame(width: 28, height: 32)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Next song")
@@ -426,10 +427,10 @@ struct HomeView: View {
             logo.frame(width: 34, height: 34)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.body.weight(.medium))
                     .foregroundColor(AppTheme.fg(scheme))
                 Text(subtitle)
-                    .font(.system(size: 13, weight: connected ? .medium : .regular))
+                    .font(connected ? .subheadline.weight(.medium) : .subheadline)
                     .foregroundColor(connected ? AppTheme.ok : AppTheme.muted(scheme))
             }
             Spacer()
@@ -490,7 +491,7 @@ struct HomeView: View {
 
     private var footnote: some View {
         Text("Use while parked · Designed for passengers")
-            .font(.system(size: 11))
+            .font(.caption)
             .tracking(0.02 * 11)
             .foregroundColor(AppTheme.muted(scheme))
             .frame(maxWidth: .infinity)

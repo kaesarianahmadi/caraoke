@@ -634,13 +634,6 @@ final class TestRunner {
             check("entitleEmpty", !CaraokeProducts.isEntitled(productIDs: []))
             check("entitleUnrelated", !CaraokeProducts.isEntitled(productIDs: ["com.vendor.other"]))
 
-            check("paywallThreePlans", PaywallContent.plans.count == 3)
-            check("paywallYearlyRecommended", PaywallContent.plans.first?.productID == CaraokeProducts.yearly && PaywallContent.plans.first?.isRecommended == true)
-            check("paywallLifetimeText", (PaywallContent.plans.first { $0.productID == CaraokeProducts.lifetime })?.fallbackPriceText.contains("$20") == true)
-            let customPlans = PaywallContent.plans(metadata: ["yearly_badge": "7-DAY FREE TRIAL", "lifetime_anchor": "$30.00"])
-            check("paywallMetadataBadge", customPlans.first?.trialBadge == "7-DAY FREE TRIAL")
-            check("paywallMetadataAnchor", (customPlans.first { $0.productID == CaraokeProducts.lifetime })?.originalPriceText == "$30.00")
-            check("paywallMetadataFallback", (customPlans.first { $0.productID == CaraokeProducts.monthly })?.trialBadge == "3-DAY FREE TRIAL")
 
             // cache clearAll
             let caDir = FileManager.default.temporaryDirectory.appendingPathComponent("cache-clear-\(UUID().uuidString)")
@@ -1335,6 +1328,26 @@ final class TestRunner {
             payload.isPlaying = false
             checkEqual("refreshPausedChecksResume", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1)
             checkEqual("refreshMissingPayloadChecksAgain", WidgetRefreshSession.nextRefreshDelay(payload: nil, now: now), 1)
+        }
+        // MARK: display segmentation (provider sentences chunked for tiles)
+        //
+        // Long provider lines arrive as whole sentences; the renderer wraps
+        // them past its row budget and sheds neighbours. Segmentation is
+        // display-only: it inserts newlines at whole-word boundaries and
+        // changes no timing — the source line keeps its one timestamp.
+        do {
+            let text = "I guess I got what I prayed for"
+            let shown = LyricSegmenter.segmentedDisplayText(for: text)
+            check("segmentWordBoundaries", shown.split(separator: "\n").allSatisfy { $0.split(whereSeparator: { $0.isWhitespace }).count <= 5 })
+            checkEqual("segmentPreservesSource", shown.replacingOccurrences(of: "\n", with: ""), text)
+            let long = LyricSegmenter.segmentedDisplayText(for: "Now you're in my bed forever and ever tonight")
+            check("segmentLongChunksBounded", long.split(separator: "\n").allSatisfy { $0.split(whereSeparator: { $0.isWhitespace }).count <= 5 })
+            checkEqual("segmentKeepsPunctuation", LyricSegmenter.segmentedDisplayText(for: "Great balls of fire, …"), "Great balls of fire, …")
+            checkEqual("segmentKeepsEmoji", LyricSegmenter.segmentedDisplayText(for: "🎶 everywhere 🎶"), "🎶 everywhere 🎶")
+            let spaced = "  a  b\tc d e f"
+            checkEqual("segmentKeepsWhitespace", LyricSegmenter.segmentedDisplayText(for: spaced).replacingOccurrences(of: "\n", with: ""), spaced)
+            checkEqual("segmentResetsAtSourceNewline", LyricSegmenter.segmentedDisplayText(for: "a b c d e\nf g h i j"), "a b c d e\nf g h i j")
+            checkEqual("segmentNeverSplitsToken", LyricSegmenter.segmentedDisplayText(for: "supercalifragilisticexpialidocious"), "supercalifragilisticexpialidocious")
         }
 
         // MARK: summary

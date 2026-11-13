@@ -61,19 +61,20 @@ Prereqs: a free Cloudflare account and the **APNs Auth Key** from Apple:
    static let relayBaseURL: URL? = URL(string: "https://caraoke-lyrics-relay.<your-subdomain>.workers.dev")
    ```
 
-   Then bump `CURRENT_PROJECT_VERSION` in `CaraokePOC/project.yml` and push —
-   CI builds + uploads the next TestFlight build automatically.
+   Deployment, build bumps and pushes require explicit user authorization.
 
 ## Verify
 
-Start a song, start Ride Mode, lock the phone. Lyrics on the Lock Screen /
-Dynamic Island should keep advancing for the full song. Without it, they
-freeze ~30 s after locking (with it, they run the whole drive).
+Start a song and Live Lyrics, then lock the phone. Verify actual APNs delivery
+through the current track, track changes, pause/resume and seeks. Route reachability
+does not prove APNs readiness; a current-track schedule alone cannot follow a new
+track while the app is suspended.
+
+Local access-boundary regression: `node relay/worker.test.mjs`.
 
 ## Notes / limits
 
-- One session at a time (one DO, named `caraoke-ride`) — matches the product:
-  one active ride per device.
+- Playback sessions are routed by Live Activity push token, not one global ride.
 - Line-boundary pushes only; the progress bar recalculates at each push.
   A per-10s heartbeat keeps the last line's activity fresh until `endAt`.
 - APNs is rate-tolerant at this volume; no retry/backoff implemented yet —
@@ -81,10 +82,11 @@ freeze ~30 s after locking (with it, they run the whole drive).
 
 ## Security
 
-- No user accounts, no lyrics stored server-side beyond one session window
-  (the DO deletes on end).
-- The APNs provider token is minted per request from `APNS_KEY_P8` — never
-  logged, never exposed.
-- The endpoint is open (fires pushes to tokens the relay was given) — the
-  session POST carries only the device's own activity token, so abuse is
-  limited to pushing that device's own activity.
+- Durable Objects persist lyric schedules and activity push tokens. Successful end
+  handling deletes a session; do not promise immediate deletion after network failure.
+- Provider JWTs are cached and signed with the server-side APNs key. Do not log keys
+  or full activity tokens.
+- Crash ingestion retains the most recent 20 reports. Public GET/DELETE `/crashes`
+  routes were removed locally after an unauthenticated HTTP 200 was observed on
+  2026-11-14; the deployed service remains exposed until an authorized deployment.
+- No relay deployment or live APNs registration/push was performed during this audit.

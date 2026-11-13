@@ -126,6 +126,8 @@ private struct CaraokeCarPlayCover: View {
                 }
             }
             .opacity(entry.resyncPulse)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Resync lyrics")
@@ -235,12 +237,12 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
     let entry: CaraokeWidgetEntry
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        VStack(spacing: 0) {
             CompactLyricsView(currentLine: entry.currentLine,
                 previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                 title: entry.title, artist: entry.artist, status: entry.status,
                 fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText)
-            CaraokeCarPlayResyncButton(entry: entry, glyphSize: 12, hitTarget: 28)
+            CaraokeCarPlayResyncButton(entry: entry, glyphSize: 15, hitTarget: 44)
         }
     }
 }
@@ -254,15 +256,12 @@ private struct CaraokeCarPlayHybridWidgetView: View {
         let t = entry.theme
         GeometryReader { geometry in
             VStack(spacing: 4) {
-                ZStack(alignment: .topTrailing) {
-                    CompactLyricsView(currentLine: entry.currentLine,
-                        previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
-                        title: entry.title, artist: entry.artist, status: entry.status,
-                        fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText)
-                    CaraokeCarPlayResyncButton(entry: entry, glyphSize: 11, hitTarget: 28)
-                }
+                CompactLyricsView(currentLine: entry.currentLine,
+                    previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
+                    title: entry.title, artist: entry.artist, status: entry.status,
+                    fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText)
                 HStack(spacing: 6) {
-                    CaraokeCarPlayCover(entry: entry, size: 26)
+                    CaraokeCarPlayCover(entry: entry, size: 26, showsResyncGlyph: true)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(entry.title.isEmpty ? "Caraoke" : entry.title)
                             .font(.system(size: 11, weight: .semibold))

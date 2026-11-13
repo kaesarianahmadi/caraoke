@@ -234,20 +234,6 @@ export class LyricsSession {
           headers: { "content-type": "application/json" },
         });
       }
-      if (request.method === "GET") {
-        const crashes = (await this.state.storage.get("crashes")) || [];
-        return new Response(JSON.stringify({ count: crashes.length, crashes }, null, 2), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      if (request.method === "DELETE") {
-        await this.state.storage.delete("crashes");
-        return new Response(JSON.stringify({ ok: true, message: "crashes cleared" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
       return new Response("method not allowed", { status: 405 });
     }
 
@@ -386,14 +372,14 @@ export default {
 
 /// Resolves the per-device Durable Object.
 ///
-/// `GET`/`DELETE` on `/crashes` are operator diagnostics for the whole
-/// deployment, so they keep the shared object. Everything carrying a session —
-/// and the crash `POST` — is scoped to the device's activity push token, with a
-/// stable fallback for bodies that have no token yet (the very first register,
-/// which has nothing to route on).
+/// Crash ingestion is deployment-wide; stored reports have no public read/delete route.
+/// Playback sessions route by their activity push token.
 async function routeSession(request, env) {
   const url = new URL(request.url);
-  const isCrashDiagnostics = url.pathname.startsWith("/crashes") && request.method !== "POST";
+  if (url.pathname === "/crashes" && request.method !== "POST") {
+    return new Response("method not allowed", { status: 405 });
+  }
+  const isCrashDiagnostics = url.pathname === "/crashes";
   let key = "caraoke-shared";
   if (!isCrashDiagnostics) {
     const body = await request.text();

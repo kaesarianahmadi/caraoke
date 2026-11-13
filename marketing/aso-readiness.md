@@ -1,10 +1,9 @@
 # Caraoke App Store Optimization (ASO) & Marketing Readiness
 
 **App:** Caraoke  
-**Target Release:** Build 65 (iOS)  
-**Author:** Scout, Product & Marketing Specialist  
-**Reviewed For:** Zee (`@zee`), Principal Engineer  
-**Compliance Baseline:** App Store Review Guidelines 2.1 & 2.3, Apple Car Safety HIG
+**Target:** unreleased local audit after build 84
+**Status:** not submission-ready; device, policy and service gates remain.
+**Compliance baseline:** App Store Review Guidelines 2.1, 2.3 and 2.5.4.
 
 ---
 
@@ -56,11 +55,11 @@ Support: support@caraoke.app
 ## 3. What's New / Release Notes (Build 65)
 
 ```text
-Build 65 — Stability & Surface Overhaul:
-• Overhauled Live Activity lyric engine with rock-solid background sync and reduced memory footprint.
-• Added full-page lyric view with smoother line transitions.
-• Refined 2x4 and 4x4 Home Screen widgets for balanced typography and zero truncation.
-• Fixed mid-flight lyric transition collisions.
+Unreleased local changes:
+• Refined phone layout, readable lyric segmentation and offline help.
+• Repaired selected-player resync and stale overlapping Spotify responses.
+• Improved purchase disclosures, localized pricing and error feedback.
+• Locked-phone sync and CarPlay latency still require device acceptance.
 ```
 
 ---
@@ -71,33 +70,34 @@ Build 65 — Stability & Surface Overhaul:
 TESTING INSTRUCTIONS FOR APP STORE REVIEW:
 Caraoke synchronizes lyrics with currently playing audio for car passenger viewing via Live Activities and Dynamic Island.
 
-To review without a physical vehicle:
-1. Launch Caraoke on iPhone.
-2. Under Settings / Diagnostics, toggle "Reviewer Demo Mode" to simulate active track playback without external music subscription logins.
-3. Tap "Start Ride Mode" on Home to start the Live Activity.
-4. Lock the device to view synchronized lyrics on the Lock Screen.
-5. Expand the Dynamic Island on supported hardware to verify compact lyric tracking.
+Set up while parked, or test on an iPhone without a vehicle:
+1. Launch Caraoke; Home gear → Connect music → choose the active music source.
+2. Start a song in Apple Music, or connect an authorized Spotify account.
+3. Turn on Live Lyrics; permit Live Activities in iOS Settings → Caraoke.
+4. Open the phone lyrics page; its Resync samples playback and restarts updates.
+5. Lock the phone; verify the Live Activity, track changes, pause/resume and seeks.
+6. On touchscreen CarPlay, verify each widget resync and transport control.
 
-Reviewer Test Account:
-- Demo Mode: Pre-configured, zero-login required
-- Contact: zee@kawstudios.com / scout@kawstudios.com
+There is no user-accessible Reviewer Demo Mode. Spotify's shared development
+credentials require allowlisting; a review-ready service/account arrangement is
+still required. Contact: support@caraoke.app.
 ```
 
 ---
 
 ## 5. Marketing Readiness Scorecard
 
-| Deliverable | Status | Location / Artifact | Notes |
-|:---|:---:|:---|:---|
-| **Organic Playbook** | READY | `marketing/caraoke-marketing-playbook.html` | Viral TikTok/Reels zero-budget acquisition strategy |
-| **ASO Metadata** | READY | `marketing/aso-readiness.md` | Title, Subtitle, Keywords, Description, Promo text within Apple bounds |
-| **Reviewer Package** | READY | `marketing/aso-readiness.md` Sec 4 | Guideline 2.1 simulated playback instructions |
-| **Guideline 2.3 Compliance** | PASSED | Copy specifies Lock Screen / Live Activity passenger focus; avoids false CarPlay claims |
-| **Export Compliance** | PASSED | `Info.plist`: `ITSAppUsesNonExemptEncryption = false` | No French declaration requirement |
-| **Safety Disclaimers** | PASSED | Passenger-only explicit warnings embedded in description and onboarding |
+| Gate | Current evidence | Required before submission |
+|:---|:---|:---|
+| Local core/syntax | 318 standalone checks passed; iOS syntax parsed | CI iOS typecheck/build after release authorization |
+| Phone UI / CarPlay | Native compact-renderer snapshots only | iPhone Dynamic Type, navigation and real head-unit validation |
+| Locked-phone sync | Resync/stale-state defects repaired locally | Multi-track locked drive, repeated resync, calls/Siri, offline recovery |
+| Sentry hangs | Build-84 hang/watchdog issues unresolved | Device investigation; do not suppress or claim fixed |
+| Relay | Worker route reachable only | Verify APNs configuration and delivery on device |
+| Purchases | Pricing/disclosures/error paths repaired locally | Sandbox purchase, cancellation, pending, restore, storefront prices |
+| Privacy | Public policy contradicted SDK/relay behavior | Review and publish corrected disclosures; align App Privacy answers |
+| Background mode | Inaudible audio keep-alive exists | Resolve App Review 2.5.4 policy risk before submission |
+| Providers / Spotify | LRCLIB + YouTube Music; Spotify limited beta | Content rights, provider terms and production service access clearance |
 
----
-
-## 6. Recommendations for Engineering (`@zee`)
-1. Ensure the "Reviewer Demo Mode" button is accessible in debug and TestFlight builds for Guideline 2.1 pass.
-2. Confirm Privacy Policy and Support URLs resolve before final App Store Connect metadata push.
+No App Store approval, zero-truncation guarantee or continuous background-sync
+guarantee follows from local tests. Build number unchanged; nothing pushed.

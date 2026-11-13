@@ -131,6 +131,7 @@ final class RidePlaybackController: ObservableObject {
     private var selfHealFiredDivergence = false
     /// Last bold-text value written to the shared widget settings.
     private var lastWidgetBoldText: Bool?
+    private var resyncGeneration: UInt64 = 0
 
     init(activity: CaraokeActivityController,
          provider: any LyricsRepository = FallbackLyricsProvider(),
@@ -189,6 +190,7 @@ final class RidePlaybackController: ObservableObject {
     private var lastArtworkKey: String?
 
     func stop() {
+        resyncGeneration &+= 1
         apple.stop()
         spotify.stop()
         engine.stopTicking()
@@ -252,6 +254,24 @@ final class RidePlaybackController: ObservableObject {
 
     /// Publish the boundary before the intent asks the extension to read state.
     func refreshWidgetSnapshot() {
+        engine.tick()
+    }
+
+    func resync() async {
+        resyncGeneration &+= 1
+        let generation = resyncGeneration
+        switch coordinator.pin {
+        case .appleMusic:
+            apple.refresh()
+        case .spotify:
+            _ = await spotify.pollOnce()
+        case .auto:
+            apple.refresh()
+            if FeatureFlags.spotifyEnabled { _ = await spotify.pollOnce() }
+        }
+        guard generation == resyncGeneration, !Task.isCancelled else { return }
+        if let track = lastTrack { armRelay(track: track) }
+        forceWidgetReload = true
         engine.tick()
     }
 
@@ -629,7 +649,7 @@ final class RidePlaybackController: ObservableObject {
             artworkColorHex ?? "-",
             chainedArtworkHex ?? "-",
         ].joined(separator: "|")
-        guard signature != lastWidgetSignature else { return }
+        guard forceWidgetReload || signature != lastWidgetSignature else { return }
         lastWidgetSignature = signature
 
         let payload = SharedWidgetPayload(

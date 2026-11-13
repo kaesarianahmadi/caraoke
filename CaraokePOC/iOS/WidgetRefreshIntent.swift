@@ -30,7 +30,7 @@ struct WidgetRefreshIntent: LiveActivityIntent {
 #if !CARAOKE_WIDGET_EXTENSION
         let active = await MainActor.run {
             guard SharedWidgetStore.isWidgetRefreshSession(session) else { return false }
-            AppModel.shared.startRideSession()
+            guard AppModel.shared.ride.isOn else { return false }
             AppModel.shared.ride.ensureActivity()
             AppModel.shared.ride.refreshWidgetSnapshot()
             return true

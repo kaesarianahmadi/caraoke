@@ -15,24 +15,9 @@ final class PurchaseManager: ObservableObject {
     @Published private(set) var isEntitled = false
     @Published private(set) var loadFailed = false
     @Published private(set) var purchaseInFlight = false
-    @Published private(set) var offeringMetadata: [String: String] = [:]
+    @Published private(set) var purchaseMessage: String?
 
-    var planOffers: [PlanOffer] {
-        PaywallContent.plans(metadata: offeringMetadata)
-    }
-
-    func ctaText(for productID: String, defaultText: String) -> String {
-        switch productID {
-        case CaraokeProducts.monthly:
-            return offeringMetadata["cta_monthly"] ?? defaultText
-        case CaraokeProducts.yearly:
-            return offeringMetadata["cta_yearly"] ?? defaultText
-        case CaraokeProducts.lifetime:
-            return offeringMetadata["cta_lifetime"] ?? defaultText
-        default:
-            return defaultText
-        }
-    }
+    var planOffers: [PlanOffer] { PaywallContent.plans }
 
     private var updatesTask: Task<Void, Never>?
 
@@ -67,19 +52,7 @@ final class PurchaseManager: ObservableObject {
     }
 
     func loadProducts() async {
-        #if canImport(RevenueCat)
-        if Purchases.isConfigured, let offerings = try? await Purchases.shared.offerings() {
-            if let meta = offerings.current?.metadata {
-                var strMeta: [String: String] = [:]
-                for (k, v) in meta {
-                    if let str = v as? String {
-                        strMeta[k] = str
-                    }
-                }
-                self.offeringMetadata = strMeta
-            }
-        }
-        #endif
+        // StoreKit products provide the storefront-localized price.
 
         do {
             products = try await Product.products(for: CaraokeProducts.all.sorted())
@@ -92,21 +65,37 @@ final class PurchaseManager: ObservableObject {
     /// Purchase execution via RevenueCat / StoreKit 2
     @discardableResult
     func purchase(_ product: Product) async -> Bool {
+        guard !purchaseInFlight else { return false }
         purchaseInFlight = true
+        purchaseMessage = nil
         defer { purchaseInFlight = false }
 
         #if canImport(RevenueCat)
-        if Purchases.isConfigured,
-           let rcProduct = try? await Purchases.shared.products([product.id]).first {
+        if Purchases.isConfigured {
             do {
+                guard let rcProduct = try await Purchases.shared.products([product.id]).first else {
+                    purchaseMessage = "This product is unavailable. Please try again later."
+                    return false
+                }
                 let result = try await Purchases.shared.purchase(product: rcProduct)
+                if result.userCancelled { return false }
                 if result.customerInfo.entitlements[CaraokeProducts.entitlementID]?.isActive == true {
-                    self.isEntitled = true
+                    isEntitled = true
                     return true
                 }
+                purchaseMessage = "Purchase not confirmed. If approval is pending, access will update after approval."
             } catch {
-                // If RevenueCat purchase encounters an error, proceed to StoreKit 2 fallback
+                let nsError = error as NSError
+                if nsError.domain == RevenueCat.ErrorCode.errorDomain {
+                    if nsError.code == RevenueCat.ErrorCode.purchaseCancelledError.rawValue { return false }
+                    if nsError.code == RevenueCat.ErrorCode.paymentPendingError.rawValue {
+                        purchaseMessage = "Purchase pending approval. Access will update after approval."
+                        return false
+                    }
+                }
+                purchaseMessage = "Purchase failed: \(error.localizedDescription)"
             }
+            return false
         }
         #endif
 
@@ -121,26 +110,41 @@ final class PurchaseManager: ObservableObject {
                     await refreshEntitlement()
                     return true
                 case .unverified:
+                    purchaseMessage = "Purchase could not be verified. Please contact Apple Support."
                     return false
                 }
-            case .userCancelled, .pending:
+            case .userCancelled:
+                return false
+            case .pending:
+                purchaseMessage = "Purchase pending approval. Access will update after approval."
                 return false
             @unknown default:
+                purchaseMessage = "Purchase could not be completed. Please try again."
                 return false
             }
         } catch {
+            purchaseMessage = "Purchase failed: \(error.localizedDescription)"
             return false
         }
     }
 
     func restore() async {
-        #if canImport(RevenueCat)
-        if Purchases.isConfigured {
-            _ = try? await Purchases.shared.restorePurchases()
+        guard !purchaseInFlight else { return }
+        purchaseInFlight = true
+        purchaseMessage = nil
+        defer { purchaseInFlight = false }
+        do {
+            #if canImport(RevenueCat)
+            if Purchases.isConfigured {
+                _ = try await Purchases.shared.restorePurchases()
+            }
+            #endif
+            try await AppStore.sync()
+            await refreshEntitlement()
+            purchaseMessage = isEntitled ? "Purchases restored." : "No purchases found to restore."
+        } catch {
+            purchaseMessage = "Restore failed: \(error.localizedDescription)"
         }
-        #endif
-        try? await AppStore.sync()
-        await refreshEntitlement()
     }
 
     func refreshEntitlement() async {
@@ -164,17 +168,9 @@ final class PurchaseManager: ObservableObject {
     }
 
     func priceText(for offer: PlanOffer) -> String {
-        if let product = products.first(where: { $0.id == offer.productID }) {
-            return "\(product.displayPrice) / \(unit(for: product.id))"
+        guard let product = products.first(where: { $0.id == offer.productID }) else {
+            return "Unavailable"
         }
-        return offer.fallbackPriceText
-    }
-
-    private func unit(for productID: String) -> String {
-        switch productID {
-        case CaraokeProducts.yearly: return "year"
-        case CaraokeProducts.monthly: return "month"
-        default: return "once"
-        }
+        return product.displayPrice
     }
 }

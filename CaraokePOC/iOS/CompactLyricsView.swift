@@ -23,7 +23,7 @@ struct CompactLyricsView: View {
         GeometryReader { geometry in
             let width = max(1, geometry.size.width - 16)
             let height = max(1, geometry.size.height - 12)
-            let hero = activeText
+            let hero = LyricSegmenter.segmentedDisplayText(for: activeText)
             let layout = fittedRows(hero: hero, width: width, height: height)
             VStack(spacing: 5) {
                 ForEach(Array(layout.rows.enumerated()), id: \.offset) { _, row in
@@ -54,7 +54,7 @@ struct CompactLyricsView: View {
         case .idle: return "Play a song to see lyrics"
         case .loading: return title.isEmpty ? "Finding lyrics…" : identity
         case .noLyrics: return title.isEmpty ? "No lyrics found" : identity
-        case .stale, .expired: return currentLine.isEmpty ? "Tap to resume lyrics" : currentLine
+        case .stale, .expired: return "Lyrics out of date · Open Caraoke"
         case .playing, .paused: return currentLine.isEmpty ? identity : currentLine
         }
     }

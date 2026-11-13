@@ -78,6 +78,7 @@ targets:
       - iOS/WidgetArtworkBackground.swift
       - Sources/CaraokeCore/LyricStatus.swift
       - Sources/CaraokeCore/LyricType.swift
+      - Sources/CaraokeCore/LyricSegmenter.swift
       - Sources/CaraokeCore/WidgetShared.swift
       - Sources/CaraokeCore/WidgetRefreshSession.swift
       - Sources/CaraokeCore/SpotifyAuthCore.swift
