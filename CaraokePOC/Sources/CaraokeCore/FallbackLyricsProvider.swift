@@ -1,10 +1,7 @@
 import Foundation
 
-/// Concurrent racing lyrics provider:
-/// 1. Races LRCLIB (fast primary, keyless, ~300ms) and YouTube Music InnerTube (broadest coverage, ~1.4s).
-/// 2. Returns whichever finishes first with valid synced lyrics.
-/// 3. If LRCLIB returns nil (e.g. 404, plain-only, or rate-limited), awaits YouTube Music fallback.
-/// 4. Returns nil gracefully if unavailable anywhere.
+/// Races LRCLIB and YouTube Music. A short preference window favors verified
+/// word-timed LRCLIB phrases; otherwise the first valid line-timed result wins.
 final class FallbackLyricsProvider: LyricsRepository {
     private let lrclib: LRCLIBLyricsProvider
     private let ytm: YouTubeMusicLyricsProvider
@@ -17,21 +14,41 @@ final class FallbackLyricsProvider: LyricsRepository {
     }
 
     func lyrics(for track: TrackSignature) async throws -> LyricTrack? {
-        await withTaskGroup(of: LyricTrack?.self) { group in
+        let lrclibTask = Task { try? await lrclib.lyrics(for: track) }
+        let ytmTask = Task { try? await ytm.lyrics(for: track) }
+        return await withTaskCancellationHandler {
+            await withTaskGroup(of: (Int, LyricTrack?).self) { group in
+            group.addTask { (0, await lrclibTask.value) }
+            group.addTask { (1, await ytmTask.value) }
             group.addTask {
-                try? await self.lrclib.lyrics(for: track)
+                try? await Task.sleep(for: .seconds(2))
+                return (2, nil)
             }
-            group.addTask {
-                try? await self.ytm.lyrics(for: track)
-            }
-
-            for await result in group {
-                if let result {
-                    group.cancelAll()
-                    return result
+            var fallback: LyricTrack?
+            var completed = 0
+            var graceExpired = false
+            for await (source, result) in group {
+                if source == 2 { graceExpired = true }
+                else {
+                    completed += 1
+                    if source == 0, let result, result.hasWordTiming {
+                        lrclibTask.cancel(); ytmTask.cancel(); group.cancelAll()
+                        return result
+                    }
+                    if fallback == nil { fallback = result }
                 }
+                if let fallback, graceExpired || completed == 2 {
+                    lrclibTask.cancel(); ytmTask.cancel(); group.cancelAll()
+                    return fallback
+                }
+                if completed == 2 { break }
             }
-            return nil
+            lrclibTask.cancel(); ytmTask.cancel(); group.cancelAll()
+            return fallback
+            }
+        } onCancel: {
+            lrclibTask.cancel()
+            ytmTask.cancel()
         }
     }
 }

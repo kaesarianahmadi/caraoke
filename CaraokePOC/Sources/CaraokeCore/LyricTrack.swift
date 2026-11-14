@@ -7,12 +7,14 @@ import Foundation
 /// in milliseconds it answers which line is current and which is next.
 struct LyricTrack: Equatable, Sendable {
     let lines: [LyricLine]
+    let hasWordTiming: Bool
 
     /// Lines must be strictly sorted by start time.
-    init(lines: [LyricLine]) {
+    init(lines: [LyricLine], hasWordTiming: Bool = false) {
         precondition(zip(lines, lines.dropFirst()).allSatisfy { $0.startMs < $1.startMs },
                      "LyricTrack lines must be strictly sorted by startMs")
         self.lines = lines
+        self.hasWordTiming = hasWordTiming
     }
 
     var durationMs: Int { lines.last?.startMs ?? 0 }

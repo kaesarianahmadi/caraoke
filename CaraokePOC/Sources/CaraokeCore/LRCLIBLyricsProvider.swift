@@ -34,6 +34,8 @@ final class LRCLIBLyricsProvider: LyricsRepository {
         let instrumental: Bool?
         let plainLyrics: String?
         let syncedLyrics: String?
+        let hasWordSync: Bool?
+        let lyricsfile: String?
     }
 
     static let defaultBase = URL(string: "https://lrclib.net")!
@@ -63,9 +65,8 @@ final class LRCLIBLyricsProvider: LyricsRepository {
     // MARK: LyricsRepository
 
     func lyrics(for track: TrackSignature) async throws -> LyricTrack? {
-        let key = TrackMatcher.signature(
-            title: track.title, artist: track.artist, durationMs: track.durationMs
-        )
+        let signature = TrackMatcher.signature(title: track.title, artist: track.artist, durationMs: track.durationMs)
+        let key = "timed-v2|" + signature
 
         // A cached plain-only response must not suppress a usable search result.
         if let entry = cache.retrieve(for: key), cache.isFresh(entry, now: now()),
@@ -75,7 +76,7 @@ final class LRCLIBLyricsProvider: LyricsRepository {
 
         // 2) rate-limit backoff — serve stale if we have it, else surface it
         if let until = nextAllowedRequestAt, now() < until {
-            if let entry = cache.retrieve(for: key) {
+            if let entry = cache.retrieve(for: key) ?? cache.retrieve(for: signature) {
                 return try Self.parseLyrics(from: entry.body)
             }
             throw LyricsError.rateLimited(until: until)
@@ -96,14 +97,14 @@ final class LRCLIBLyricsProvider: LyricsRepository {
             // A 429 shouldn't blank a ride that has any cached copy.
             if case .rateLimited(let until) = error {
                 nextAllowedRequestAt = until
-                if let entry = cache.retrieve(for: key) {
+                if let entry = cache.retrieve(for: key) ?? cache.retrieve(for: signature) {
                     return try Self.parseLyrics(from: entry.body)
                 }
             }
             throw error
         } catch {
             // 4) transport failure — stale-serving keeps offline rides alive
-            if let entry = cache.retrieve(for: key) {
+            if let entry = cache.retrieve(for: key) ?? cache.retrieve(for: signature) {
                 return try Self.parseLyrics(from: entry.body)
             }
             throw LyricsError.network(error)
@@ -155,18 +156,23 @@ final class LRCLIBLyricsProvider: LyricsRepository {
               let list = try? JSONDecoder().decode([TrackResponse].self, from: data)
         else { return nil }
 
-        let candidates = list.map { response in
-            LyricsCandidate(
-                title: response.trackName,
-                durationMs: response.duration.map { Int($0 * 1000.0) },
-                hasSyncedLyrics: !(response.syncedLyrics?.isEmpty ?? true)
-            )
+        let matching = list.filter { response in
+            guard TrackMatcher.normalizeTitle(response.trackName) == TrackMatcher.normalizeTitle(track.title),
+                  TrackMatcher.normalizeArtist(response.artistName) == TrackMatcher.normalizeArtist(track.artist) else { return false }
+            guard let duration = track.durationMs else { return true }
+            guard let seconds = response.duration, seconds.isFinite, seconds >= 0,
+                  seconds <= Double(Int.max / 1000) else { return false }
+            return abs(Int(seconds * 1000) - duration) <= 3000
         }
-        guard let best = TrackMatcher.bestMatch(
-            from: candidates, title: track.title, durationMs: track.durationMs
-        ) else { return nil }
-        guard let index = candidates.firstIndex(of: best) else { return nil }
-        return try JSONEncoder().encode(list[index])
+        for response in matching where response.hasWordSync == true {
+            let encoded = try JSONEncoder().encode(response)
+            if let parsed = try Self.parseLyrics(from: encoded), parsed.hasWordTiming { return encoded }
+        }
+        for response in matching {
+            let encoded = try JSONEncoder().encode(response)
+            if try Self.parseLyrics(from: encoded) != nil { return encoded }
+        }
+        return nil
     }
 
     /// GET one track object; `nil` means "no match" (404 or unusable body).
@@ -211,9 +217,12 @@ final class LRCLIBLyricsProvider: LyricsRepository {
     /// "no lyrics" for Caraoke's purposes.
     static func parseLyrics(from body: Data) throws -> LyricTrack? {
         let object = try JSONDecoder().decode(TrackResponse.self, from: body)
-        guard !(object.instrumental ?? false),
-              let synced = object.syncedLyrics, !synced.isEmpty
-        else { return nil }
+        guard !(object.instrumental ?? false) else { return nil }
+        if object.hasWordSync == true, let yaml = object.lyricsfile,
+           let timed = LyricsFileParser.parse(yaml) {
+            return timed
+        }
+        guard let synced = object.syncedLyrics, !synced.isEmpty else { return nil }
         let lines = LRCParser.parse(synced).map { LyricLine(startMs: $0.timeMs, text: $0.text) }
         guard !lines.isEmpty else { return nil }
         return LyricTrack(lines: lines)

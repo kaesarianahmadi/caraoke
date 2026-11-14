@@ -185,8 +185,12 @@ enum WidgetResync {
         request.setValue("Caraoke/0.1 (https://github.com/caraoke/caraoke)", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = timeout
         guard let (data, _) = try? await URLSession.shared.data(for: request),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let synced = json["syncedLyrics"] as? String else { return [] }
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        if json["hasWordSync"] as? Bool == true, let yaml = json["lyricsfile"] as? String,
+           let track = LyricsFileParser.parse(yaml) {
+            return track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
+        }
+        guard let synced = json["syncedLyrics"] as? String else { return [] }
         return LRCParser.parse(synced)
     }
 }

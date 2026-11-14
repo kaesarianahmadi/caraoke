@@ -1376,6 +1376,34 @@ final class TestRunner {
             checkEqual("segmentNeverSplitsToken", LyricSegmenter.segmentedDisplayText(for: "supercalifragilisticexpialidocious"), "supercalifragilisticexpialidocious")
         }
 
+        do {
+            let yaml = """
+            version: '1.0'
+            metadata: { title: Demo, artist: Artist }
+            lines:
+              - text: 'one two three four five six'
+                start_ms: 1000
+                end_ms: 5000
+                words:
+                  - { text: 'one ', start_ms: 1000 }
+                  - { text: 'two ', start_ms: 1300 }
+                  - { text: 'three ', start_ms: 1700 }
+                  - { text: 'four ', start_ms: 2100 }
+                  - { text: 'five ', start_ms: 3300 }
+                  - { text: 'six', start_ms: 4200 }
+              - { text: 'next', start_ms: 6000 }
+            """
+            let track = LyricsFileParser.parse(yaml)
+            checkEqual("wordPhraseText", track?.lines.map(\.text), ["one two three four", "five six", "next"])
+            checkEqual("wordPhraseSourceTimes", track?.lines.map(\.startMs), [1000, 3300, 6000])
+            checkEqual("wordPhraseBeforeBoundary", track?.line(at: 3299)?.text, "one two three four")
+            checkEqual("wordPhraseAtBoundary", track?.line(at: 3300)?.text, "five six")
+            let broken = yaml.replacingOccurrences(of: "start_ms: 3300", with: "start_ms: 100")
+            checkEqual("invalidWordTimingKeepsWholeLine", LyricsFileParser.parse(broken)?.lines.first?.text, "one two three four five six")
+            let duplicate = yaml.replacingOccurrences(of: "version: '1.0'", with: "version: '1.0'\nversion: '2.0'")
+            check("duplicateYAMLKeyRejected", LyricsFileParser.parse(duplicate) == nil)
+        }
+
         // MARK: summary
         print("\n\(passed) passed, \(failed) failed")
         if !failures.isEmpty {

@@ -14,9 +14,13 @@ let package = Package(
     products: [
         .library(name: "CaraokeCore", targets: ["CaraokeCore"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2")
+    ],
     targets: [
         .target(
             name: "CaraokeCore",
+            dependencies: ["Yams"],
             path: "Sources/CaraokeCore",
             resources: [
                 .process("Resources")

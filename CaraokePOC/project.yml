@@ -5,6 +5,9 @@ options:
   deploymentTarget:
     iOS: "26.0"
 packages:
+  Yams:
+    url: https://github.com/jpsim/Yams.git
+    from: 6.2.2
   RevenueCat:
     url: https://github.com/RevenueCat/purchases-ios.git
     from: 5.88.0
@@ -57,6 +60,7 @@ targets:
       - package: RevenueCat
       - package: TelemetryDeck
       - package: Sentry
+      - package: Yams
   CaraokeWidgets:
     type: app-extension
     platform: iOS
@@ -79,6 +83,9 @@ targets:
       - Sources/CaraokeCore/LyricStatus.swift
       - Sources/CaraokeCore/LyricType.swift
       - Sources/CaraokeCore/LyricSegmenter.swift
+      - Sources/CaraokeCore/LyricLine.swift
+      - Sources/CaraokeCore/LyricTrack.swift
+      - Sources/CaraokeCore/LyricsFileParser.swift
       - Sources/CaraokeCore/AutomaticWidgetRepair.swift
       - Sources/CaraokeCore/WidgetShared.swift
       - Sources/CaraokeCore/WidgetRefreshSession.swift
@@ -95,6 +102,8 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Apple Distribution"
         PROVISIONING_PROFILE_SPECIFIER: "Caraoke Widgets TF Store"
+    dependencies:
+      - package: Yams
   CaraokeCoreTests:
     type: bundle.unit-test
     platform: iOS
@@ -109,6 +118,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.caraoke.ios.tests
     dependencies:
       - target: Caraoke
+      - package: Yams
 schemes:
   Caraoke:
     build:

@@ -21,9 +21,14 @@ jobs:
       - name: Build + run standalone suite
         working-directory: CaraokePOC
         run: |
+          brew install cmake ninja
+          git clone --depth 1 --branch 6.2.2 https://github.com/jpsim/Yams.git /tmp/caraoke-yams
+          cmake -S /tmp/caraoke-yams -B /tmp/caraoke-yams-build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/caraoke-yams-build
           swiftc -Onone -module-cache-path .build/modulecache \
+            -I /tmp/caraoke-yams-build/swift -L /tmp/caraoke-yams-build/lib -lYams \
             Sources/CaraokeCore/*.swift Tests/main.swift -o .build/testrunner
-          .build/testrunner
+          DYLD_LIBRARY_PATH=/tmp/caraoke-yams-build/lib .build/testrunner
 
       - name: SwiftUI/ActivityKit/StoreKit layer syntax check
         working-directory: CaraokePOC
