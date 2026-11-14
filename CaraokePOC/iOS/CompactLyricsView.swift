@@ -29,7 +29,7 @@ struct CompactLyricsView: View {
             let hero = LyricSegmenter.segmentedDisplayText(for: activeText, maxWords: maxWords)
             let layout = fittedRows(hero: hero, width: width, height: height)
             VStack(spacing: 5) {
-                ForEach(Array(layout.rows.enumerated()), id: \.offset) { _, row in
+                ForEach(layout.rows) { row in
                     Text(row.text)
                         .font(.system(size: layout.font, weight: boldText && legibilityWeight != .bold ? .semibold : .regular))
                         .foregroundStyle(foreground.opacity(row.opacity))
@@ -37,11 +37,10 @@ struct CompactLyricsView: View {
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: width)
+                        .transition(slideTransitions ? .move(edge: .bottom).combined(with: .opacity) : .opacity)
                 }
             }
-            .id(slideTransitions ? currentLine : "")
-            .transition(slideTransitions ? .push(from: .bottom) : .identity)
-            .animation(.easeInOut(duration: slideTransitions ? 0.35 : 0.2), value: currentLine)
+            .animation(.easeInOut(duration: slideTransitions ? 0.35 : 0.2), value: layout.rows)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
             .mask {
                 LinearGradient(stops: [.init(color: .clear, location: 0),
@@ -68,20 +67,21 @@ struct CompactLyricsView: View {
         artist.isEmpty ? title : "\(title) - \(artist)"
     }
 
-    private struct Row {
+    private struct Row: Identifiable, Equatable {
+        let id: String
         let text: String
         let opacity: Double
     }
 
     private func fittedRows(hero: String, width: CGFloat, height: CGFloat) -> (font: CGFloat, rows: [Row]) {
         let font = fittedFont(hero: hero, width: width, height: height)
-        var rows = [Row(text: hero, opacity: 1)]
+        var rows = [Row(id: hero, text: hero, opacity: 1)]
         var used = measuredHeight(hero, width: width, font: font)
         if let previous = previousLines.last, !previous.isEmpty {
             let previous = LyricSegmenter.segmentedDisplayText(for: previous, maxWords: maxWords)
             let amount = measuredHeight(previous, width: width, font: font) + 5
             if used + amount <= height * 0.7 {
-                rows.insert(Row(text: previous, opacity: 0.35), at: 0)
+                rows.insert(Row(id: previous, text: previous, opacity: 0.35), at: 0)
                 used += amount
             }
         }
@@ -89,10 +89,16 @@ struct CompactLyricsView: View {
             let text = LyricSegmenter.segmentedDisplayText(for: text, maxWords: maxWords)
             let amount = measuredHeight(text, width: width, font: font) + 5
             guard used + amount <= height else { break }
-            rows.append(Row(text: text, opacity: index == 0 ? 0.6 : 0.38))
+            rows.append(Row(id: text, text: text, opacity: index == 0 ? 0.6 : 0.38))
             used += amount
         }
-        return (font, rows)
+        var seen: [String: Int] = [:]
+        let uniqueRows = rows.map { row in
+            let occurrence = seen[row.id, default: 0]
+            seen[row.id] = occurrence + 1
+            return Row(id: "\(row.id)\u{0}\(occurrence)", text: row.text, opacity: row.opacity)
+        }
+        return (font, uniqueRows)
     }
 
     /// Bounded search avoids repeatedly measuring in half-point increments.

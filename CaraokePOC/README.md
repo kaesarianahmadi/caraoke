@@ -174,10 +174,13 @@ each to preserve lyric space. CarPlay lyric chunks use four words; the medium
 Home Screen widget now segments its active lyric too. Segmentation is visual,
 not a new timestamp or a guarantee that the whole provider line has four words.
 
-LRCLIB searches synced lyrics after a plain-only exact match. CarPlay-only
-lyric content requests a bottom-to-top SwiftUI push transition; actual widget
-animation and refresh timing must be checked on the head unit. The renderer's
-bounded font search reduces measurements but has no proven device CPU result.
+LRCLIB searches synced lyrics after a plain-only exact match. CarPlay-only rows
+now retain identity as they move from upcoming to active to previous, with a
+bottom-entry transition. Competitor video shows individual rows moving upward;
+binary symbols reveal clock/scroll modifiers but do not prove which drives that
+view. Actual widget motion and refresh timing still require a head-unit test.
+Native macOS renders exercised before/after/repeated lyric states, not animation.
+The renderer's bounded font search has no proven device CPU result.
 Provider coverage is not a latency guarantee: Caraoke races LRCLIB and YouTube
 Music; the competitor binary exposes additional providers, but their availability,
 licensing and timestamp quality for these songs were not established.
