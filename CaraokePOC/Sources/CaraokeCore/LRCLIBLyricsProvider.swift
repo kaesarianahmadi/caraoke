@@ -67,9 +67,10 @@ final class LRCLIBLyricsProvider: LyricsRepository {
             title: track.title, artist: track.artist, durationMs: track.durationMs
         )
 
-        // 1) fresh cache — no network at all
-        if let entry = cache.retrieve(for: key), cache.isFresh(entry, now: now()) {
-            return try Self.parseLyrics(from: entry.body)
+        // A cached plain-only response must not suppress a usable search result.
+        if let entry = cache.retrieve(for: key), cache.isFresh(entry, now: now()),
+           let lyrics = try Self.parseLyrics(from: entry.body) {
+            return lyrics
         }
 
         // 2) rate-limit backoff — serve stale if we have it, else surface it
@@ -82,13 +83,13 @@ final class LRCLIBLyricsProvider: LyricsRepository {
 
         // 3) network: exact endpoint, then search fallback
         do {
-            if let body = try await fetchExact(track) {
+            if let body = try await fetchExact(track), let lyrics = try Self.parseLyrics(from: body) {
                 cache.store(body, for: key, at: now())
-                return try Self.parseLyrics(from: body)
+                return lyrics
             }
-            if let body = try await fetchSearch(track) {
+            if let body = try await fetchSearch(track), let lyrics = try Self.parseLyrics(from: body) {
                 cache.store(body, for: key, at: now())
-                return try Self.parseLyrics(from: body)
+                return lyrics
             }
             return nil
         } catch let error as LyricsError {
@@ -117,7 +118,8 @@ final class LRCLIBLyricsProvider: LyricsRepository {
     /// without the album before giving up on the exact endpoint.
     private func fetchExact(_ track: TrackSignature) async throws -> Data? {
         if let album = track.album, !album.isEmpty,
-           let body = try await fetchOne(at: exactURL(track, album: album)) {
+           let body = try await fetchOne(at: exactURL(track, album: album)),
+           try Self.parseLyrics(from: body) != nil {
             return body
         }
         return try await fetchOne(at: exactURL(track, album: nil))

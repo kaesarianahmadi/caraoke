@@ -156,6 +156,26 @@ swiftc -Onone -module-cache-path .build/modulecache \
 
 ### Local audit — 2026-11-14 (unreleased, build remains 84)
 
+### Build 86 device follow-up
+
+Two transferred `CaraokeWidgets` CPU reports recorded 92% and 85% average
+CPU over 17 and 19 seconds. Both say `Action taken: none`; their unsymbolicated
+SwiftUI/WidgetKit samples do not establish the cause or prove throttling.
+No build-86 unified log archive was found among the transferred files.
+
+The CarPlay lyrics-only and hybrid tiles now show a centered resync action when
+the payload is known expired, or during its repair pulse. This detects expired
+data, not every instance of lyric drift. Hybrid metadata is limited to one row
+each to preserve lyric space. CarPlay lyric chunks use four words; the medium
+Home Screen widget now segments its active lyric too. Segmentation is visual,
+not a new timestamp or a guarantee that the whole provider line has four words.
+
+LRCLIB now searches for synced lyrics after a plain-only exact match instead of
+returning no lyrics immediately. The compact renderer uses a bounded font-size
+search; no causal reduction in device CPU or skipped lines is claimed. Previously
+observed CarPlay timeline deferrals make a wholesale scheduling change unsafe
+without a fresh drive trace.
+
 - Resync samples the selected player in the app process, restores a persisted
   ride's playback pipeline, re-arms the current relay schedule, and bypasses
   unchanged-snapshot deduplication. Phone Resync uses the same system intent.

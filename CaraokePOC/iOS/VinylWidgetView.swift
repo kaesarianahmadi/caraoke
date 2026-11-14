@@ -99,7 +99,7 @@ struct VinylWidgetView: View {
         // wrap there and stop at the tier's `heroRows` / `neighborRows`.
         return VStack(alignment: .leading, spacing: MediumWidgetTiers.rowSpacing) {
             if !text.isEmpty {
-                Text(text)
+                Text(LyricSegmenter.segmentedDisplayText(for: text, maxWords: 4))
                     .font(LyricType.font(size: MediumWidgetTiers.heroFont,
                                          weight: LyricType.heroWeight(boldText: bold)))
                     .foregroundStyle(theme.textColor)

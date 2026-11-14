@@ -109,7 +109,7 @@ struct HelpView: View {
             step("1", "Connect the iPhone to the car with wireless or wired CarPlay.")
             step("2", "Start Live Lyrics in Caraoke, then play a song.")
             step("3", "On the car screen, open the dashboard. The Caraoke tile mirrors the Live Activity.")
-            paragraph("Nothing needs configuring while driving. On touchscreen CarPlay, the lyrics-only tile has a Resync arrow; the player tile resyncs from its cover and adds transport; the hybrid has both. On a non-touch screen, open Caraoke on the phone to resync.")
+            paragraph("Nothing needs configuring while driving. On touchscreen CarPlay, the lyrics-only and hybrid tiles show a centered Resync arrow when their timeline is known to be expired; the player and hybrid covers also request resync. On a non-touch screen, open Caraoke on the phone to resync.")
         }
     }
 
@@ -117,7 +117,7 @@ struct HelpView: View {
 
     private var resyncSection: some View {
         section("If lyrics freeze or drift") {
-            step("1", "Tap the Resync arrow on the CarPlay lyrics-only tile, the cover on the CarPlay player/hybrid tile, or the vinyl/album art on a Home Screen widget. The Live Activity itself has no Resync control. When Caraoke handles the tap, it samples the selected player right away. The widget-extension fallback repairs Spotify only; Apple Music needs the app path.")
+            step("1", "When shown, tap the centered Resync arrow on the CarPlay lyrics-only or hybrid tile, the cover on the CarPlay player/hybrid tile, or the vinyl/album art on a Home Screen widget. The arrow indicates a known expired timeline; it cannot detect every timing error. When Caraoke handles the tap, it samples the selected player. The widget-extension fallback repairs Spotify only; Apple Music needs the app path.")
             step("2", "In Caraoke, open the lyrics page and tap Resync in the header. Opening the app from a widget also resumes normal polling, but does not force an immediate sample or relay rearm.")
             step("3", "Still stale? Switch Live Lyrics off, then on.")
             step("4", "Confirm Settings → Connect music matches the app that is actually playing.")

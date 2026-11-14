@@ -62,10 +62,7 @@ private struct CaraokeCarPlayTransport: View {
     }
 }
 
-/// Always-visible refresh affordance. The cover is the canonical resync tap
-/// target, but on the CarPlay tiles it renders small — user direction, build
-/// 66: the button must appear on the lyric area too (and on the hybrid's
-/// cover), never just as a cover-sized tap target.
+/// Centered repair action used when a timeline is known to be expired.
 private struct CaraokeCarPlayResyncButton: View {
     let entry: CaraokeWidgetEntry
     var glyphSize: CGFloat = 15
@@ -93,9 +90,7 @@ private struct CaraokeCarPlayCover: View {
     let entry: CaraokeWidgetEntry
     let size: CGFloat
     var cornerRadius: CGFloat? = nil
-    /// Always show the resync glyph on the cover (build 66 — the hybrid's cover
-    /// is small enough that an invisible tap-only affordance missed it).
-    var showsResyncGlyph: Bool = false
+    var hideResyncGlyph: Bool = false
     private var radius: CGFloat { cornerRadius ?? max(4, size * 0.22) }
     private var theme: WidgetTheme { WidgetTheme(rawValue: entry.settings.theme) ?? .artwork }
 
@@ -118,7 +113,7 @@ private struct CaraokeCarPlayCover: View {
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(theme.textColor.opacity(0.12), lineWidth: 1))
             .overlay {
-                if showsResyncGlyph || entry.status != .playing || entry.resyncPulse < 1 {
+                if !hideResyncGlyph && (entry.status != .playing || entry.resyncPulse < 1) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: size * 0.3, weight: .bold))
                         .foregroundColor(.white)
@@ -237,12 +232,16 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
     let entry: CaraokeWidgetEntry
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack {
             CompactLyricsView(currentLine: entry.currentLine,
                 previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                 title: entry.title, artist: entry.artist, status: entry.status,
-                fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText)
-            CaraokeCarPlayResyncButton(entry: entry, glyphSize: 15, hitTarget: 44)
+                fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText,
+                maxWords: 4)
+            // Expiry is a known stale state; drift within a track isn't observable here.
+            if entry.showsResyncOverlay {
+                CaraokeCarPlayResyncButton(entry: entry, glyphSize: 22, hitTarget: 56)
+            }
         }
     }
 }
@@ -254,33 +253,49 @@ private struct CaraokeCarPlayHybridWidgetView: View {
 
     var body: some View {
         let t = entry.theme
-        GeometryReader { geometry in
-            VStack(spacing: 4) {
+        VStack(spacing: 2) {
+            ZStack {
                 CompactLyricsView(currentLine: entry.currentLine,
                     previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                     title: entry.title, artist: entry.artist, status: entry.status,
-                    fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText)
-                HStack(spacing: 6) {
-                    CaraokeCarPlayCover(entry: entry, size: 26, showsResyncGlyph: true)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(entry.title.isEmpty ? "Caraoke" : entry.title)
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(entry.artist)
-                            .font(.system(size: 10)).foregroundStyle(t.mutedTextColor)
-                    }
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
-                    CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
-                        buttonWidth: 24, buttonHeight: 32, showPrevious: false)
+                    fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText,
+                    maxWords: 4)
+                if entry.showsResyncOverlay {
+                    CaraokeCarPlayResyncButton(entry: entry, glyphSize: 22, hitTarget: 56)
                 }
-                .foregroundStyle(t.textColor)
-                .padding(.horizontal, 8)
-                .padding(.bottom, 6)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
+            .frame(maxHeight: .infinity)
+            .layoutPriority(1)
+            // Compact competitor-style strip: metadata gets one line each and
+            // may ellipsize; it never steals rows from the lyrics.
+            HStack(spacing: 6) {
+                CaraokeCarPlayCover(entry: entry, size: 28, hideResyncGlyph: true)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(entry.title.isEmpty ? "Caraoke" : entry.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(entry.artist)
+                        .font(.system(size: 10))
+                        .foregroundStyle(t.mutedTextColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
+                    buttonWidth: 24, buttonHeight: 30, showPrevious: false)
+            }
+            .foregroundStyle(t.textColor)
+            .frame(height: 34)
+            .padding(.horizontal, 8)
         }
+    }
+}
+
+private extension CaraokeWidgetEntry {
+    /// Expiry proves the payload is out of date; it does not detect all drift.
+    var showsResyncOverlay: Bool {
+        status == .expired || resyncPulse < 1
     }
 }
 

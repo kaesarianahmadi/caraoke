@@ -94,7 +94,7 @@
     <li>Allow Live Activities: <em>iOS Settings → Caraoke → Live Activities</em>.</li>
     <li>Start playing music, then open the CarPlay dashboard to see lyrics alongside maps.</li>
   </ol>
-  <p>Nothing needs configuring while driving. The tile includes <strong>Resync</strong> and playback controls when you need them.</p>
+  <p>Nothing needs configuring while driving. On touchscreen CarPlay, the lyrics and hybrid tiles show a centered Resync arrow for a known expired timeline; the hybrid and player covers can also request resync. Playback controls are available on the player and hybrid tiles.</p>
 
   <h2 id="dynamic-island">2. Lock Screen &amp; Dynamic Island</h2>
   <p>On iPhone 14 Pro and later, lyrics can also appear in the Dynamic Island while music plays.</p>
@@ -156,7 +156,7 @@
 
   <h3>Lyrics freeze or drift after locking the phone</h3>
   <ol>
-    <li>Tap <strong>Resync</strong> (the circular arrow) in the phone Lyrics page header, or on the Caraoke widget / touchscreen CarPlay tile; the album art and vinyl disc act as Resync too. When Caraoke handles the tap, it samples the selected player immediately. The widget-extension fallback repairs Spotify only — Apple Music needs the app path.</li>
+    <li>Tap <strong>Resync</strong> in the phone Lyrics page header, or the centered arrow on a Caraoke CarPlay lyrics/hybrid tile when it appears for a known expired timeline. Album art and vinyl also request Resync. The arrow does not detect every timing error; when Caraoke handles a tap, it samples the selected player. The widget-extension fallback repairs Spotify only — Apple Music needs the app path.</li>
     <li>Or open Caraoke from the widget. Normal polling resumes, but opening the app does not force an immediate sample or relay re-arm — use Resync for that.</li>
     <li>Still stale? Switch Live Lyrics off, then on.</li>
     <li>Confirm <strong>Settings → Connect music</strong> matches the app that is actually playing.</li>

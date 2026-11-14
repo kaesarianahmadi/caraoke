@@ -474,6 +474,19 @@ final class TestRunner {
             // exact-with-album 404 → exact-without-album 404 → search 200
             check("lrclibSearchFallbackRequests", MockURLProtocol.requestCount == 3)
 
+            // Exact matches without synchronized lyrics must not mask a valid search result.
+            MockURLProtocol.reset()
+            MockURLProtocol.handler = { request in
+                let body = request.url?.path == "/api/get"
+                    ? MockURLProtocol.trackJSON(id: 4, synced: nil)
+                    : searchJSON
+                return (MockURLProtocol.httpResponse(200), body)
+            }
+            let providerUnsynced = makeProvider(cacheDir: FileManager.default.temporaryDirectory
+                .appendingPathComponent("lrclib-unsynced-\(UUID().uuidString)"))
+            let rescued = awaitLyrics { try await providerUnsynced.lyrics(for: sig) }
+            check("lrclibUnsyncedExactFallsBackToSearch", rescued.value?.lines.first?.text == "studio")
+
             // nothing at either endpoint → nil, no throw
             MockURLProtocol.reset()
             MockURLProtocol.handler = { _ in (MockURLProtocol.httpResponse(404), Data("null".utf8)) }

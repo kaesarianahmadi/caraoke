@@ -151,15 +151,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
     private func timeline(for payload: SharedWidgetPayload, in context: Context) -> Timeline<CaraokeWidgetEntry> {
         let settings = SharedWidgetStore.readSettings()
         let now = Date()
-        // Live-loop mode: when the surface repaints only on reloads (every
-        // systemSmall placement — the CarPlay tiles; a small tile on the
-        // phone's Home Screen rides along, which TimelineProvider cannot
-        // distinguish), bake exactly ONE entry. The competitor's CarPlay
-        // timeline archives hold entry count 1, and chronod re-requests a
-        // spent timeline promptly while deferring timelines that still have
-        // future entries (device logs 2026-10-26: our 6–82-entry bakes got
-        // 85 s cooldowns; a single spent entry is the shape that produced
-        // their ~1.6 s bake cadence).
+        // CarPlay entry swapping and policy wake behavior require device proof;
+        // retain the previously deployed scheduling until that evidence exists.
         let looping = context.family == .systemSmall
             && payload.isPlaying
             && payload.chainedSpanMs > 0
@@ -257,7 +250,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
                        debug: WidgetDebugStamp? = nil) -> CaraokeWidgetEntry {
         // `expired` is per-entry, not per-payload: the payload is what the app
         // last knew, and this entry is the one dated past the end of it.
-        let status: LyricStatus = built.isExpired
+        let status: LyricStatus = built.isExpired || WidgetTimelineBuilder.isExpired(payload: payload, now: built.date)
             ? .expired
             : (LyricStatus(raw: payload.status) ?? .playing)
         // A chained tail belongs to the next song, so the header follows the
