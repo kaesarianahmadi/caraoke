@@ -158,10 +158,14 @@ swiftc -Onone -module-cache-path .build/modulecache \
 
 ### Build 86 device follow-up
 
-Two transferred `CaraokeWidgets` CPU reports recorded 92% and 85% average
-CPU over 17 and 19 seconds. Both say `Action taken: none`; their unsymbolicated
-SwiftUI/WidgetKit samples do not establish the cause or prove throttling.
-No build-86 unified log archive was found among the transferred files.
+The drive archive `drive_20261114_172600.logarchive` contains repeated stale
+widget self-fetches: 97 Spotify HTTP 204 responses in one minute starting at
+13:12, repeatedly rebaking an expired payload. `204` supplied no track data;
+it does not establish why playback was absent. Concurrent automatic repairs are
+now coalesced with a five-second retry interval; explicit Resync is not gated.
+The extension can be restarted by iOS, so the in-memory gate is per process.
+Two separate CPU reports recorded 92% and 85% average CPU over 17 and 19 seconds,
+both with `Action taken: none`. The samples do not prove a CPU root cause.
 
 The CarPlay lyrics-only and hybrid tiles now show a centered resync action when
 the payload is known expired, or during its repair pulse. This detects expired
@@ -170,11 +174,14 @@ each to preserve lyric space. CarPlay lyric chunks use four words; the medium
 Home Screen widget now segments its active lyric too. Segmentation is visual,
 not a new timestamp or a guarantee that the whole provider line has four words.
 
-LRCLIB now searches for synced lyrics after a plain-only exact match instead of
-returning no lyrics immediately. The compact renderer uses a bounded font-size
-search; no causal reduction in device CPU or skipped lines is claimed. Previously
-observed CarPlay timeline deferrals make a wholesale scheduling change unsafe
-without a fresh drive trace.
+LRCLIB searches synced lyrics after a plain-only exact match. CarPlay-only
+lyric content requests a bottom-to-top SwiftUI push transition; actual widget
+animation and refresh timing must be checked on the head unit. The renderer's
+bounded font search reduces measurements but has no proven device CPU result.
+Provider coverage is not a latency guarantee: Caraoke races LRCLIB and YouTube
+Music; the competitor binary exposes additional providers, but their availability,
+licensing and timestamp quality for these songs were not established.
+Earlier traces showed CarPlay timeline deferrals, so scheduling remains unchanged.
 
 - Resync samples the selected player in the app process, restores a persisted
   ride's playback pipeline, re-arms the current relay schedule, and bypasses

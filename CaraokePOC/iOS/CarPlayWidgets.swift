@@ -237,7 +237,7 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
                 previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                 title: entry.title, artist: entry.artist, status: entry.status,
                 fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText,
-                maxWords: 4)
+                maxWords: 4, slideTransitions: true)
             // Expiry is a known stale state; drift within a track isn't observable here.
             if entry.showsResyncOverlay {
                 CaraokeCarPlayResyncButton(entry: entry, glyphSize: 22, hitTarget: 56)
@@ -259,7 +259,7 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                     title: entry.title, artist: entry.artist, status: entry.status,
                     fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText,
-                    maxWords: 4)
+                    maxWords: 4, slideTransitions: true)
                 if entry.showsResyncOverlay {
                     CaraokeCarPlayResyncButton(entry: entry, glyphSize: 22, hitTarget: 56)
                 }

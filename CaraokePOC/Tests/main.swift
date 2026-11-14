@@ -1342,6 +1342,19 @@ final class TestRunner {
             checkEqual("refreshPausedChecksResume", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1)
             checkEqual("refreshMissingPayloadChecksAgain", WidgetRefreshSession.nextRefreshDelay(payload: nil, now: now), 1)
         }
+        do {
+            let result = awaitResult {
+                let gate = AutomaticWidgetRepair()
+                let now = Date(timeIntervalSince1970: 1000)
+                let first = await gate.begin(now: now)
+                let concurrent = await gate.begin(now: now)
+                await gate.finish(now: now)
+                let early = await gate.begin(now: now.addingTimeInterval(4))
+                let afterCooldown = await gate.begin(now: now.addingTimeInterval(5))
+                return [first, concurrent, early, afterCooldown]
+            }
+            checkEqual("automaticRepairCoalescesAndRecovers", result.value, [true, false, false, true])
+        }
         // MARK: display segmentation (provider sentences chunked for tiles)
         //
         // Long provider lines arrive as whole sentences; the renderer wraps

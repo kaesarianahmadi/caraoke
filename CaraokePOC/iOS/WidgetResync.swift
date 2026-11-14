@@ -12,7 +12,16 @@ import os
 /// shared payload to it — same song ⇒ correct the clock, different song ⇒ pull
 /// its synced lyrics from LRCLIB and rebuild the payload. The app's next
 /// snapshot overwrites all of this, so there is no second source of truth.
+
 enum WidgetResync {
+    private static let automaticRepair = AutomaticWidgetRepair()
+
+    static func refreshAutomatically(timeout: TimeInterval) async -> SharedWidgetPayload? {
+        guard await automaticRepair.begin(now: Date()) else { return nil }
+        let payload = await refreshNowPlaying(timeout: timeout)
+        await automaticRepair.finish(now: Date())
+        return payload
+    }
 
     private struct NowPlaying {
         let title: String

@@ -140,7 +140,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
         }
         Task {
             let started = Date()
-            let refreshed = await WidgetResync.refreshNowPlaying(timeout: 6)
+            let refreshed = await WidgetResync.refreshAutomatically(timeout: 6)
             Self.log.notice("getTimeline self-fetch took=\(Date().timeIntervalSince(started), privacy: .public)s track=\((refreshed ?? payload).title, privacy: .public)")
             completion(timeline(for: refreshed ?? payload, in: context))
         }

@@ -19,6 +19,7 @@ struct CompactLyricsView: View {
     var boldText: Bool = true
     /// Maximum words in each displayed chunk; narrow tiles can wrap further.
     var maxWords: Int = 5
+    var slideTransitions = false
     @Environment(\.legibilityWeight) private var legibilityWeight
 
     var body: some View {
@@ -38,7 +39,9 @@ struct CompactLyricsView: View {
                         .frame(width: width)
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: currentLine)
+            .id(slideTransitions ? currentLine : "")
+            .transition(slideTransitions ? .push(from: .bottom) : .identity)
+            .animation(.easeInOut(duration: slideTransitions ? 0.35 : 0.2), value: currentLine)
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
             .mask {
                 LinearGradient(stops: [.init(color: .clear, location: 0),
