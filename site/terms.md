@@ -1,19 +1,18 @@
 # Terms of Use — Caraoke (draft for publication)
 
-Effective date: [launch date]. Contact: support@caraoke.app
+Draft for review; effective date pending legal review. Contact: support@caraoke.app
 
 ## 1. The service
 
-Caraoke ("the App") displays time-synced song lyrics on your iPhone and on
-surfaces iOS makes available to Live Activities (including CarPlay). It is a
-display companion — it never plays, stores, or distributes music or lyrics as
-a catalog service.
+Caraoke displays synchronized lyrics on iPhone and supported Live Activity and
+widget surfaces, including CarPlay. It reads playback state, can send playback
+commands when authorized, caches lyrics locally and sends the current lyric
+schedule to a relay. It does not distribute music audio.
 
 ## 2. Subscriptions & purchases
 
-- Caraoke Plus is offered as $1.99/month, $9.99/year (each with a 3-day free
-  trial), or a one-time $14.99 lifetime purchase (launch offer, normally $27),
-  billed through your Apple ID.
+- Available products, prices and any introductory offers are shown by Apple
+  at purchase time. Purchases are billed through your Apple ID.
 - Subscriptions renew automatically unless cancelled at least 24 hours before
   the period ends; manage or cancel in your Apple ID settings.
 - Restore previous purchases with "Restore purchases" in the app.
@@ -21,19 +20,16 @@ a catalog service.
 
 ## 3. Lyrics content
 
-Lyrics are retrieved from LRCLIB (lrclib.net), a free community lyrics
-database, and are attributed in the app. Lyric text is copyrighted by its
-respective rights holders; Caraoke displays it under the community-access
-model of that service and claims no ownership. If you are a rights holder and
-believe lyrics displayed through the service infringe your rights, contact
-support@caraoke.app — cached copies can be purged and sources swapped promptly.
+Lyrics are requested from LRCLIB and YouTube Music. Their availability and terms
+are outside Caraoke's control; Caraoke does not claim ownership of lyric text.
+Rights and licensing require review. Rights holders may contact support@caraoke.app.
 
 ## 4. Acceptable use & driving safety
 
-Use while parked; the app is designed for passengers. Never operate your
-phone to configure Caraoke while driving. CarPlay interaction is read-only by
-design. You may not resell the service, scrape its sources through it, or
-attempt to extract lyric databases from the app.
+Use while parked; the app is intended for passengers. Never configure or use
+the phone while driving. Touchscreen CarPlay widgets can include playback and
+resync controls; use them only when safe and lawful. Do not resell the service,
+scrape its sources through it or extract lyric databases.
 
 ## 5. No warranty
 

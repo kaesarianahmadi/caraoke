@@ -1,3 +1,5 @@
+> Historical design guidance, not current implementation or release requirements. Verify layout, pricing and authentication details against current source.
+
 # Caraoke — Design Requirements & Guidance for OpenDesign
 
 > **Purpose:** single source of design truth, matching what the app **actually is** today (every state, field, and action below exists in the shipped codebase) while pulling the visual language up to the category standard set by Dynamic Lyrics (灵动歌词) — the competitor whose Live Activity design currently leads the App Store category.

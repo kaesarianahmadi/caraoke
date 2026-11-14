@@ -1,3 +1,5 @@
+> Historical draft; do not submit as written. It predates the lyrics relay, Sentry, TelemetryDeck, RevenueCat, YouTube Music provider and current StoreKit IDs. Reconcile disclosures, pricing and App Privacy against the current app and reviewed policy before use.
+
 # App Store Record — Submission Draft (Phase D prep)
 
 Paste-ready content for App Store Connect. Full details verified against the

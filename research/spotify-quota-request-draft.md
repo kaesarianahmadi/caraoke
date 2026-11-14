@@ -1,3 +1,5 @@
+> Historical draft; do not submit unchanged. The current app uses a relay, analytics and crash reporting; verify all data-flow and retention claims against the actual implementation and reviewed privacy disclosures.
+
 # Spotify Extended Quota — Request Draft
 
 Paste-adapt this into the Spotify Developer Dashboard

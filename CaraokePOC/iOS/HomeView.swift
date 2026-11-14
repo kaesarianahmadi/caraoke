@@ -1,17 +1,19 @@
 import SwiftUI
 import UIKit
 
-/// Home screen with live lyrics, widget access, music sources and playback controls.
+/// Home screen with live lyrics, full lyric access, music sources and playback controls.
 struct HomeView: View {
     @ObservedObject var model: RideModeViewModel
     @State private var showSettings = false
     @State private var showPaywall = false
     @State private var showSpotifySetup = false
-    @State private var showWidgetSettings = false
+    @State private var showHelp = false
     @State private var showLyricsPage = false
-    @AppStorage(AppearanceSettings.boldTextKey) private var boldText = true
     @StateObject private var purchases = PurchaseManager()
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var compactPreviewMinHeight: CGFloat = 96
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -20,34 +22,40 @@ struct HomeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     header
-                    howToBanner
-                    liveActivitiesSection
-                    widgetsSection
-                    sourcesSection
-                    if showsFixes {
-                        fixesSection
-                    }
+                    liveLyricsSection
+                    setupHelpLink
+                    fullLyricsPreview
+                    musicSourceSection
                     footnote
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
+                .padding(.bottom, 8)
             }
             // Floating mini-player at bottom. Hosted in the scroll view's
             // bottom safe-area inset so the content inset IS the miniplayer's
-            // measured height — the old guessed 80/84 pt constants still let
-            // the Music-source tiles slide under the dock (build 66 fix).
+            // measured height — no guessed height constants.
             .safeAreaInset(edge: .bottom) {
                 floatingMiniPlayer
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
         }
-        .sheet(isPresented: $showSettings) {
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showSettings) {
             SettingsView(model: model, presentingPaywall: $showPaywall,
                          spotifyAuth: model.spotifyAuth)
         }
-        .sheet(isPresented: $showWidgetSettings) {
-            WidgetSettingsView(model: model)
+        .sheet(isPresented: $showHelp) {
+            NavigationStack {
+                HelpView()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showHelp = false }
+                        }
+                    }
+            }
+            .tint(AppTheme.accent(scheme))
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchases: purchases, onDismiss: { showPaywall = false })
@@ -75,286 +83,378 @@ struct HomeView: View {
     // MARK: - Header (brand mark + Help "?" + gear)
 
     private var header: some View {
-        HStack {
-            // Wordmark only — the icon next to it was removed and the type
-            // scaled up 25 % (user direction).
+        HStack(spacing: 12) {
             Text("Caraoke")
                 .font(.largeTitle.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundColor(AppTheme.fg(scheme))
-            Spacer()
+            Spacer(minLength: 8)
 
-            // Help & Common Problems "?" button
-            Button {
-                if let url = URL(string: "https://caraokeapp.com/docs") {
-                    UIApplication.shared.open(url)
-                }
-            } label: {
+            Button { showHelp = true } label: {
                 Image(systemName: "questionmark")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.body.weight(.bold))
                     .foregroundColor(AppTheme.fg(scheme))
                     .frame(width: 44, height: 44)
                     .background(Circle().fill(AppTheme.surface(scheme)))
                     .overlay(Circle().stroke(AppTheme.border(scheme), lineWidth: 1))
             }
-            .accessibilityLabel("Help and FAQ")
+            .buttonStyle(.plain)
+            .accessibilityLabel("Help and setup")
 
-            // Settings gear button
-            Button {
-                showSettings = true
-            } label: {
+            Button { showSettings = true } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 17, weight: .regular))
+                    .font(.body)
                     .foregroundColor(AppTheme.fg(scheme))
                     .frame(width: 44, height: 44)
                     .background(Circle().fill(AppTheme.surface(scheme)))
                     .overlay(Circle().stroke(AppTheme.border(scheme), lineWidth: 1))
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Settings")
         }
         .padding(.top, 8)
         .padding(.bottom, 4)
     }
 
-    private var howToBanner: some View {
-        Button {
-            if let url = URL(string: "https://caraokeapp.com/docs") { UIApplication.shared.open(url) }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "speaker.wave.2.fill")
-                Text("How to display lyrics everywhere")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-            }
-            .foregroundStyle(AppTheme.fg(scheme))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .frame(minHeight: 48)
-            .background(AppTheme.surface(scheme), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
+    // MARK: - Live Lyrics
 
-    private var liveActivitiesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+    private var liveLyricsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
                 Text("Live Lyrics")
                     .font(.title2.weight(.bold))
-                Spacer()
+                    .foregroundColor(AppTheme.fg(scheme))
+                Spacer(minLength: 8)
+
                 Button(intent: SetRideModeIntent(enabled: !model.isOn)) {
                     ZStack(alignment: model.isOn ? .trailing : .leading) {
-                        Capsule().fill(model.isOn ? AppTheme.ok : AppTheme.muted(scheme).opacity(0.35))
-                        Circle().fill(.white).padding(2)
-                            .frame(width: 31, height: 31)
+                        Capsule()
+                            .fill(model.isOn ? AppTheme.accent(scheme)
+                                  : AppTheme.muted(scheme).opacity(0.3))
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 27, height: 27)
+                            .padding(2)
+                            .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
                     }
                     .frame(width: 51, height: 31)
                     .frame(minHeight: 44)
+                    .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
+                               value: model.isOn)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Live Lyrics")
                 .accessibilityValue(model.isOn ? "On" : "Off")
                 .accessibilityHint(model.isOn ? "Turn off live lyrics" : "Start live lyrics")
             }
-            Text("Show lyrics on the Lock Screen, CarPlay, and Apple Watch.")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.muted(scheme))
-            Label(model.isOn ? model.lyricStatus.homeBadge : "Live Lyrics off", systemImage: model.isOn ? "waveform" : "waveform.slash")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.muted(scheme))
-                .accessibilityLabel("Lyrics status: \(model.isOn ? model.lyricStatus.homeBadge : "Live Lyrics off")")
-            if model.liveActivityGateMessage != nil {
-                gateBanner
+
+            compactLivePreview
+
+            if let gate = model.liveActivityGateMessage {
+                gateNotice(gate)
             }
-            Button { showLyricsPage = true } label: {
-                playerCard
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open lyrics page")
-            if let err = model.transportError {
-                Text(err)
-                    .font(.system(size: 12, weight: .medium))
+
+            if let error = model.transportError {
+                Label(error, systemImage: "exclamationmark.circle.fill")
+                    .font(.footnote.weight(.medium))
                     .foregroundColor(AppTheme.warn)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 4)
-                    .transition(.opacity)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private var widgetsSection: some View {
-        Button { showWidgetSettings = true } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Widget")
-                        .font(.title2.weight(.bold))
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(AppTheme.muted(scheme))
+    private var compactLivePreview: some View {
+        HStack(alignment: .center, spacing: 12) {
+            CoverArtworkView(artworkData: model.artworkData,
+                             cornerRadius: 10,
+                             artworkColorHex: model.artworkColorHex)
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(AppTheme.border(scheme), lineWidth: 1))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(compactIdentity)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppTheme.fg(scheme))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(model.isOn ? AppTheme.accent(scheme)
+                                  : AppTheme.muted(scheme).opacity(0.5))
+                            .frame(width: 5, height: 5)
+                        Text(compactStatus)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(AppTheme.muted(scheme))
+                            .lineLimit(1)
+                    }
                 }
-                Text("Add live lyrics to the Home Screen and CarPlay.")
+
+                Text(compactCurrentLine)
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.muted(scheme))
-                HomeWidgetPreview(title: model.trackTitle, artist: model.trackArtist,
-                                  currentLine: model.currentLine, nextLine: model.nextLine,
-                                  hasPreviousLines: !model.previousLines.isEmpty,
-                                  artworkData: model.artworkData,
-                                  artworkColorHex: model.artworkColorHex,
-                                  isSpinning: model.isPlaybackActive)
+                    .foregroundColor(AppTheme.fg(scheme))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let next = compactNextLine {
+                    Text(next)
+                        .font(.caption)
+                        .foregroundColor(AppTheme.muted(scheme))
+                        .lineLimit(1)
+                }
             }
-            .foregroundStyle(AppTheme.fg(scheme))
         }
-        .buttonStyle(.plain)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: compactPreviewMinHeight, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(AppTheme.surface(scheme)))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .stroke(AppTheme.border(scheme), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Live lyrics preview: \(compactStatus). \(compactCurrentLine)")
     }
 
-    /// Gate warning box under the switch
-    private var gateBanner: some View {
+    private var compactIdentity: String {
+        if !model.trackTitle.isEmpty { return model.trackTitle }
+        if !model.trackArtist.isEmpty { return model.trackArtist }
+        return "Caraoke"
+    }
+
+    private var compactStatus: String {
+        model.isOn ? model.lyricStatus.homeBadge : "Off"
+    }
+
+    private var compactCurrentLine: String {
+        guard model.isOn else { return "Turn on Live Lyrics to stream lyrics." }
+        switch model.lyricStatus {
+        case .loading:
+            return "Finding lyrics…"
+        case .noLyrics:
+            return "No lyrics found for this song."
+        case .stale:
+            return "Ride ended."
+        case .expired:
+            return "Lyrics are out of date."
+        case .paused:
+            return model.currentLine.isEmpty ? "Paused." : model.currentLine
+        case .idle:
+            return "Waiting for playback…"
+        case .playing:
+            return model.currentLine.isEmpty ? "Lyrics will appear when the song starts." : model.currentLine
+        }
+    }
+
+    private var compactNextLine: String? {
+        guard model.isOn else { return nil }
+        switch model.lyricStatus {
+        case .playing, .paused:
+            return model.nextLine
+        default:
+            return nil
+        }
+    }
+
+    private func gateNotice(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 18))
+                .font(.footnote)
                 .foregroundColor(AppTheme.warn)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.liveActivityGateMessage ?? "Live Lyrics is turned off.")
-                    .font(.system(size: 13, weight: .semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(message)
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(AppTheme.fg(scheme))
-                Text("Enable Live Lyrics in Settings to stream lyrics to your car screen.")
-                    .font(.system(size: 12))
+                Text("Live Activities are disabled in iOS Settings. Enable them to show lyrics on the Lock Screen and CarPlay.")
+                    .font(.caption)
                     .foregroundColor(AppTheme.muted(scheme))
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer(minLength: 4)
+            Button("Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundColor(AppTheme.accent(scheme))
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(AppTheme.warn.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AppTheme.warn.opacity(0.45), lineWidth: 1))
-        .padding(.top, 12)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(AppTheme.warn.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .stroke(AppTheme.warn.opacity(0.35), lineWidth: 1))
     }
 
-    private var showsFixes: Bool {
-        model.liveActivityGateMessage != nil
+    // MARK: - Setup help
+
+    private var setupHelpLink: some View {
+        Button { showHelp = true } label: {
+            HStack(spacing: 8) {
+                Text("Lock Screen & CarPlay")
+                    .font(.subheadline)
+                    .foregroundColor(AppTheme.muted(scheme))
+                Spacer(minLength: 8)
+                Text("Setup")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(AppTheme.accent(scheme))
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(AppTheme.accent(scheme))
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Lock Screen and CarPlay setup")
+        .accessibilityHint("Opens setup help")
     }
 
-    // MARK: - Player card
+    // MARK: - Full lyrics preview
 
-    private var playerCard: some View {
-        let isIdle = !model.isOn || (model.trackTitle.isEmpty && model.currentLine.isEmpty)
-        return LyricTileView(
-            title: isIdle ? (model.isOn ? "Caraoke" : "Live Lyrics Paused") : model.trackTitle,
-            artist: isIdle ? (model.isOn ? "Waiting for playback…" : "Switch on to stream to car") : model.trackArtist,
-            currentLine: isIdle ? (model.isOn ? "Play a song on Apple Music or Spotify" : "Turn switch on to stream lyrics") : model.currentLine,
-            previousLines: isIdle ? [] : model.previousLines,
-            nextLine: isIdle ? nil : model.nextLine,
-            upcomingLines: isIdle ? [] : model.upcomingLines,
-            isPlaying: model.isPlaying,
-            progress: isIdle ? 0 : model.progress,
-            status: isIdle ? .idle : model.lyricStatus,
-            positionMs: isIdle ? 0 : model.positionMs,
-            durationMs: isIdle ? nil : model.durationMs,
-            surface: .home,
-            palette: .activity,
-            boldText: boldText
-        )
-        .frame(minHeight: 167)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.08), radius: 12, y: 4)
-        .accessibilityLabel("Now playing")
+    private var fullLyricsPreview: some View {
+        Button { showLyricsPage = true } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Full lyrics")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(AppTheme.muted(scheme))
+                        if !model.trackTitle.isEmpty {
+                            Text(fullIdentity)
+                                .font(.caption)
+                                .foregroundColor(AppTheme.muted(scheme).opacity(0.85))
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                Spacer(minLength: 20)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    if let previous = fullPreviousLine {
+                        Text(previous)
+                            .font(.subheadline)
+                            .foregroundColor(AppTheme.muted(scheme))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text(fullCurrentLine)
+                        .font(.title2.weight(.bold))
+                        .foregroundColor(AppTheme.fg(scheme))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 16)
+                        .overlay(alignment: .leading) {
+                            if showsFullLyricMarker {
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(AppTheme.accent(scheme))
+                                    .frame(width: 3)
+                                    .padding(.vertical, 4)
+                            }
+                        }
+
+                    if let next = fullNextLine {
+                        Text(next)
+                            .font(.subheadline)
+                            .foregroundColor(AppTheme.muted(scheme))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Spacer(minLength: 20)
+
+                HStack(spacing: 6) {
+                    Text("Open full lyrics")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(AppTheme.accent(scheme))
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(AppTheme.accent(scheme))
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, minHeight: 300, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(AppTheme.surface(scheme)))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(AppTheme.border(scheme), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open full lyrics")
+        .accessibilityHint("Shows the full lyric sheet and playback controls")
+    }
+
+    private var fullIdentity: String {
+        if model.trackArtist.isEmpty { return model.trackTitle }
+        return "\(model.trackTitle) — \(model.trackArtist)"
+    }
+
+    private var fullCurrentLine: String {
+        guard model.isOn else { return "Live Lyrics is off" }
+        switch model.lyricStatus {
+        case .loading:
+            return "Finding lyrics…"
+        case .noLyrics:
+            return "No lyrics found for this song"
+        case .stale:
+            return "Ride ended"
+        case .expired:
+            return "Lyrics are out of date"
+        case .paused:
+            return model.currentLine.isEmpty ? "Paused" : model.currentLine
+        case .idle:
+            return "Waiting for playback…"
+        case .playing:
+            if !model.currentLine.isEmpty { return model.currentLine }
+            return model.trackTitle.isEmpty ? "Waiting for playback…" : "Waiting for the first line…"
+        }
+    }
+
+    private var fullPreviousLine: String? {
+        guard isShowingLyricWindow else { return nil }
+        return model.previousLines.last
+    }
+
+    private var fullNextLine: String? {
+        guard isShowingLyricWindow else { return nil }
+        return model.nextLine
+    }
+
+    private var isShowingLyricWindow: Bool {
+        guard model.isOn, !model.currentLine.isEmpty else { return false }
+        return model.lyricStatus == .playing || model.lyricStatus == .paused
+    }
+
+    private var showsFullLyricMarker: Bool {
+        isShowingLyricWindow
     }
 
     // MARK: - Floating Mini-Player
 
     private var floatingMiniPlayer: some View {
-        let hasTrack = !model.trackTitle.isEmpty
-        return HStack(spacing: 12) {
-            // Tapping the identity opens the full lyrics page.
-            Button { showLyricsPage = true } label: {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 6) {
+                    floatingIdentity
+                    floatingTransport
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+            } else {
                 HStack(spacing: 12) {
-                    // Real cover art of the current song. Rounded SQUARE, not a
-                    // circle — user direction, and it matches the rounded-square
-                    // mark the large widget already uses.
-                    CoverArtworkView(artworkData: model.artworkData,
-                                     cornerRadius: 11,
-                                     artworkColorHex: model.artworkColorHex)
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .stroke(Color.white.opacity(0.14), lineWidth: 1))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(hasTrack ? model.trackTitle : "Caraoke")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-
-                        HStack(spacing: 6) {
-                            // Connected app indicator badge
-                            if model.spotifyConnected {
-                                HStack(spacing: 3) {
-                                    Circle().fill(Color(hex: 0x1DB954)).frame(width: 6, height: 6)
-                                    Text("Spotify")
-                                }
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(Color(hex: 0x1DB954))
-                            } else if model.appleMusicConnected {
-                                HStack(spacing: 3) {
-                                    Circle().fill(Color(hex: 0xFA233B)).frame(width: 6, height: 6)
-                                    Text("Apple Music")
-                                }
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(Color(hex: 0xFA233B))
-                            } else {
-                                Text(hasTrack ? model.trackArtist : "Not playing")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Color(hex: 0x8E8E93))
-                            }
-                        }
-                        .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
+                    floatingIdentity
+                    floatingTransport
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open lyrics page")
-
-            // Transport drives the active source (Apple Music or Spotify).
-            HStack(spacing: 0) {
-                Button {
-                    Task { await model.transport(.previous) }
-                } label: {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.8))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("Previous song")
-
-                Button {
-                    Task { await model.transport(.playPause) }
-                } label: {
-                    Image(systemName: model.isPlaybackActive ? "pause.fill" : "play.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(model.isPlaybackActive ? "Pause" : "Play")
-
-                Button {
-                    Task { await model.transport(.next) }
-                } label: {
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.8))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("Next song")
-            }
-            .padding(.trailing, 4)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -369,124 +469,138 @@ struct HomeView: View {
         .shadow(color: .black.opacity(0.4), radius: 14, y: 6)
     }
 
+    private var floatingIdentity: some View {
+        let hasTrack = !model.trackTitle.isEmpty
+        return Button { showLyricsPage = true } label: {
+            HStack(spacing: 12) {
+                // Real cover art of the current song. Rounded SQUARE, not a
+                // circle — user direction, and it matches the rounded-square
+                // mark the large widget already uses.
+                CoverArtworkView(artworkData: model.artworkData,
+                                 cornerRadius: 11,
+                                 artworkColorHex: model.artworkColorHex)
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(hasTrack ? model.trackTitle : "Caraoke")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+
+                    HStack(spacing: 6) {
+                        // Connected app indicator badge
+                        if model.spotifyConnected {
+                            HStack(spacing: 3) {
+                                Circle().fill(Color(hex: 0x1DB954)).frame(width: 6, height: 6)
+                                Text("Spotify")
+                            }
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(Color(hex: 0x1DB954))
+                        } else if model.appleMusicConnected {
+                            HStack(spacing: 3) {
+                                Circle().fill(Color(hex: 0xFA233B)).frame(width: 6, height: 6)
+                                Text("Apple Music")
+                            }
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(Color(hex: 0xFA233B))
+                        } else {
+                            Text(hasTrack ? model.trackArtist : "Not playing")
+                                .font(.caption)
+                                .foregroundColor(Color(hex: 0x8E8E93))
+                        }
+                    }
+                    .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open lyrics page")
+    }
+
+    private var floatingTransport: some View {
+        // Transport drives the active source (Apple Music or Spotify).
+        HStack(spacing: 0) {
+            Button {
+                Task { await model.transport(.previous) }
+            } label: {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.8))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Previous song")
+
+            Button {
+                Task { await model.transport(.playPause) }
+            } label: {
+                Image(systemName: model.isPlaybackActive ? "pause.fill" : "play.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(model.isPlaybackActive ? "Pause" : "Play")
+
+            Button {
+                Task { await model.transport(.next) }
+            } label: {
+                Image(systemName: "forward.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.8))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Next song")
+        }
+    }
+
     // MARK: - Music Sources
 
-    private var sourcesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Music sources")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(AppTheme.muted(scheme))
-                .padding(.horizontal, 4)
-                .padding(.bottom, 8)
-            VStack(spacing: 0) {
-                Button {
-                    model.selectMusicSource(.appleMusic)
-                } label: {
-                    sourceRow(
-                        logo: AnyView(AppleMusicLogo()),
-                        title: "Apple Music",
-                        subtitle: model.appleMusicConnected ? "Active source" : "Tap to switch",
-                        connected: model.appleMusicConnected,
-                        showsCheck: model.appleMusicConnected
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Divider().overlay(AppTheme.border(scheme))
-
-                if FeatureFlags.spotifyEnabled {
-                    Button {
-                        if model.spotifyAuth.isConnected {
-                            model.selectMusicSource(.spotify)
-                        } else {
-                            showSpotifySetup = true
-                        }
-                    } label: {
-                        sourceRow(
-                            logo: AnyView(SpotifyLogo(size: 34)),
-                            title: "Spotify",
-                            subtitle: model.spotifyConnected
-                                ? "Active source"
-                                : (model.spotifyAuth.isConnected ? "Connected (tap to switch)" : "Not connected"),
-                            connected: model.spotifyConnected,
-                            showsCheck: model.spotifyConnected
-                        )
+    private var musicSourceSection: some View {
+        Menu {
+            Button("Apple Music") {
+                model.selectMusicSource(.appleMusic)
+            }
+            if FeatureFlags.spotifyEnabled {
+                Button("Spotify") {
+                    if model.spotifyAuth.isConnected {
+                        model.selectMusicSource(.spotify)
+                    } else {
+                        showSpotifySetup = true
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-    }
-
-    private func sourceRow(logo: AnyView, title: String, subtitle: String,
-                            connected: Bool, showsCheck: Bool) -> some View {
-        HStack(spacing: 12) {
-            logo.frame(width: 34, height: 34)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.body.weight(.medium))
+        } label: {
+            HStack(spacing: 8) {
+                Text("Music source")
+                    .font(.subheadline)
+                    .foregroundColor(AppTheme.muted(scheme))
+                Spacer(minLength: 8)
+                Text(activeSourceName)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundColor(AppTheme.fg(scheme))
-                Text(subtitle)
-                    .font(connected ? .subheadline.weight(.medium) : .subheadline)
-                    .foregroundColor(connected ? AppTheme.ok : AppTheme.muted(scheme))
-            }
-            Spacer()
-            if showsCheck && connected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(AppTheme.ok)
-            } else if !connected {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(AppTheme.muted(scheme))
             }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
-        .contentShape(Rectangle())
+        .accessibilityLabel("Music source")
+        .accessibilityValue(activeSourceName)
+        .accessibilityHint("Choose Apple Music or Spotify")
     }
 
-    // MARK: - Needs attention
-
-    @ViewBuilder
-    private var fixesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Needs attention")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(AppTheme.muted(scheme))
-                .padding(.horizontal, 4)
-                .padding(.bottom, 8)
-            HStack(alignment: .top, spacing: 12) {
-                Circle()
-                    .fill(AppTheme.fg(scheme).opacity(0.06))
-                    .frame(width: 34, height: 34)
-                    .overlay(Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 15))
-                        .foregroundColor(AppTheme.warn))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Live Lyrics is off")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(AppTheme.fg(scheme))
-                    Text("Lyrics can't reach CarPlay until it's enabled.")
-                        .font(.system(size: 13))
-                        .foregroundColor(AppTheme.muted(scheme))
-                }
-                Spacer()
-                Button("Fix") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                }
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(AppTheme.fg(scheme))
-            }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
-        }
+    private var activeSourceName: String {
+        model.spotifyConnected ? "Spotify" : "Apple Music"
     }
 
     private var footnote: some View {
@@ -496,153 +610,6 @@ struct HomeView: View {
             .foregroundColor(AppTheme.muted(scheme))
             .frame(maxWidth: .infinity)
             .padding(.top, 4)
-    }
-}
-
-// MARK: - Home widget preview (competitor IMG_5085: lyrics left, record right)
-
-/// Static stand-in for the Home Screen widget, so the Widget section shows what
-/// the user gets before they add it.
-///
-/// Fed the REAL now-playing values — track, artist, lyric window, cover art and
-/// the cover's average colour — because build 40's preview hardcoded a blue
-/// gradient, a brown disc and a `music.note` glyph, so it never matched the
-/// widget it was advertising.
-struct HomeWidgetPreview: View {
-    let title: String
-    let artist: String
-    let currentLine: String
-    let nextLine: String?
-    /// Whether the track already has lines behind it — the widget's outro
-    /// transition (`!previousLines.isEmpty && isPlaying`). The preview draws no
-    /// previous line, because the widget never draws one.
-    var hasPreviousLines: Bool = false
-    var artworkData: Data?
-    var artworkColorHex: String?
-    /// Spins the record while the active source is playing (app preview only).
-    var isSpinning: Bool = false
-
-    @Environment(\.colorScheme) private var scheme
-
-    /// Reads the same shared settings the widget itself uses.
-    private var coverStyle: WidgetCoverStyle {
-        WidgetCoverStyle(rawValue: SharedWidgetStore.readSettings().coverStyle) ?? .vinyl
-    }
-
-    private var theme: WidgetTheme {
-        // v1 previews the default theme; the Widget settings screen is where the
-        // user picks their own, and the real widget reads it from the payload.
-        WidgetTheme(rawValue: SharedWidgetStore.readSettings().theme) ?? .artwork
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 0) {
-                // The same three tiers as `VinylWidgetView`, read from the same
-                // declaration (`MediumWidgetTiers`): identity 18, lyric block 82,
-                // transport 26 + 8 clearance, inside 12 pt of padding. Rigid, and
-                // no Spacers — that is what stops the preview drifting from the
-                // widget again. It used to render 18 pt rows, a previous line the
-                // widget never draws, and flexible spacers where the widget has
-                // fixed heights.
-                Text(identity)
-                    .font(.system(size: MediumWidgetTiers.identityFont, weight: .semibold))
-                    .foregroundStyle(theme.mutedTextColor)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(height: MediumWidgetTiers.identityHeight, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: MediumWidgetTiers.rowSpacing) {
-                    if !currentLyricText.isEmpty {
-                        Text(currentLyricText)
-                            .font(LyricType.font(size: MediumWidgetTiers.heroFont, weight: .bold))
-                            .foregroundStyle(theme.textColor)
-                            .lineLimit(MediumWidgetTiers.heroRows)
-                            .lineSpacing(MediumWidgetTiers.lineSpacing)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if let nextLine, !nextLine.isEmpty {
-                        Text(nextLine)
-                            .font(LyricType.font(size: MediumWidgetTiers.neighborFont, weight: .regular))
-                            .foregroundStyle(theme.mutedTextColor.opacity(0.82))
-                            .lineLimit(MediumWidgetTiers.neighborRows)
-                            .lineSpacing(MediumWidgetTiers.lineSpacing)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: MediumWidgetTiers.lyricHeight)
-                .clipped()
-
-                // The widget's transport is `AppIntent` buttons; the preview keeps
-                // images at the same sizes, footprints and spacing, because the
-                // whole preview card is already one tap target into the Widget
-                // section and nested buttons would fight it.
-                HStack(spacing: 14) {
-                    Image(systemName: "backward.fill")
-                        .frame(width: 30, height: MediumWidgetTiers.transportButtonRowHeight)
-                    Image(systemName: isSpinning ? "pause.fill" : "play.fill")
-                        .font(.system(size: MediumWidgetTiers.playGlyphFont, weight: .semibold))
-                        .frame(width: 30, height: MediumWidgetTiers.transportButtonRowHeight)
-                    Image(systemName: "forward.fill")
-                        .frame(width: 30, height: MediumWidgetTiers.transportButtonRowHeight)
-                }
-                .font(.system(size: MediumWidgetTiers.transportFont, weight: .semibold))
-                .foregroundStyle(theme.textColor)
-                .padding(.bottom, MediumWidgetTiers.transportClearance)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            cover
-        }
-        .padding(MediumWidgetTiers.padding)
-        .frame(height: MediumWidgetTiers.hostHeight)
-        // The same recipe `WidgetArtworkBackground` paints on the real widget:
-        // the song's own cover, blurred, when the theme follows the artwork.
-        // It is a View, not a ShapeStyle, so it goes through the ViewBuilder
-        // `background(alignment:content:)` overload and is clipped to the card
-        // shape explicitly — `.background(_:in:)` only accepts shape styles.
-        .background {
-            WidgetArtworkBackground(theme: theme, artworkData: artworkData)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        }
-        // Same outline + shadow recipe as the Live Activity card above, so the
-        // widget preview reads as the same family of surface.
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .stroke(.white.opacity(0.08), lineWidth: 1))
-        .shadow(color: .black.opacity(scheme == .dark ? 0.35 : 0.08), radius: 12, y: 4)
-    }
-
-    private var currentLyricText: String {
-        if !currentLine.isEmpty {
-            return currentLine
-        }
-        if hasPreviousLines && isSpinning {
-            return "" // outro transition
-        }
-        if !title.isEmpty {
-            return artist.isEmpty ? title : "\(title) — \(artist)"
-        }
-        return "Play a song to see lyrics"
-    }
-
-    private var identity: String {
-        artist.isEmpty ? (title.isEmpty ? "Caraoke" : title) : "\(title) — \(artist)"
-    }
-
-    @ViewBuilder private var cover: some View {
-        if coverStyle == .vinyl {
-            VinylRecordView(artworkData: artworkData, diameter: 120, labelDiameter: 84)
-                .vinylSpin(isSpinning)
-        } else {
-            CoverArtworkView(artworkData: artworkData, cornerRadius: 14,
-                             artworkColorHex: artworkColorHex)
-                .frame(width: 104, height: 104)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(.white.opacity(0.12)))
-        }
     }
 }
 

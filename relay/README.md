@@ -77,8 +77,10 @@ Local access-boundary regression: `node relay/worker.test.mjs`.
 - Playback sessions are routed by Live Activity push token, not one global ride.
 - Line-boundary pushes only; the progress bar recalculates at each push.
   A per-10s heartbeat keeps the last line's activity fresh until `endAt`.
-- APNs is rate-tolerant at this volume; no retry/backoff implemented yet —
-  if a push fails (device offline), the next boundary push self-heals.
+- APNs has system-controlled delivery budgets. The worker retries certain token
+  errors once and probes sandbox for one environment error; it has no general
+  delivery guarantee or offline backoff. A later boundary may send a new state,
+  but does not prove the device received the missed update.
 
 ## Security
 

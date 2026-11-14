@@ -1,3 +1,5 @@
+> Historical specification: pricing, layouts, provider details and release status below may be outdated. Current implementation and `CaraokePOC/README.md` take precedence; this document is not App Store submission evidence.
+
 # Caraoke — Complete Architecture & Component Specification Audit
 
 > **Document Purpose:** Complete technical audit and component dictionary of the entire Caraoke codebase. Use this reference to identify specific components, files, data flows, and widget families when triaging defects or planning subsequent builds.

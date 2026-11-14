@@ -6,6 +6,8 @@ struct CaraokeApp: App {
     // from a background context) and this UI drive the same ViewModel.
     @ObservedObject private var model = AppModel.shared.ride
     @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
+    @AppStorage("hasSeenWelcome") private var hasSeenWelcome = false
+    @State private var showWelcome = false
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -24,8 +26,19 @@ struct CaraokeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            HomeView(model: model)
+            NavigationStack {
+                HomeView(model: model)
+            }
                 .preferredColorScheme(preferredScheme)
+                .task { showWelcome = !hasSeenWelcome }
+                .sheet(isPresented: $showWelcome, onDismiss: {
+                    hasSeenWelcome = true
+                }) {
+                    OnboardingView {
+                        hasSeenWelcome = true
+                        showWelcome = false
+                    }
+                }
         }
         // Activity.request is only legal in the foreground, so a ride left
         // running while the activity was ended (or the app relaunched) gets it

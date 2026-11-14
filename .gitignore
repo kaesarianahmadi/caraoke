@@ -40,6 +40,7 @@ DerivedData/
 *.xcodeproj/
 
 # CarPlay tablet testing binaries
+tools/*.tar.gz
 tools/carplay-tablet/*.apk
 tools/jdk-21/
 tools/playport/

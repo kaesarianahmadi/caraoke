@@ -62,23 +62,24 @@ private struct CaraokeCarPlayTransport: View {
     }
 }
 
-/// Centered repair action used when a timeline is known to be expired.
-private struct CaraokeCarPlayResyncButton: View {
+/// The whole lyrics area requests repair; the glyph only marks proven expiry.
+private struct CaraokeCarPlayResyncButton<Content: View>: View {
     let entry: CaraokeWidgetEntry
-    var glyphSize: CGFloat = 15
-    /// Where the tile allows, keep the touch target at the 44 pt guideline.
-    var hitTarget: CGFloat = 44
-    @Environment(\.legibilityWeight) private var legibilityWeight
-    private var bold: Bool { entry.settings.boldText && legibilityWeight != .bold }
+    let content: Content
 
     var body: some View {
         Button(intent: ResyncWidgetIntent()) {
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: glyphSize, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
-                .foregroundColor(.white)
-                .shadow(color: .black.opacity(0.5), radius: 3)
-                .frame(width: hitTarget, height: hitTarget)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
+                .overlay {
+                    if entry.status == .expired {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 3)
+                    }
+                }
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Resync lyrics")
@@ -207,20 +208,25 @@ private struct CaraokePlayerWidgetView: View {
     var body: some View {
         let t = entry.theme
         GeometryReader { geo in
-            let cover = min(geo.size.width, geo.size.height) * 0.52
+            // Keep every row and the cover's 44-point hit frame inside the tile.
+            let scale = max(0, min(geo.size.width, geo.size.height) / 162)
             VStack(spacing: 0) {
-                CaraokeCarPlayCover(entry: entry, size: cover)
-                    .padding(.top, 6)
-                Spacer(minLength: 2)
+                CaraokeCarPlayCover(entry: entry, size: 60)
+                Spacer(minLength: 4)
                 CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
-                                       mutedColor: t.mutedTextColor, titleSize: 13)
+                                       mutedColor: t.mutedTextColor, titleSize: 10)
+                    .frame(width: 146, height: 42)
+                    .clipped()
                 Spacer(minLength: 4)
                 CaraokeCarPlayProgress(progress: entry.progress, tint: t.textColor)
                     .frame(width: 130)
-                    .padding(.bottom, 6)
-                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, spacing: 10, buttonWidth: 38, buttonHeight: 32)
-                    .padding(.bottom, 6)
+                    .padding(.bottom, 3)
+                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 14,
+                                        spacing: 2, buttonWidth: 38, buttonHeight: 28)
             }
+            .padding(.vertical, 4)
+            .frame(width: 162, height: 162)
+            .scaleEffect(scale)
             .frame(width: geo.size.width, height: geo.size.height)
         }
     }
@@ -232,17 +238,12 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
     let entry: CaraokeWidgetEntry
 
     var body: some View {
-        ZStack {
+        CaraokeCarPlayResyncButton(entry: entry, content:
             CompactLyricsView(currentLine: entry.currentLine,
                 previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                 title: entry.title, artist: entry.artist, status: entry.status,
                 fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText,
-                maxWords: 4, slideTransitions: true)
-            // Expiry is a known stale state; drift within a track isn't observable here.
-            if entry.showsResyncOverlay {
-                CaraokeCarPlayResyncButton(entry: entry, glyphSize: 22, hitTarget: 56)
-            }
-        }
+                maxWords: 4, slideTransitions: true))
     }
 }
 
@@ -254,16 +255,12 @@ private struct CaraokeCarPlayHybridWidgetView: View {
     var body: some View {
         let t = entry.theme
         VStack(spacing: 2) {
-            ZStack {
+            CaraokeCarPlayResyncButton(entry: entry, content:
                 CompactLyricsView(currentLine: entry.currentLine,
                     previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                     title: entry.title, artist: entry.artist, status: entry.status,
                     fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText,
-                    maxWords: 4, slideTransitions: true)
-                if entry.showsResyncOverlay {
-                    CaraokeCarPlayResyncButton(entry: entry, glyphSize: 22, hitTarget: 56)
-                }
-            }
+                    maxWords: 4, slideTransitions: true))
             .frame(maxHeight: .infinity)
             .layoutPriority(1)
             // Compact competitor-style strip: metadata gets one line each and
@@ -292,12 +289,6 @@ private struct CaraokeCarPlayHybridWidgetView: View {
     }
 }
 
-private extension CaraokeWidgetEntry {
-    /// Expiry proves the payload is out of date; it does not detect all drift.
-    var showsResyncOverlay: Bool {
-        status == .expired || resyncPulse < 1
-    }
-}
 
 // MARK: - Widget definitions
 

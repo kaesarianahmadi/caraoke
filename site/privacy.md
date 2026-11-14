@@ -78,9 +78,10 @@ purchase infrastructure.
 
 ## Your controls
 
-Settings → "Clear downloaded lyrics cache" removes cached lyrics. Disconnect
-Spotify to remove its stored token. Stop Live Lyrics to end the relay session.
-For other requests, contact support.
+There is currently no in-app control to clear cached lyrics. Disconnect Spotify
+to remove its stored token; revoke Spotify authorization separately in Spotify
+account settings. Stop Live Lyrics to request relay session deletion; a failed
+network request may leave the session stored. Contact support for other requests.
 
 Children: Caraoke is not designed for children and offers no accounts. If you
 believe a child's information was submitted, contact support.

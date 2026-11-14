@@ -1,113 +1,107 @@
 import SwiftUI
 import UIKit
 
-/// Settings screen (design: design/screens/settings.html — locked 2026-09-05).
-/// Sections: Connect music (service marks), Appearance (bottom-sheet picker),
-/// Support &amp; about (offline Help &amp; setup, feedback, rate, share, version).
-/// The Caraoke Plus entry rides the top of Connect music; Spotify's
-/// bring-your-own-Client-ID flow expands under its row. Privacy policy and
-/// terms links sit under Support & about.
-/// Reached from the home screen's gear button — no tab bar per PRD D7.
+/// Settings screen.
+/// Sections (top to bottom): Music connections, Display (appearance, lyric
+/// bold text, Widgets destination), Caraoke Plus (subscription entry),
+/// Support, Help & About. Pushed by the root navigation, so this screen
+/// carries no NavigationStack of its own; the Widgets and Help rows are
+/// NavigationLinks inside the shared stack. Spotify's connection flow lives
+/// in `SpotifySetupView`; this screen only opens it as a sheet.
 struct SettingsView: View {
     @ObservedObject var model: RideModeViewModel
     var presentingPaywall: Binding<Bool>
     /// Shared auth — the same object the playback pipeline uses (injected by
     /// the VM), so connecting here connects the pipeline and vice versa.
     @ObservedObject var spotifyAuth: SpotifyAuth
-    @State private var clientIDText = SpotifyClientIDStore.stored ?? ""
     @State private var showAppearanceSheet = false
-    @State private var spotifyFlowExpanded = false
-    @State private var copiedRedirect = false
-    @State private var isConnectingSpotify = false
-    @State private var spotifyErrorMessage: String?
+    @State private var showSpotifySetup = false
+    @State private var showOnboarding = false
     @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
     @AppStorage(AppearanceSettings.boldTextKey) private var boldText = true
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.dismiss) private var dismiss
 
     private var currentAppearanceMode: AppearanceMode {
         AppearanceMode(rawValue: appearanceRaw) ?? .auto
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                AppTheme.background(scheme)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        caraokePlusSection
-                        connectMusicSection
-                        appearanceSection
-                        supportAndAboutSection
-                        footnote
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 4)
-                    .padding(.bottom, 28)
+        ZStack {
+            AppTheme.background(scheme)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    musicConnectionsSection
+                    displaySection
+                    caraokePlusSection
+                    supportHelpAboutSection
                 }
-            }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                // Design back arrow (settings.html header) — dismisses the
-                // sheet back to Home.
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundColor(AppTheme.fg(scheme))
-                    }
-                    .accessibilityLabel("Back")
-                }
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 28)
             }
         }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .tint(AppTheme.accent(scheme))
         .preferredColorScheme(currentAppearanceMode.colorScheme)
+        .onChange(of: spotifyAuth.isConnected) { _, connected in
+            if !connected, model.activeSource == .spotify {
+                model.selectMusicSource(.appleMusic)
+            }
+        }
         .sheet(isPresented: $showAppearanceSheet) {
             AppearanceSheet()
                 .preferredColorScheme(currentAppearanceMode.colorScheme)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showSpotifySetup) {
+            SpotifySetupView(spotifyAuth: spotifyAuth, onConnected: {
+                model.selectMusicSource(.spotify)
+            })
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView(onDismiss: { showOnboarding = false })
+                .preferredColorScheme(currentAppearanceMode.colorScheme)
+                .presentationDetents([.large])
+        }
     }
 
-    // MARK: - Design primitives (settings.html `.sectionlabel`/`.group`/`.g-row`)
+    // MARK: - Design primitives
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 13, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundColor(AppTheme.muted(scheme))
             .padding(.horizontal, 4)
             .padding(.bottom, 8)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func group<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) { content() }
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(AppTheme.border(scheme), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func rowDivider() -> some View {
         Divider().overlay(AppTheme.border(scheme))
     }
 
-    /// 29×29 circular icon slot (`.g-icon`): the design's mid-slate disc with
-    /// a white glyph, same fill for every row in both palettes.
-    private func iconCircle(_ systemName: String) -> some View {
-        ZStack {
-            Circle().fill(Color(hex: 0x56616F))
-            Image(systemName: systemName)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
-        }
-        .frame(width: 29, height: 29)
+    /// Plain neutral row symbol — no colored tile. Orange is reserved for
+    /// selected controls and actions, not a decoration on every icon.
+    private func rowIcon(_ systemName: String, active: Bool = false) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(active ? AppTheme.accent(scheme) : AppTheme.muted(scheme))
+            .frame(width: 28, height: 28)
     }
 
-    // MARK: - Caraoke Plus (subscription entry; own group above Connect music)
+    // MARK: - Caraoke Plus (subscription entry)
 
     private var caraokePlusSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -115,7 +109,7 @@ struct SettingsView: View {
             group {
                 Button { presentingPaywall.wrappedValue = true } label: {
                     gRow {
-                        iconCircle("star.fill")
+                        rowIcon("star.fill")
                         Text("Plans & pricing").gLabel()
                         Text("View").gValue(scheme)
                         Image(systemName: "chevron.right").gChevron()
@@ -126,24 +120,22 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Connect music (+ Spotify Client-ID flow)
+    // MARK: - Music connections
 
-    @ViewBuilder
-    private var connectMusicSection: some View {
+    private var musicConnectionsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Connect music")
+            sectionLabel("Music connections")
             group {
                 appleMusicRow
                 if FeatureFlags.spotifyEnabled {
                     rowDivider()
                     spotifyRow
-                    if spotifyFlowExpanded {
-                        spotifyFlow
+                    if spotifyAuth.isConnected, !model.spotifyConnected {
+                        rowDivider()
+                        makeActiveRow
                     }
                 }
             }
-            Text("Choose the player Caraoke reads now-playing data from. Transport controls act on that player.")
-                .gNote(scheme)
         }
     }
 
@@ -152,10 +144,10 @@ struct SettingsView: View {
             model.selectMusicSource(.appleMusic)
         } label: {
             gRow {
-                AppleMusicLogo().frame(width: 29, height: 29)
+                AppleMusicLogo().frame(width: 28, height: 28)
                 Text("Apple Music").gLabel()
                 Text(model.appleMusicConnected ? "Active source" : "Standby")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.subheadline.weight(.medium))
                     .foregroundColor(model.appleMusicConnected ? AppTheme.ok : AppTheme.muted(scheme))
                 if model.appleMusicConnected {
                     Image(systemName: "checkmark")
@@ -170,254 +162,77 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
-    @ViewBuilder
+    /// Tapping the row opens the Spotify connection sheet (connect /
+    /// reconnect / disconnect); connecting there also makes Spotify the
+    /// active source via `onConnected`.
     private var spotifyRow: some View {
-        Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { spotifyFlowExpanded.toggle() }
-        } label: {
+        Button { showSpotifySetup = true } label: {
             gRow {
-                SpotifyLogo().frame(width: 29, height: 29)
+                SpotifyLogo(size: 28).frame(width: 28, height: 28)
                 Text("Spotify").gLabel()
                 if model.spotifyConnected {
                     Text("Active source")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundColor(AppTheme.ok)
                 } else if spotifyAuth.needsReconnect {
                     Text("Reconnect needed")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundColor(AppTheme.warn)
                 } else if spotifyAuth.isConnected {
                     Text("Connected (Standby)")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.subheadline)
                         .foregroundColor(AppTheme.muted(scheme))
                 } else {
                     Text("Not connected")
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.subheadline)
                         .foregroundColor(AppTheme.warn)
+                        .accessibilityHint("Open Spotify connection setup")
                 }
                 if model.spotifyConnected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(AppTheme.ok)
                 } else {
-                    Image(systemName: "chevron.right")
-                        .gChevron()
-                        .rotationEffect(.degrees(spotifyFlowExpanded ? 90 : 0))
+                    Image(systemName: "chevron.right").gChevron()
                 }
             }
         }
         .buttonStyle(.plain)
     }
 
-    /// Bring-your-own Client ID setup with direct links and instructions
-    @ViewBuilder
-    private var spotifyFlow: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("How to get your Spotify Client ID:")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(AppTheme.fg(scheme))
-                    .accessibilityAddTraits(.isHeader)
-
-                // Step 1: Dashboard Link
-                HStack(spacing: 8) {
-                    Text("1.")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(AppTheme.accent(scheme))
-                    Link(destination: URL(string: "https://developer.spotify.com/dashboard")!) {
-                        HStack(spacing: 4) {
-                            Text("Open Spotify Developer Dashboard")
-                                .font(.system(size: 12, weight: .medium))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 11))
-                        }
-                        .foregroundColor(AppTheme.accent(scheme))
-                    }
-                }
-
-                // Step 2: Create App
-                HStack(alignment: .top, spacing: 8) {
-                    Text("2.")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(AppTheme.accent(scheme))
-                    Text("Log in, tap 'Create app', name it 'Caraoke' and select 'Web API'.")
-                        .font(.system(size: 12))
-                        .foregroundColor(AppTheme.muted(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // Step 3: Redirect URI with Copy
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("3.")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(AppTheme.accent(scheme))
-                        Text("Under App Settings → Redirect URIs, add:")
-                            .font(.system(size: 12))
-                            .foregroundColor(AppTheme.muted(scheme))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    HStack {
-                        Text("caraoke://spotify-callback")
-                            .font(.system(size: 12, weight: .semibold).monospaced())
-                            .foregroundColor(AppTheme.fg(scheme))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .accessibilityLabel("Spotify redirect URI, caraoke colon slash slash spotify-callback")
-                        Spacer()
-                        Button {
-                            UIPasteboard.general.string = "caraoke://spotify-callback"
-                            copiedRedirect = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                copiedRedirect = false
-                            }
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: copiedRedirect ? "checkmark" : "doc.on.doc")
-                                    .font(.system(size: 11))
-                                Text(copiedRedirect ? "Copied" : "Copy")
-                                    .font(.system(size: 11, weight: .medium))
-                            }
-                            .foregroundColor(copiedRedirect ? AppTheme.ok : AppTheme.accent(scheme))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(AppTheme.fg(scheme).opacity(0.08)))
-                            .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel(copiedRedirect ? "Redirect URI copied" : "Copy redirect URI")
-                    }
-                    .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(AppTheme.fg(scheme).opacity(0.04)))
-                }
-
-                // Step 4: Copy Client ID
-                HStack(alignment: .top, spacing: 8) {
-                    Text("4.")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(AppTheme.accent(scheme))
-                    Text("Copy your Client ID from Basic Information and paste below:")
-                        .font(.system(size: 12))
-                        .foregroundColor(AppTheme.muted(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+    /// Connected but not active: one tap picks Spotify without reopening
+    /// the connection flow.
+    private var makeActiveRow: some View {
+        Button {
+            model.selectMusicSource(.spotify)
+        } label: {
+            HStack {
+                Text("Make Spotify the active source")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(AppTheme.accent(scheme))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
-
-            // Input field
-            HStack(spacing: 8) {
-                TextField("Paste Client ID here", text: $clientIDText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .font(.system(size: 13).monospaced())
-                    .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(AppTheme.fg(scheme).opacity(0.06)))
-                    .accessibilityLabel("Spotify Client ID")
-
-                Button {
-                    if let clip = UIPasteboard.general.string {
-                        clientIDText = clip.trimmingCharacters(in: .whitespacesAndNewlines)
-                    }
-                } label: {
-                    Text("Paste")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(AppTheme.fg(scheme).opacity(0.08)))
-                }
-                .foregroundColor(AppTheme.fg(scheme))
-            }
-
-            if let spotifyErrorMessage {
-                Text(spotifyErrorMessage)
-                    .font(.system(size: 12))
-                    .foregroundColor(AppTheme.warn)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // Action buttons
-            HStack(spacing: 10) {
-                Button {
-                    let trimmed = clientIDText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    SpotifyClientIDStore.stored = trimmed
-                    isConnectingSpotify = true
-                    spotifyErrorMessage = nil
-                    Task {
-                        do {
-                            try await spotifyAuth.connect()
-                            isConnectingSpotify = false
-                            model.selectMusicSource(.spotify)
-                        } catch {
-                            isConnectingSpotify = false
-                            spotifyErrorMessage = error.localizedDescription
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        if isConnectingSpotify {
-                            ProgressView().tint(.white)
-                                .scaleEffect(0.8)
-                        }
-                        Text(spotifyAuth.isConnected ? "Reconnect" : "Save & Connect")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(clientIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                              ? Color.gray : Color(hex: 0x1DB954)))
-                }
-                .disabled(clientIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isConnectingSpotify)
-
-                if spotifyAuth.isConnected && !model.spotifyConnected {
-                    Button {
-                        model.selectMusicSource(.spotify)
-                    } label: {
-                        Text("Make Active")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(AppTheme.fg(scheme))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(AppTheme.fg(scheme).opacity(0.08)))
-                    }
-                }
-
-                Spacer()
-
-                if spotifyAuth.isConnected {
-                    Button("Disconnect", role: .destructive) {
-                        spotifyAuth.disconnect()
-                        if model.activeSource == .spotify {
-                            model.selectMusicSource(.appleMusic)
-                        }
-                    }
-                    .font(.system(size: 13, weight: .medium))
-                }
-            }
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(AppTheme.fg(scheme).opacity(0.02)))
+        .buttonStyle(.plain)
+        .accessibilityHint("Switch now-playing to Spotify")
     }
 
-    // MARK: - Appearance (design bottom sheet)
+    // MARK: - Display (appearance, lyric bold text, Widgets destination)
 
-    private var appearanceSection: some View {
+    private var displaySection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Appearance")
+            sectionLabel("Display")
             group {
                 Button {
                     showAppearanceSheet = true
                 } label: {
                     gRow {
-                        iconCircle(currentAppearanceMode == .dark
-                                   ? "moon.fill"
-                                   : currentAppearanceMode == .light ? "sun.max.fill" : "circle.lefthalf.filled")
+                        rowIcon(currentAppearanceMode == .dark
+                            ? "moon.fill"
+                            : currentAppearanceMode == .light ? "sun.max.fill" : "circle.lefthalf.filled")
                         Text("Appearance").gLabel()
                         Text(currentAppearanceMode.shortLabel).gValue(scheme)
                         Image(systemName: "chevron.right").gChevron()
@@ -429,44 +244,64 @@ struct SettingsView: View {
                 // this steps them down to plain when the user wants lighter
                 // type (and whenever iOS Bold Text itself is on).
                 gRow {
-                    iconCircle("bold")
+                    rowIcon("bold")
                     Text("Bold Text").gLabel()
                     Toggle("Bold Text", isOn: $boldText)
                         .labelsHidden()
                         .tint(AppTheme.accent(scheme))
                 }
+                .frame(minHeight: 52)
+                rowDivider()
+                NavigationLink {
+                    WidgetSettingsView(model: model)
+                } label: {
+                    gRow {
+                        rowIcon("widget.small")
+                        Text("Widgets").gLabel()
+                        Image(systemName: "chevron.right").gChevron()
+                    }
+                }
+                .accessibilityHint("Opens widget themes, cover style and previews")
             }
-            Text("Dark keeps the night-drive look; Auto follows the device setting. Bold Text off renders lyrics and titles at regular weight.")
+            Text("Dark keeps the night-drive look; Auto follows the device setting. Bold Text off renders lyrics and titles at regular weight. Widgets show live lyrics on your Home Screen and StandBy.")
                 .gNote(scheme)
         }
     }
 
-    // MARK: - Support & about (one grouping: feedback, rate, share, version)
+    // MARK: - Support, Help & About
 
-    private var supportAndAboutSection: some View {
+    private var supportHelpAboutSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Support & about")
+            sectionLabel("Support, Help & About")
             group {
                 NavigationLink {
                     HelpView()
                 } label: {
                     gRow {
-                        iconCircle("questionmark")
+                        rowIcon("questionmark")
                         Text("Help & setup").gLabel()
                         Image(systemName: "chevron.right").gChevron()
                     }
                 }
-                .buttonStyle(.plain)
                 .accessibilityHint("Opens the offline setup and troubleshooting guide")
                 rowDivider()
-                // Feedback (design chat-bubble mark).
+                Button { showOnboarding = true } label: {
+                    gRow {
+                        rowIcon("sparkles")
+                        Text("Welcome guide").gLabel()
+                        Image(systemName: "chevron.right").gChevron()
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Replay the three-step welcome guide")
+                rowDivider()
                 Button {
                     if let url = URL(string: "mailto:support@caraoke.app?subject=Caraoke%20feedback") {
                         UIApplication.shared.open(url)
                     }
                 } label: {
                     gRow {
-                        iconCircle("message.fill")
+                        rowIcon("message.fill")
                         Text("Feedback").gLabel()
                         Image(systemName: "chevron.right").gChevron()
                     }
@@ -482,18 +317,19 @@ struct SettingsView: View {
             HStack(spacing: 10) {
                 Link("Privacy Policy", destination: URL(string: "https://caraokeapp.com/privacy")!)
                     .foregroundColor(AppTheme.accent(scheme))
+                    .frame(minHeight: 44)
                 Text("·")
                     .foregroundColor(AppTheme.muted(scheme))
                 Link("Terms of Use", destination: URL(string: "https://caraokeapp.com/terms")!)
                     .foregroundColor(AppTheme.accent(scheme))
+                    .frame(minHeight: 44)
             }
-            .font(.system(size: 12, weight: .medium))
+            .font(.subheadline.weight(.medium))
             .padding(.horizontal, 4)
-            .padding(.top, 8)
+            .padding(.top, 4)
         }
     }
 
-    /// Rate on the App Store
     private var rateRow: some View {
         Button {
             if let url = URL(string: "https://apps.apple.com/app/id6742353139?action=write-review") {
@@ -501,7 +337,7 @@ struct SettingsView: View {
             }
         } label: {
             gRow {
-                iconCircle("star.fill")
+                rowIcon("star.fill")
                 Text("Rate Caraoke").gLabel()
                 Image(systemName: "chevron.right").gChevron()
             }
@@ -512,7 +348,7 @@ struct SettingsView: View {
     private var shareRow: some View {
         ShareLink(item: URL(string: "https://caraoke.app")!) {
             gRow {
-                iconCircle("square.and.arrow.up")
+                rowIcon("square.and.arrow.up")
                 Text("Share with friends").gLabel()
                 Image(systemName: "chevron.right").gChevron()
             }
@@ -532,12 +368,13 @@ struct SettingsView: View {
             Text("Caraoke").gLabel()
             Text(versionText).gValue(scheme)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Caraoke version \(versionText)")
     }
 
     private var footnote: some View {
         Text("Caraoke \(versionText) · Made for passengers · Lyrics © their respective rights holders")
-            .font(.system(size: 11))
-            .tracking(0.02 * 11)
+            .font(.caption2)
             .foregroundColor(AppTheme.muted(scheme))
             .frame(maxWidth: .infinity)
             .padding(.top, 4)
@@ -568,7 +405,7 @@ private struct GLabelModifier: ViewModifier {
     @Environment(\.colorScheme) private var scheme
     func body(content: Content) -> some View {
         content
-            .font(.system(size: 15))
+            .font(.body)
             .foregroundColor(AppTheme.fg(scheme))
             .frame(maxWidth: .infinity, alignment: .leading)
             .multilineTextAlignment(.leading)
@@ -579,40 +416,40 @@ private struct GChevronModifier: ViewModifier {
     @Environment(\.colorScheme) private var scheme
     func body(content: Content) -> some View {
         content
-            .font(.system(size: 13, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundColor(AppTheme.muted(scheme))
     }
 }
 
 private extension View {
-    /// `.g-label` — 15px primary row label.
+    /// `.g-label` — primary row label.
     func gLabel() -> some View { modifier(GLabelModifier()) }
 
-    /// `.g-value` — 15px muted trailing value.
+    /// `.g-value` — muted trailing value.
     func gValue(_ scheme: ColorScheme) -> some View {
-        font(.system(size: 15))
+        font(.body)
             .foregroundColor(AppTheme.muted(scheme))
     }
 
-    /// `.g-chev` — 8px chevron built from the SF Symbol.
+    /// `.g-chev` — chevron built from the SF Symbol.
     func gChevron() -> some View { modifier(GChevronModifier()) }
 
-    /// `.g-note` — 13px muted note under a group.
+    /// `.g-note` — muted note under a group.
     func gNote(_ scheme: ColorScheme) -> some View {
-        font(.system(size: 13))
-            .lineSpacing(1.45 * 13 - 13)
+        font(.subheadline)
             .foregroundColor(AppTheme.muted(scheme))
             .padding(.horizontal, 4)
             .padding(.top, 8)
     }
 }
 
-// MARK: - Appearance bottom sheet (design `.sheet`)
+// MARK: - Appearance bottom sheet
 
 struct AppearanceSheet: View {
     @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
     @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var currentMode: AppearanceMode {
         AppearanceMode(rawValue: appearanceRaw) ?? .auto
@@ -622,17 +459,18 @@ struct AppearanceSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Appearance")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.headline)
                     .foregroundColor(AppTheme.fg(scheme))
                 Spacer()
                 Button("Done") { dismiss() }
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.headline.weight(.medium))
                     .foregroundColor(AppTheme.accent(scheme))
+                    .frame(minHeight: 44)
             }
             VStack(spacing: 0) {
                 ForEach(AppearanceMode.allCases) { m in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.15)) {
                             appearanceRaw = m.rawValue
                             AppearanceSettings.mode = m
                         }
@@ -644,9 +482,9 @@ struct AppearanceSheet: View {
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(AppTheme.fg(scheme))
                             }
-                            .frame(width: 29, height: 29)
+                            .frame(width: 28, height: 28)
                             Text(m.sheetLabel)
-                                .font(.system(size: 15))
+                                .font(.body)
                                 .foregroundColor(AppTheme.fg(scheme))
                             Spacer()
                             if currentMode == m {
@@ -657,16 +495,18 @@ struct AppearanceSheet: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 13)
+                        .frame(minHeight: 52, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityValue(currentMode == m ? "Selected" : "")
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(AppTheme.border(scheme), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             Spacer()
         }
         .padding(20)

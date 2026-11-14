@@ -34,7 +34,7 @@ final class RidePlaybackController: ObservableObject {
     /// Cover art for the in-app mini player / lyrics page, plus its average
     /// colour for the widget background.
     @Published private(set) var artworkData: Data?
-    private(set) var artworkColorHex: String?
+    @Published private(set) var artworkColorHex: String?
 
     /// Active source from engine's anchor
     var currentSource: MusicSource? { engine.anchor?.source }
@@ -769,8 +769,8 @@ final class RidePlaybackController: ObservableObject {
     private func setArtwork(image: UIImage, key: String) {
         let thumb = Self.thumbnail(image)
         currentArtworkData = thumb
-        artworkData = thumb
         artworkColorHex = image.averageColorHex
+        artworkData = thumb
         lastArtworkKey = key
         // Artwork lands a beat after the track change (Spotify serves it over
         // the network). Force the next widget write past the dedupe and reload,
@@ -783,8 +783,8 @@ final class RidePlaybackController: ObservableObject {
 
     private func clearArtwork(key: String) {
         currentArtworkData = nil
-        artworkData = nil
         artworkColorHex = nil
+        artworkData = nil
         lastArtworkKey = key
         lastWidgetSignature = nil
         render(engine.positionSubject.value)

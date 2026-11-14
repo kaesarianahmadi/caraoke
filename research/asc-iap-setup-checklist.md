@@ -1,3 +1,5 @@
+> Historical checklist; do not configure products from this document. Current `CaraokeProducts` IDs are `monthly`, `yearly`, and `lifetime`; prices, offers and eligibility require confirmation in App Store Connect and sandbox testing.
+
 # App Store Connect — "Caraoke Plus" IAP Setup Checklist (paste-ready)
 
 > The only missing monetization piece. The app code is DONE and matches these IDs exactly

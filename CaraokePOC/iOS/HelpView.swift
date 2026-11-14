@@ -1,11 +1,13 @@
 import SwiftUI
-import UIKit
 
-/// Offline setup guide + troubleshooting, reached from Settings → Help & setup.
-/// Content mirrors what the pipeline actually does: Live Lyrics → Live Activity,
-/// the one-track push relay for the locked-phone case, widget/CarPlay resync.
-/// Deliberately makes no "always works" promise — iOS delivery and widget
-/// refresh cadence are outside the app's control.
+/// Offline setup guide + troubleshooting. Replayable in-app reference: the
+/// same surface backs Home's "?" and Settings → Help & setup. Pushed inside
+/// a NavigationStack, so it carries no NavigationStack of its own.
+///
+/// Content mirrors what the pipeline actually does: Live Lyrics → Live
+/// Activity, the one-track push relay for the locked-phone case, widget /
+/// CarPlay resync. Deliberately makes no "always works" promise — iOS
+/// delivery and widget refresh cadence are outside the app's control.
 struct HelpView: View {
     @Environment(\.colorScheme) private var scheme
 
@@ -13,7 +15,7 @@ struct HelpView: View {
         ZStack {
             AppTheme.background(scheme)
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     intro
                     quickStartSection
                     lockedPhoneSection
@@ -40,11 +42,11 @@ struct HelpView: View {
     private var intro: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Set up lyrics everywhere")
-                .font(.system(size: 22, weight: .bold))
+                .font(.title2.weight(.bold))
                 .foregroundColor(AppTheme.fg(scheme))
                 .accessibilityAddTraits(.isHeader)
             Text("The setup steps work offline; links and policies need a connection. It covers Live Lyrics, CarPlay, the Lock Screen, the Dynamic Island, and widgets.")
-                .font(.system(size: 13))
+                .font(.subheadline)
                 .foregroundColor(AppTheme.muted(scheme))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -54,7 +56,7 @@ struct HelpView: View {
 
     private var quickStartSection: some View {
         section("Quick start") {
-            step("1", "Open Settings (gear on Home) → Connect music. Choose Apple Music, or connect Spotify.")
+            step("1", "Open Settings (gear on Home) → Music connections. Choose Apple Music, or connect Spotify.")
             step("2", "On Home, switch Live Lyrics on.")
             step("3", "Allow Live Activities: iOS Settings → Caraoke → Live Activities.")
             step("4", "Play a song in the chosen app. Lyrics appear on the Lock Screen, in the Dynamic Island, and on the CarPlay dashboard.")
@@ -87,13 +89,14 @@ struct HelpView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                 Text("Open iOS Settings for Caraoke")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
             }
             .foregroundColor(AppTheme.accent(scheme))
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
+            .frame(minHeight: 44)
             .background(Capsule().fill(AppTheme.fg(scheme).opacity(0.06)))
             .overlay(Capsule().stroke(AppTheme.border(scheme), lineWidth: 1))
             .contentShape(Rectangle())
@@ -120,7 +123,7 @@ struct HelpView: View {
             step("1", "When shown, tap the centered Resync arrow on the CarPlay lyrics-only or hybrid tile, the cover on the CarPlay player/hybrid tile, or the vinyl/album art on a Home Screen widget. The arrow indicates a known expired timeline; it cannot detect every timing error. When Caraoke handles the tap, it samples the selected player. The widget-extension fallback repairs Spotify only; Apple Music needs the app path.")
             step("2", "In Caraoke, open the lyrics page and tap Resync in the header. Opening the app from a widget also resumes normal polling, but does not force an immediate sample or relay rearm.")
             step("3", "Still stale? Switch Live Lyrics off, then on.")
-            step("4", "Confirm Settings → Connect music matches the app that is actually playing.")
+            step("4", "Confirm Settings → Music connections matches the app that is actually playing.")
             step("5", "Paused or seeked from the car? Resume playback, then seek once in the track. With Caraoke open, it re-aligns within a couple of seconds.")
             step("6", "No tile at all? Check iOS Settings → Caraoke → Live Activities, then switch Live Lyrics off and on.")
             step("7", "Lock Screen and Dynamic Island have no Resync control — open Caraoke instead. On non-touchscreen CarPlay, do the same.")
@@ -137,8 +140,8 @@ struct HelpView: View {
             step("2", "Create an app named Caraoke and select Web API.")
             step("3", "Under App Settings → Redirect URIs add exactly caraoke://spotify-callback.")
             step("4", "Copy the Client ID from Basic Information.")
-            step("5", "In Caraoke: Settings → Connect music → Spotify, paste the Client ID, then Save & Connect.")
-            paragraph("To repair a broken connection, reopen the Spotify row and choose Reconnect. Disconnect is in the same expanded panel.")
+            step("5", "In Caraoke: Settings → Music connections → Spotify opens Spotify setup. Paste the Client ID, then tap Save & Connect.")
+            paragraph("To repair a broken connection, reopen the Spotify row and choose Reconnect. Disconnect is in the same Spotify setup screen.")
             paragraph("Spotify access uses now-playing and playback-state scopes plus playback control (play, pause, skip). Caraoke requests no library or playlist scopes.")
             spotifyDashboardLink
         }
@@ -148,9 +151,9 @@ struct HelpView: View {
         Link(destination: URL(string: "https://developer.spotify.com/dashboard")!) {
             HStack(spacing: 4) {
                 Text("Open Spotify Developer Dashboard")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                 Image(systemName: "arrow.up.right.square")
-                    .font(.system(size: 11))
+                    .font(.caption.weight(.medium))
             }
             .foregroundColor(AppTheme.accent(scheme))
             .frame(minHeight: 32)
@@ -164,7 +167,7 @@ struct HelpView: View {
         section("Widgets & StandBy") {
             step("1", "Long-press the Home Screen, tap +, search Caraoke, then pick a size.")
             step("2", "Tap the vinyl disc, album art, or Resync to request a fresh sample. Rendering still follows iOS widget scheduling.")
-            step("3", "For themes, size previews, and widget options, open Home → Widget inside Caraoke.")
+            step("3", "For themes, size previews, and widget options, open Settings → Display → Widgets inside Caraoke.")
             step("4", "StandBy: place the iPhone horizontally on a charger, then add the Caraoke widget to the StandBy screen.")
             paragraph("iOS chooses when widgets redraw on its own; a tap requests a fresh sample, but the redraw can lag. For continuous line-by-line updates use Live Lyrics.")
         }
@@ -177,7 +180,7 @@ struct HelpView: View {
             paragraph("Caraoke asks LRCLIB and YouTube Music at the same time and uses the first synchronized lyric sheet that comes back. If neither has one, the song plays without lines — the title, artist, and progress still update.")
             paragraph("If lines run ahead or behind, seek once in the music app. Bluetooth and car audio processing can add a fraction of a second of delay that no lyric file can predict.")
             Text("Lyrics © their respective rights holders. Track data comes from the active music source.")
-                .font(.system(size: 11))
+                .font(.caption2)
                 .foregroundColor(AppTheme.muted(scheme))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -201,12 +204,12 @@ struct HelpView: View {
             Link(destination: URL(string: "https://caraokeapp.com/docs")!) {
                 HStack(spacing: 8) {
                     Image(systemName: "safari")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                     Text("Setup guides at caraokeapp.com")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 12))
+                        .font(.subheadline)
                 }
                 .foregroundColor(AppTheme.fg(scheme))
                 .frame(minHeight: 44)
@@ -216,17 +219,17 @@ struct HelpView: View {
             Link(destination: URL(string: "mailto:support@caraoke.app?subject=Caraoke%20help")!) {
                 HStack(spacing: 8) {
                     Image(systemName: "envelope")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Email support")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.subheadline.weight(.semibold))
                         Text("support@caraoke.app")
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundColor(AppTheme.muted(scheme))
                     }
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 12))
+                        .font(.subheadline)
                         .foregroundColor(AppTheme.muted(scheme))
                 }
                 .foregroundColor(AppTheme.fg(scheme))
@@ -238,7 +241,7 @@ struct HelpView: View {
 
     private var footnote: some View {
         Text("Caraoke · Designed for passengers · Do not interact with the phone while driving")
-            .font(.system(size: 11))
+            .font(.caption2)
             .foregroundColor(AppTheme.muted(scheme))
             .frame(maxWidth: .infinity)
             .multilineTextAlignment(.center)
@@ -252,9 +255,9 @@ struct HelpView: View {
         Link(destination: URL(string: "https://caraokeapp.com" + path)!) {
             HStack(spacing: 4) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                 Image(systemName: "arrow.up.right.square")
-                    .font(.system(size: 11))
+                    .font(.caption.weight(.medium))
             }
             .foregroundColor(AppTheme.accent(scheme))
             .frame(minHeight: 32)
@@ -265,7 +268,7 @@ struct HelpView: View {
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(AppTheme.muted(scheme))
                 .padding(.horizontal, 4)
                 .padding(.bottom, 8)
@@ -275,22 +278,21 @@ struct HelpView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(AppTheme.border(scheme), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
     }
 
     private func step(_ number: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text(number + ".")
-                .font(.system(size: 13, weight: .bold))
+                .font(.subheadline.weight(.bold))
                 .foregroundColor(AppTheme.accent(scheme))
                 .frame(minWidth: 16, alignment: .leading)
             Text(text)
-                .font(.system(size: 14))
+                .font(.subheadline)
                 .foregroundColor(AppTheme.fg(scheme))
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -299,7 +301,7 @@ struct HelpView: View {
 
     private func paragraph(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 14))
+            .font(.subheadline)
             .foregroundColor(AppTheme.muted(scheme))
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -307,14 +309,14 @@ struct HelpView: View {
     private func callout(icon: String, title: String, text: String, tint: Color) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundColor(tint)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundColor(AppTheme.fg(scheme))
                 Text(text)
-                    .font(.system(size: 13))
+                    .font(.subheadline)
                     .foregroundColor(AppTheme.muted(scheme))
                     .fixedSize(horizontal: false, vertical: true)
             }

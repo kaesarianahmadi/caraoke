@@ -43,12 +43,8 @@ final class RideModeViewModel: ObservableObject {
     /// Cover art of the current track — the mini player and the lyrics page.
     @Published private(set) var artworkData: Data?
 
-    /// Average colour of the cover as `RRGGBB`. The same value the widget
-    /// payload carries, so the in-app surfaces can follow the song's colour
-    /// exactly like the Home Screen widget does.
-    var artworkColorHex: String? {
-        artworkData.flatMap(UIImage.init(data:))?.averageColorHex
-    }
+    /// Cached by the playback controller when the artwork changes.
+    @Published private(set) var artworkColorHex: String?
 
     // Home screen bindings (design states A–D).
 
@@ -283,6 +279,13 @@ final class RideModeViewModel: ObservableObject {
                 self?.artworkData = val
             }
             .store(in: &playbackCancellables)
+
+        realPlayback.$artworkColorHex
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                self?.artworkColorHex = val
+            }
+            .store(in: &playbackCancellables)
     }
 
     func resetStats() {
@@ -353,6 +356,7 @@ final class RideModeViewModel: ObservableObject {
         durationMs = payload.durationMs > 0 ? payload.durationMs : nil
         positionMs = WidgetTimelineBuilder.positionMs(for: payload, now: Date())
         artworkData = payload.artworkData
+        artworkColorHex = payload.artworkColorHex
         lyricStatus = LyricStatus(raw: payload.status) ?? .idle
     }
 
@@ -381,6 +385,7 @@ final class RideModeViewModel: ObservableObject {
         durationMs = nil
         lyricStatus = .idle
         artworkData = nil
+        artworkColorHex = nil
     }
 
     private func startDemoClock() {

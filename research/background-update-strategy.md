@@ -1,3 +1,5 @@
+> Historical strategy: current source includes a relay and an inaudible audio keeper despite the earlier policy decision below. The keeper's App Review eligibility and actual locked-device behavior remain unresolved.
+
 # Background Lyric Updates — Strategy Spike (Phase A Step 3)
 
 Status: **decision framework + groundwork** (2026-08-30). The empirical answer
