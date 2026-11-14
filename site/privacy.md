@@ -53,9 +53,11 @@ purchase infrastructure.
 
 ## Retention and deletion
 
-- Clearing the lyrics cache removes cached lyric text from the device.
-  Disconnecting Spotify removes the stored Spotify token from the shared
-  Keychain.
+- Cached lyric text remains in the app's Caches folder until iOS or an app
+  update removes it; there is currently no in-app control to clear it.
+  Disconnecting Spotify removes the local token from the shared Keychain but
+  does not revoke the authorization grant at Spotify; revoke access in your
+  Spotify account settings.
 - Stopping a ride deletes the relay session only if the end request reaches
   the relay. If the app goes offline before that request succeeds, the session
   may remain until it expires. The most recent 20 crash records may remain in
