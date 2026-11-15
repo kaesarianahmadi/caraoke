@@ -26,7 +26,10 @@ jobs:
           cmake -S /tmp/caraoke-yams -B /tmp/caraoke-yams-build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build /tmp/caraoke-yams-build
           swiftc -Onone -module-cache-path .build/modulecache \
-            -I /tmp/caraoke-yams-build/swift -L /tmp/caraoke-yams-build/lib -lYams \
+            -I /tmp/caraoke-yams-build/swift \
+            -Xcc -fmodule-map-file=/tmp/caraoke-yams/Sources/CYaml/include/module.modulemap \
+            -Xcc -I/tmp/caraoke-yams/Sources/CYaml/include \
+            -L /tmp/caraoke-yams-build/lib -lYams \
             Sources/CaraokeCore/*.swift Tests/main.swift -o .build/testrunner
           DYLD_LIBRARY_PATH=/tmp/caraoke-yams-build/lib .build/testrunner
 

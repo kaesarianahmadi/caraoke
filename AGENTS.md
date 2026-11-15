@@ -56,7 +56,12 @@ Write access to `main` therefore equals deployment rights, including the ability
    ```bash
    cd CaraokePOC
    swiftc -Onone -module-cache-path .build/modulecache \
-     Sources/CaraokeCore/*.swift Tests/main.swift -o .build/testrunner && .build/testrunner
+     -I /tmp/caraoke-yams-build/swift \
+     -Xcc -fmodule-map-file=/tmp/caraoke-yams/Sources/CYaml/include/module.modulemap \
+     -Xcc -I/tmp/caraoke-yams/Sources/CYaml/include \
+     -L /tmp/caraoke-yams-build/lib -lYams \
+     Sources/CaraokeCore/*.swift Tests/main.swift -o .build/testrunner \
+     && DYLD_LIBRARY_PATH=/tmp/caraoke-yams-build/lib .build/testrunner
    for f in iOS/*.swift; do swiftc -parse "$f" || echo "PARSE FAIL: $f"; done
    ```
 3. Commit, then push: `git push origin main`.
