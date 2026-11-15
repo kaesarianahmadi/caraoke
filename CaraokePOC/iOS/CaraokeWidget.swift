@@ -151,14 +151,9 @@ struct CaraokeWidgetProvider: TimelineProvider {
     private func timeline(for payload: SharedWidgetPayload, in context: Context) -> Timeline<CaraokeWidgetEntry> {
         let settings = SharedWidgetStore.readSettings()
         let now = Date()
-        // CarPlay entry swapping and policy wake behavior require device proof;
-        // retain the previously deployed scheduling until that evidence exists.
-        let looping = context.family == .systemSmall
-            && payload.isPlaying
-            && payload.chainedSpanMs > 0
         let built = WidgetTimelineBuilder.entries(for: payload,
                                                   now: now,
-                                                  limit: looping ? 1 : WidgetTimelineBuilder.maxEntries,
+                                                  limit: WidgetTimelineBuilder.maxEntries,
                                                   includeOutro: true)
         // Read from the shared keychain settings, never UserDefaults: the
         // extension cannot see the app's `.standard` domain without an App

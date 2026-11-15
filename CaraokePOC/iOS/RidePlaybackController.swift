@@ -250,6 +250,7 @@ final class RidePlaybackController: ObservableObject {
 
     func setSourcePin(_ pin: SourcePin) {
         coordinator.pin = pin
+        if pin != .appleMusic { spotify.pollNow() }
     }
 
     /// Publish the boundary before the intent asks the extension to read state.
@@ -260,6 +261,7 @@ final class RidePlaybackController: ObservableObject {
     func resync() async {
         resyncGeneration &+= 1
         let generation = resyncGeneration
+        if lastTrack == nil { lastLyricsKey = nil }
         switch coordinator.pin {
         case .appleMusic:
             apple.refresh()

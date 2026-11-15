@@ -162,7 +162,7 @@ enum WidgetResync {
         let artists = (item["artists"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
         return NowPlaying(
             title: title,
-            artist: artists.joined(separator: ", "),
+            artist: artists.first ?? "",
             durationMs: item["duration_ms"] as? Int ?? 0,
             progressMs: json["progress_ms"] as? Int ?? 0,
             isPlaying: json["is_playing"] as? Bool ?? false,
@@ -174,23 +174,10 @@ enum WidgetResync {
 
     private static func syncedLyrics(title: String, artist: String, durationMs: Int,
                                      timeout: TimeInterval) async -> [LRCLine] {
-        var components = URLComponents(string: "https://lrclib.net/api/get")
-        components?.queryItems = [
-            URLQueryItem(name: "track_name", value: title),
-            URLQueryItem(name: "artist_name", value: artist),
-            URLQueryItem(name: "duration", value: String(Int((Double(durationMs) / 1000).rounded()))),
-        ]
-        guard let url = components?.url else { return [] }
-        var request = URLRequest(url: url)
-        request.setValue("Caraoke/0.1 (https://github.com/caraoke/caraoke)", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = timeout
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
-        if json["hasWordSync"] as? Bool == true, let yaml = json["lyricsfile"] as? String,
-           let track = LyricsFileParser.parse(yaml) {
-            return track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
-        }
-        guard let synced = json["syncedLyrics"] as? String else { return [] }
-        return LRCParser.parse(synced)
+        let provider = LRCLIBLyricsProvider(timeout: timeout)
+        let signature = TrackSignature(title: title, artist: artist,
+                                       durationMs: durationMs > 0 ? durationMs : nil)
+        guard let track = try? await provider.lyrics(for: signature) else { return [] }
+        return track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
     }
 }

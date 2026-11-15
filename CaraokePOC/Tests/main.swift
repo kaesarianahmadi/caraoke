@@ -395,6 +395,11 @@ final class TestRunner {
             let raceFast = awaitLyrics { try await makeFallback(cacheDir: cacheDir("c")).lyrics(for: sig) }
             check("raceLRCLIBWinsFast", raceFast.value?.lines.map(\.text) == ["from lrclib"])
 
+            MockURLProtocol.reset()
+            MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+            let offlineFallback = awaitLyrics { try await makeFallback(cacheDir: cacheDir("offline")).lyrics(for: sig) }
+            check("fallbackPropagatesNetworkFailure", offlineFallback.error != nil)
+
             // Race test: LRCLIB 404, YTM rescues
             MockURLProtocol.reset()
             MockURLProtocol.handler = { request in

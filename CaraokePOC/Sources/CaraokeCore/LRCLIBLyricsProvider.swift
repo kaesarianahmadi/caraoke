@@ -43,6 +43,7 @@ final class LRCLIBLyricsProvider: LyricsRepository {
     private let base: URL
     private let session: URLSession
     private let cache: LyricsDiskCache
+    private let timeout: TimeInterval
     let userAgent: String
     /// Injectable clock — the backoff logic is deterministic under test.
     var now: () -> Date
@@ -51,6 +52,7 @@ final class LRCLIBLyricsProvider: LyricsRepository {
     init(session: URLSession = .shared,
          cache: LyricsDiskCache = LyricsDiskCache(directory: LyricsDiskCache.defaultDirectory()),
          base: URL = LRCLIBLyricsProvider.defaultBase,
+         timeout: TimeInterval = 15,
          // TODO: point at the real repo/site once it exists (LRCLIB asks for
          // name + version + link/email in the User-Agent).
          userAgent: String = "Caraoke/0.1 (https://github.com/caraoke/caraoke)",
@@ -58,6 +60,7 @@ final class LRCLIBLyricsProvider: LyricsRepository {
         self.base = base
         self.session = session
         self.cache = cache
+        self.timeout = timeout
         self.userAgent = userAgent
         self.now = now
     }
@@ -187,7 +190,7 @@ final class LRCLIBLyricsProvider: LyricsRepository {
 
     private func perform(_ url: URL) async throws -> (Data, HTTPURLResponse) {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = timeout
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {

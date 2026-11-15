@@ -208,25 +208,20 @@ private struct CaraokePlayerWidgetView: View {
     var body: some View {
         let t = entry.theme
         GeometryReader { geo in
-            // Keep every row and the cover's 44-point hit frame inside the tile.
-            let scale = max(0, min(geo.size.width, geo.size.height) / 162)
+            let cover = min(geo.size.width, geo.size.height) * 0.52
             VStack(spacing: 0) {
-                CaraokeCarPlayCover(entry: entry, size: 60)
-                Spacer(minLength: 4)
+                CaraokeCarPlayCover(entry: entry, size: cover)
+                    .padding(.top, 6)
+                Spacer(minLength: 2)
                 CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
-                                       mutedColor: t.mutedTextColor, titleSize: 10)
-                    .frame(width: 146, height: 42)
-                    .clipped()
+                                       mutedColor: t.mutedTextColor, titleSize: 13)
                 Spacer(minLength: 4)
                 CaraokeCarPlayProgress(progress: entry.progress, tint: t.textColor)
                     .frame(width: 130)
-                    .padding(.bottom, 3)
-                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 14,
-                                        spacing: 2, buttonWidth: 38, buttonHeight: 28)
+                    .padding(.bottom, 6)
+                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, spacing: 10, buttonWidth: 38, buttonHeight: 32)
+                    .padding(.bottom, 6)
             }
-            .padding(.vertical, 4)
-            .frame(width: 162, height: 162)
-            .scaleEffect(scale)
             .frame(width: geo.size.width, height: geo.size.height)
         }
     }
