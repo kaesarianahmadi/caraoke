@@ -112,77 +112,68 @@ struct CaraokeWidgetProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CaraokeWidgetEntry) -> Void) {
-        guard let payload = SharedWidgetStore.read(), !payload.title.isEmpty else {
-            completion(context.isPreview ? placeholder(in: context) : idleEntry())
-            return
+        Task {
+            let settings = await SharedWidgetStore.readSettings()
+            let empty = { context.isPreview ? placeholder(in: context) : idleEntry(settings: settings) }
+            guard let payload = await SharedWidgetStore.read(), !payload.title.isEmpty else {
+                completion(empty())
+                return
+            }
+            let now = Date()
+            let entries = playerOnly ? WidgetTimelineBuilder.playerEntries(for: payload, now: now)
+                : WidgetTimelineBuilder.entries(for: payload, now: now, limit: 1)
+            completion(entries.first.map { entry(from: $0, payload: payload, settings: settings) } ?? empty())
         }
-        let settings = SharedWidgetStore.readSettings()
-        let now = Date()
-        let entries = playerOnly ? WidgetTimelineBuilder.playerEntries(for: payload, now: now)
-            : WidgetTimelineBuilder.entries(for: payload, now: now, limit: 1)
-        guard let built = entries.first else {
-            completion(context.isPreview ? placeholder(in: context) : idleEntry())
-            return
-        }
-        completion(entry(from: built, payload: payload, settings: settings))
     }
 
-    private func idleEntry() -> CaraokeWidgetEntry {
+    private func idleEntry(settings: SharedWidgetSettings) -> CaraokeWidgetEntry {
         CaraokeWidgetEntry(date: Date(), lineIndex: nil, currentLine: "Play a song to see lyrics",
                            previousLines: [], nextLine: nil, upcomingLines: [], progress: 0,
                            title: "", artist: "", isPlaying: false, status: .idle, artworkData: nil,
-                           artworkColorHex: nil, resyncPulse: 1, settings: SharedWidgetStore.readSettings(),
+                           artworkColorHex: nil, resyncPulse: 1, settings: settings,
                            debugStamp: nil)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CaraokeWidgetEntry>) -> Void) {
-        guard let payload = SharedWidgetStore.read() else {
-            completion(idleTimeline(retry: false))
-            return
-        }
-        // A wake that finds the baked timeline already spent is the one moment
-        // the extension can repair itself. Ask the player what is on now and
-        // rebuild from the answer — this is what keeps the tile following the
-        // music when the app itself has been suspended and cannot reload us.
-        // An expired track or idle Spotify session can ask the player again.
-        guard payload.title.isEmpty || WidgetTimelineBuilder.isExpired(payload: payload, now: Date()) else {
-            Self.log.notice("getTimeline direct: lines=\(payload.lines.count, privacy: .public) chain=\(payload.nextStartMs, privacy: .public)")
-            completion(timeline(for: payload, in: context))
-            return
-        }
         Task {
+            let settings = await SharedWidgetStore.readSettings()
+            guard let payload = await SharedWidgetStore.read() else {
+                completion(idleTimeline(retry: false, settings: settings))
+                return
+            }
+            // An expired track or idle Spotify session can repair itself.
+            guard payload.title.isEmpty || WidgetTimelineBuilder.isExpired(payload: payload, now: Date()) else {
+                completion(timeline(for: payload, settings: settings))
+                return
+            }
             let started = Date()
             let outcome = await WidgetResync.refreshAutomatically(timeout: 6)
             Self.log.notice("getTimeline self-fetch took=\(Date().timeIntervalSince(started), privacy: .public)s")
             switch outcome {
             case .updated(let current):
-                completion(timeline(for: current, in: context))
+                completion(timeline(for: current, settings: settings))
             case .idle, .unavailable:
-                let current = SharedWidgetStore.read()
+                let current = await SharedWidgetStore.read()
                 if let current, !current.title.isEmpty {
-                    completion(timeline(for: current, in: context))
+                    completion(timeline(for: current, settings: settings))
                 } else {
-                    completion(idleTimeline(retry: current != nil))
+                    completion(idleTimeline(retry: current != nil, settings: settings))
                 }
             }
         }
     }
 
-    private func idleTimeline(retry: Bool) -> Timeline<CaraokeWidgetEntry> {
-        Timeline(entries: [idleEntry()], policy: retry ? .after(Date().addingTimeInterval(60)) : .never)
+    private func idleTimeline(retry: Bool, settings: SharedWidgetSettings) -> Timeline<CaraokeWidgetEntry> {
+        Timeline(entries: [idleEntry(settings: settings)], policy: retry ? .after(Date().addingTimeInterval(60)) : .never)
     }
 
     /// Builds the timeline for a payload, choosing a reload policy that always
     /// leaves the widget a way back to correct lyrics.
-    private func timeline(for payload: SharedWidgetPayload, in context: Context) -> Timeline<CaraokeWidgetEntry> {
-        let settings = SharedWidgetStore.readSettings()
+    private func timeline(for payload: SharedWidgetPayload, settings: SharedWidgetSettings) -> Timeline<CaraokeWidgetEntry> {
         let now = Date()
         let built = playerOnly
             ? WidgetTimelineBuilder.playerEntries(for: payload, now: now)
             : WidgetTimelineBuilder.entries(for: payload, now: now, includeOutro: true)
-        // Read from the shared keychain settings, never UserDefaults: the
-        // extension cannot see the app's `.standard` domain without an App
-        // Group, which this project deliberately does not use.
         let debug = settings.debugStamp
         // Anchor age is measured once, when the bake happens: how stale the
         // playback reference already was when we derived from it. A value that
@@ -255,7 +246,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
         }
         Self.log.notice("timeline entries=\(entries.count, privacy: .public) covered=\(covered, privacy: .public) policy=\(String(describing: policy), privacy: .public)")
 
-        return Timeline(entries: entries.isEmpty ? [placeholder(in: context)] : entries, policy: policy)
+        return Timeline(entries: entries.isEmpty ? [idleEntry(settings: settings)] : entries, policy: policy)
     }
 
     private func entry(from built: WidgetTimelineEntry,

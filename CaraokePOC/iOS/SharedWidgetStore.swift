@@ -1,17 +1,11 @@
 import Foundation
+import CoreFoundation
 import Security
 import WidgetKit
 import os
 
-// The one cross-process store: app ⇄ widget extension ⇄ Live Activity.
-//
-// The shared KEYCHAIN is the transport, not an App Group: the committed
-// distribution profiles grant `R3Y5ZR429L.*` keychain access to both targets
-// but carry no `com.apple.security.application-groups` entitlement, so
-// `UserDefaults(suiteName: "group.app.caraoke")` silently wrote to the app's
-// own container and every widget read came back empty. Keychain items written
-// with an explicit access group are readable by both processes with no
-// provisioning change.
+// Spotify credentials remain in the shared Keychain. Widget state and settings
+// live in the App Group container, not in securityd.
 
 enum SharedKeychain {
     /// Both targets declare `$(AppIdentifierPrefix)app.caraoke.ios`.
@@ -79,9 +73,10 @@ enum SharedWidgetStore {
 
         static let lyricSurfaces: Set<Self> = [.home, .lyrics, .hybrid]
     }
-    private static let service = "app.caraoke.widget"
-    private static let payloadAccount = "state"
-    private static let settingsAccount = "settings"
+    private static let group = "group.app.caraoke.ios"
+    private static let fileQueue = DispatchQueue(label: "app.caraoke.widget-files", qos: .userInitiated)
+    private static let files = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
+        .map { WidgetStateFiles(directory: $0.appendingPathComponent("WidgetState", isDirectory: true)) }
     private static let spotifyService = "com.caraoke.spotify"
     private static let spotifyTokenAccount = "token"
     private static let spotifyClientIDAccount = "clientID"
@@ -107,33 +102,72 @@ enum SharedWidgetStore {
 
     // MARK: - Now-playing payload
 
-    static func write(_ payload: SharedWidgetPayload?) {
-        guard let payload else {
-            SharedKeychain.remove(service: service, account: payloadAccount)
-            return
+    static func write(_ payload: SharedWidgetPayload?, reloadReason: String? = nil) {
+        fileQueue.async {
+            access(fallback: ()) { files in
+                try files.write(payload)
+                notifyChange()
+                if let reloadReason { requestReload(reason: reloadReason) }
+            }
         }
-        guard let data = try? JSONEncoder().encode(payload) else { return }
-        SharedKeychain.set(data, service: service, account: payloadAccount)
     }
 
-    static func read() -> SharedWidgetPayload? {
-        guard let data = SharedKeychain.data(service: service, account: payloadAccount) else { return nil }
-        return try? JSONDecoder().decode(SharedWidgetPayload.self, from: data)
+    static func read() async -> SharedWidgetPayload? {
+        await onFileQueue(fallback: nil) { try $0.read() }
+    }
+
+    static func replace(_ expected: SharedWidgetPayload, with payload: SharedWidgetPayload) async -> WidgetRepairOutcome {
+        await onFileQueue(fallback: .unavailable) { files in
+            let current = try files.replace(expected, with: payload)
+            if current == payload && payload != expected { notifyChange() }
+            guard let current, !current.title.isEmpty else { return .idle }
+            return .updated(current)
+        }
+    }
+
+    static func flushWrites() async {
+        await withCheckedContinuation { continuation in
+            fileQueue.async { continuation.resume() }
+        }
     }
 
     // MARK: - Widget configuration (theme / toggles)
 
-    static func readSettings() -> SharedWidgetSettings {
-        guard let data = SharedKeychain.data(service: service, account: settingsAccount),
-              let settings = try? JSONDecoder().decode(SharedWidgetSettings.self, from: data) else {
-            return SharedWidgetSettings()
-        }
-        return settings
+    static func readSettings() async -> SharedWidgetSettings {
+        await onFileQueue(fallback: .init()) { try $0.readSettings() }
     }
 
-    static func writeSettings(_ settings: SharedWidgetSettings) {
-        guard let data = try? JSONEncoder().encode(settings) else { return }
-        SharedKeychain.set(data, service: service, account: settingsAccount)
+    static func updateSettings(reloadReason: String? = nil, _ update: @escaping @Sendable (inout SharedWidgetSettings) -> Void) {
+        fileQueue.async {
+            access(fallback: ()) { files in
+                try files.updateSettings(update)
+                notifyChange()
+                if let reloadReason { requestReload(reason: reloadReason) }
+            }
+        }
+    }
+
+    private static func onFileQueue<T: Sendable>(fallback: T, _ operation: @escaping @Sendable (WidgetStateFiles) throws -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            fileQueue.async { continuation.resume(returning: access(fallback: fallback, operation)) }
+        }
+    }
+
+    private static func access<T>(fallback: T, _ operation: (WidgetStateFiles) throws -> T) -> T {
+        guard let files else {
+            reloadLog.error("App Group container is unavailable")
+            return fallback
+        }
+        do { return try operation(files) }
+        catch {
+            reloadLog.error("Widget file access failed: \(error.localizedDescription, privacy: .public)")
+            return fallback
+        }
+    }
+
+    private static func notifyChange() {
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName("app.caraoke.widget.state-changed" as CFString), nil, nil, true)
     }
 
     // MARK: - Spotify credentials (so widget buttons can drive Spotify)

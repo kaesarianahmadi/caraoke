@@ -31,7 +31,7 @@ enum WidgetResync {
     /// and must not outlive it, because an overrunning extension is killed and
     /// the old timeline is kept.
     private static func refreshNowPlaying(timeout: TimeInterval) async -> WidgetRepairOutcome {
-        guard let original = SharedWidgetStore.read() else { return .idle }
+        guard let original = await SharedWidgetStore.read() else { return .idle }
 
         let log = Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
         guard original.source == "spotify" else {
@@ -44,7 +44,7 @@ enum WidgetResync {
         }
         let playing: NowPlayingState
         switch await spotifyNowPlaying(token: token, timeout: timeout) {
-        case .idle: return publish(.spotifyIdle, replacing: original)
+        case .idle: return await SharedWidgetStore.replace(original, with: .spotifyIdle)
         case .unavailable: return .unavailable
         case .track(let track): playing = track
         }
@@ -106,19 +106,7 @@ enum WidgetResync {
         payload.trackStartEpochMs = nowMs - playing.positionMs
         payload.durationMs = durationMs
         payload.resyncingUntilMs = 0
-        return publish(payload, replacing: original)
-    }
-
-    private static func publish(_ payload: SharedWidgetPayload, replacing original: SharedWidgetPayload) -> WidgetRepairOutcome {
-        // ponytail: Keychain has no atomic compare-and-swap. Reject a snapshot
-        // superseded during network I/O; serialize cross-process writes with S7.
-        let current = SharedWidgetStore.read()
-        guard current == original else {
-            guard let current, !current.title.isEmpty else { return .idle }
-            return .updated(current)
-        }
-        if payload != original { SharedWidgetStore.write(payload) }
-        return payload.title.isEmpty ? .idle : .updated(payload)
+        return await SharedWidgetStore.replace(original, with: payload)
     }
 
     // MARK: - Spotify

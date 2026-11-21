@@ -2,10 +2,8 @@ import SwiftUI
 import UIKit
 import WidgetKit
 
-/// Widget controls and live preview. Every toggle writes to the shared
-/// keychain store the widget extension reads, then asks WidgetKit to rebuild
-/// — build 38 wrote these to an App Group container the extension has no
-/// entitlement for, so none of them ever reached the widget.
+/// Widget controls and live preview. The app and extension share the settings
+/// through the App Group container.
 ///
 /// This view is pushed as a NavigationLink destination (e.g. from
 /// Settings → Display → Widgets), so it must not embed its own
@@ -13,7 +11,8 @@ import WidgetKit
 /// when nothing is playing it says so instead of dressing up a fake track.
 struct WidgetSettingsView: View {
     @ObservedObject var model: RideModeViewModel
-    @State private var settings = SharedWidgetStore.readSettings()
+    @State private var settings = SharedWidgetSettings()
+    @State private var settingsLoaded = false
     @State private var showTips = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -26,7 +25,7 @@ struct WidgetSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 previewSection
-                themeSection
+                themeSection.disabled(!settingsLoaded)
                 tipsToggle
                 if showTips { tips }
             }
@@ -36,22 +35,23 @@ struct WidgetSettingsView: View {
         .background(AppTheme.bg(scheme).ignoresSafeArea())
         .navigationTitle("Widgets")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            settings = await SharedWidgetStore.readSettings()
+            settingsLoaded = true
+        }
     }
 
     // MARK: - Write-through bindings
 
-    private func binding<T>(_ keyPath: WritableKeyPath<SharedWidgetSettings, T>) -> Binding<T> {
+    private func binding<T: Sendable>(_ keyPath: WritableKeyPath<SharedWidgetSettings, T>,
+                                      update: @escaping @Sendable (inout SharedWidgetSettings, T) -> Void) -> Binding<T> {
         Binding(
             get: { settings[keyPath: keyPath] },
-            set: { value in update { $0[keyPath: keyPath] = value } }
+            set: { value in
+                settings[keyPath: keyPath] = value
+                SharedWidgetStore.updateSettings(reloadReason: "settings-changed") { update(&$0, value) }
+            }
         )
-    }
-
-    /// Persist to the shared store and rebuild the widget timeline.
-    private func update(_ mutate: (inout SharedWidgetSettings) -> Void) {
-        mutate(&settings)
-        SharedWidgetStore.writeSettings(settings)
-        SharedWidgetStore.requestReload(reason: "settings-changed")
     }
 
     // MARK: - Preview (real now-playing values only — never fake lyrics)
@@ -185,7 +185,7 @@ struct WidgetSettingsView: View {
                         .font(.body)
                         .foregroundColor(AppTheme.fg(scheme))
                     Spacer()
-                    Picker("Theme", selection: binding(\.theme)) {
+                    Picker("Theme", selection: binding(\.theme) { $0.theme = $1 }) {
                         ForEach(WidgetTheme.allCases, id: \.self) { item in
                             Text(item.displayName).tag(item.rawValue)
                         }
@@ -204,7 +204,7 @@ struct WidgetSettingsView: View {
                         .font(.body)
                         .foregroundColor(AppTheme.fg(scheme))
                     Spacer()
-                    Picker("Cover style", selection: binding(\.coverStyle)) {
+                    Picker("Cover style", selection: binding(\.coverStyle) { $0.coverStyle = $1 }) {
                         ForEach(WidgetCoverStyle.allCases, id: \.self) { style in
                             Text(style.displayName).tag(style.rawValue)
                         }

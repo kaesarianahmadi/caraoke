@@ -6,5 +6,9 @@
 	<array>
 		<string>$(AppIdentifierPrefix)app.caraoke.ios</string>
 	</array>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.app.caraoke.ios</string>
+	</array>
 </dict>
 </plist>

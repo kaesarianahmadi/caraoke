@@ -91,6 +91,7 @@ targets:
       - Sources/CaraokeCore/TrackMatcher.swift
       - Sources/CaraokeCore/AutomaticWidgetRepair.swift
       - Sources/CaraokeCore/WidgetShared.swift
+      - Sources/CaraokeCore/WidgetStateFiles.swift
       - Sources/CaraokeCore/SpotifyAuthCore.swift
       - Sources/CaraokeCore/LRCParser.swift
       - Sources/CaraokeCore/SyncEngine.swift

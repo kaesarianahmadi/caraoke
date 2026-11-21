@@ -226,8 +226,7 @@ final class RidePlaybackController: ObservableObject {
         positionMs = 0
         durationMs = nil
         lyricState = .idle
-        SharedWidgetStore.write(nil)
-        SharedWidgetStore.requestReload(reason: "ride-mode-stop")
+        SharedWidgetStore.write(nil, reloadReason: "ride-mode-stop")
     }
 
     func setSourcePin(_ pin: SourcePin) {
@@ -565,9 +564,7 @@ final class RidePlaybackController: ObservableObject {
         // from here. Written only when the value changes.
         let boldText = UserDefaults.standard.object(forKey: "appearance.boldText") as? Bool ?? true
         if boldText != lastWidgetBoldText {
-            var settings = SharedWidgetStore.readSettings()
-            settings.boldText = boldText
-            SharedWidgetStore.writeSettings(settings)
+            SharedWidgetStore.updateSettings { $0.boldText = boldText }
             lastWidgetBoldText = boldText
         }
 
@@ -680,6 +677,8 @@ final class RidePlaybackController: ObservableObject {
                 guard !Task.isCancelled else { return }
             }
 
+            await SharedWidgetStore.flushWrites()
+            guard !Task.isCancelled else { return }
             self.lastWidgetReloadDate = Date()
             self.pendingWidgetReloadTask = nil
             // Record the anchor this reload carries. The sync heartbeat measures

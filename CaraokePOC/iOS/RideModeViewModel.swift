@@ -348,7 +348,15 @@ final class RideModeViewModel: ObservableObject {
     /// to poll the player; the payload the widget was just rendering is
     /// already the right answer.
     func seedFromSharedPayload() {
-        guard trackTitle.isEmpty, let payload = SharedWidgetStore.read(), !payload.title.isEmpty else { return }
+        guard trackTitle.isEmpty else { return }
+        Task { [weak self] in
+            guard let payload = await SharedWidgetStore.read(), !payload.title.isEmpty,
+                  let self, self.isOn, self.trackTitle.isEmpty else { return }
+            self.seed(from: payload)
+        }
+    }
+
+    private func seed(from payload: SharedWidgetPayload) {
         trackTitle = payload.title
         trackArtist = payload.artist
         currentLine = payload.currentLine

@@ -41,7 +41,7 @@ enum TransportControl {
     /// the selected source even before a track is playing).
     @discardableResult
     static func perform(_ action: TransportAction, source: String? = nil, isPlaying: Bool? = nil) async -> TransportOutcome {
-        let payload = SharedWidgetStore.read()
+        let payload = await SharedWidgetStore.read()
         let resolved = resolvedSource(payload: payload?.source, override: source)
         log("perform \(action) source=\(resolved ?? "none") payload=\(payload?.title ?? "-")")
 

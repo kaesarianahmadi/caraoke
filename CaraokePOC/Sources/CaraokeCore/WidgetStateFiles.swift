@@ -35,9 +35,13 @@ struct WidgetStateFiles: Sendable {
         try decode(SharedWidgetSettings.self, at: directory.appendingPathComponent("settings.json")) ?? .init()
     }
 
-    func writeSettings(_ settings: SharedWidgetSettings) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try encode(settings, at: directory.appendingPathComponent("settings.json"))
+    func updateSettings(_ update: (inout SharedWidgetSettings) -> Void) throws {
+        try withLock {
+            let previous = try readSettings()
+            var settings = previous
+            update(&settings)
+            if settings != previous { try encode(settings, at: directory.appendingPathComponent("settings.json")) }
+        }
     }
 
     private var stateURL: URL { directory.appendingPathComponent("state.json") }
@@ -83,7 +87,7 @@ struct WidgetStateFiles: Sendable {
     private func writeCover(_ data: Data) throws -> String {
         let name = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() + ".jpg"
         let url = covers.appendingPathComponent(name)
-        if !FileManager.default.fileExists(atPath: url.path) { try data.write(to: url, options: .atomic) }
+        if !FileManager.default.fileExists(atPath: url.path) { try data.write(to: url, options: Self.writeOptions) }
         return name
     }
 
@@ -93,7 +97,15 @@ struct WidgetStateFiles: Sendable {
     }
 
     private func encode<T: Encodable>(_ value: T, at url: URL) throws {
-        try JSONEncoder().encode(value).write(to: url, options: .atomic)
+        try JSONEncoder().encode(value).write(to: url, options: Self.writeOptions)
+    }
+
+    private static var writeOptions: Data.WritingOptions {
+        #if os(iOS)
+        [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        #else
+        .atomic
+        #endif
     }
 
     private func withLock<T>(_ operation: () throws -> T) throws -> T {

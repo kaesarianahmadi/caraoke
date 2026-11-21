@@ -76,16 +76,8 @@ jobs:
         run: swift test
 
   testflight:
-    # Signed TestFlight archive via App Store Connect API-key automatic
-    # signing. SKIPPED (job-level `if`) until the repo has these four
-    # secrets — the moment the user adds them (post Apple-approval), every
-    # push produces a signed .xcarchive without any local Xcode:
-    #   ASC_ISSUER_ID / ASC_KEY_ID / ASC_KEY_P8   (App Store Connect →
-    #       Users and Access → Integrations → App Store Connect API)
-    #   ASC_DEVELOPMENT_TEAM                      (10-char Team ID)
-    # Upload to TestFlight is added once the first signed archive proves
-    # out (fastlane pilot or altool — decided live).
-    if: ${{ vars.HAS_ASC_CREDENTIALS == 'true' }}
+    # Distribution signing material is supplied by repository secrets.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.HAS_ASC_CREDENTIALS == 'true' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,13 +119,53 @@ jobs:
           rm /tmp/dist.p12
           security find-identity -v -p codesigning build.keychain
 
-      - name: Install committed profiles
+      - name: Install App Group provisioning profiles
+        env:
+          PROFILES_B64: ${{ secrets.PROFILES_B64 }}
+          ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
         run: |
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp CaraokePOC/profiles/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/"
-          ls "$HOME/Library/MobileDevice/Provisioning Profiles/"
+          python3 - <<'PY'
+          import base64, datetime, io, os, pathlib, plistlib, subprocess, tempfile, uuid, zipfile
 
-      - name: Archive with manual signing (dist cert + committed profiles)
+          profiles = (
+              ("Caraoke_TF_Store_Push.mobileprovision", "Caraoke TF Store Push", "app.caraoke.ios"),
+              ("Caraoke_Widgets_TF_Store.mobileprovision", "Caraoke Widgets TF Store", "app.caraoke.ios.widgets"),
+          )
+          destinations = (
+              pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles",
+              pathlib.Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles",
+          )
+          try:
+              value = "".join(os.environ["PROFILES_B64"].split())
+              archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(value, validate=True)))
+              with archive, tempfile.TemporaryDirectory() as tmp:
+                  for filename, name, bundle_id in profiles:
+                      data = archive.read(filename)
+                      source = pathlib.Path(tmp) / filename
+                      source.write_bytes(data)
+                      profile = plistlib.loads(subprocess.check_output(["security", "cms", "-D", "-i", str(source)]))
+                      entitlements = profile["Entitlements"]
+                      valid = (
+                          profile["Name"] == name
+                          and entitlements["application-identifier"] == os.environ["ASC_DEVELOPMENT_TEAM"] + "." + bundle_id
+                          and "group.app.caraoke.ios" in entitlements.get("com.apple.security.application-groups", [])
+                          and profile["ExpirationDate"] > datetime.datetime.utcnow()
+                          and not entitlements.get("get-task-allow")
+                          and "ProvisionedDevices" not in profile
+                          and not profile.get("ProvisionsAllDevices")
+                          and (bundle_id.endswith(".widgets") or entitlements.get("aps-environment") == "production")
+                      )
+                      if not valid:
+                          raise SystemExit(f"Invalid App Group distribution profile: {name}")
+                      for destination in destinations:
+                          destination.mkdir(parents=True, exist_ok=True)
+                          (destination / (str(uuid.UUID(profile["UUID"])) + ".mobileprovision")).write_bytes(data)
+                      print(f"Validated App Group distribution profile: {name}")
+          except (KeyError, ValueError, zipfile.BadZipFile):
+              raise SystemExit("PROFILES_B64 must contain a base64 ZIP with both App Group distribution profiles.") from None
+          PY
+
+      - name: Archive with manual signing
         working-directory: CaraokePOC
         env:
           ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
@@ -165,7 +197,7 @@ jobs:
           ASC_KEY_PATH: ${{ env.ASC_KEY_PATH }}
           ASC_DEVELOPMENT_TEAM: ${{ secrets.ASC_DEVELOPMENT_TEAM }}
         run: |
-          # Manual export with the same committed profiles (deterministic;
+          # Manual export with the same installed profiles (deterministic;
           # export-time cloud signing fails with "cloud signing permission
           # error" on this account even with an Admin API key).
           cat > ExportOptions.plist <<EOF

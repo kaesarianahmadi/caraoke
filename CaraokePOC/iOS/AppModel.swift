@@ -18,5 +18,6 @@ final class AppModel {
     func stopRideSession() async {
         ride.stopRide()
         await ride.waitForActivityLifecycle()
+        await SharedWidgetStore.flushWrites()
     }
 }

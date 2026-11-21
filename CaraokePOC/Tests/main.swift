@@ -1346,7 +1346,7 @@ final class TestRunner {
                 checkEqual("widgetFilesReplaceCurrentPayload", try files.replace(next, with: .spotifyIdle), .spotifyIdle)
                 checkEqual("widgetFilesRemoveUnreferencedCovers", try FileManager.default.contentsOfDirectory(atPath: coverDirectory.path).count, 0)
                 let settings = SharedWidgetSettings(theme: "midnight", boldText: false)
-                try files.writeSettings(settings)
+                try files.updateSettings { $0 = settings }
                 checkEqual("widgetFilesSettingsRoundTrip", try files.readSettings(), settings)
                 try files.write(nil)
                 try files.write(nil)
