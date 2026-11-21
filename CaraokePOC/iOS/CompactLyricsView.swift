@@ -6,7 +6,7 @@ import AppKit
 #endif
 
 /// Only the Live Activity and the two lyric CarPlay tiles use this viewport.
-/// Measure complete wrapped text before choosing context; never ellipsize a lyric.
+/// Fit wrapped lyrics before adding neighboring rows. Never shrink below 12 pt.
 struct CompactLyricsView: View {
     let currentLine: String
     let previousLines: [String]
@@ -17,31 +17,32 @@ struct CompactLyricsView: View {
     var fontSize: CGFloat = 15
     var foreground: Color = .white
     var boldText: Bool = true
-    /// Maximum words in each displayed chunk; narrow tiles can wrap further.
-    var maxWords: Int = 5
+    var topInset: CGFloat = 0
     var slideTransitions = false
     @Environment(\.legibilityWeight) private var legibilityWeight
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var bold: Bool { boldText || legibilityWeight == .bold }
 
     var body: some View {
         GeometryReader { geometry in
             let width = max(1, geometry.size.width - 16)
-            let height = max(1, geometry.size.height - 12)
-            let hero = LyricSegmenter.segmentedDisplayText(for: activeText, maxWords: maxWords)
-            let layout = fittedRows(hero: hero, width: width, height: height)
+            let height = max(1, geometry.size.height - 12 - topInset)
+            let layout = fittedRows(hero: activeText, width: width, height: height)
             VStack(spacing: 5) {
                 ForEach(layout.rows) { row in
                     Text(row.text)
-                        .font(.system(size: layout.font, weight: boldText && legibilityWeight != .bold ? .semibold : .regular))
+                        .font(.system(size: layout.font, weight: bold ? .semibold : .regular))
                         .foregroundStyle(foreground.opacity(row.opacity))
                         .multilineTextAlignment(.center)
-                        .lineLimit(nil)
+                        .lineLimit(row.lineLimit)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: width)
                         .transition(slideTransitions ? .move(edge: .bottom).combined(with: .opacity) : .opacity)
                 }
             }
-            .animation(.easeInOut(duration: slideTransitions ? 0.35 : 0.2), value: layout.rows)
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
+            .animation(reduceMotion ? nil : .easeInOut(duration: slideTransitions ? 0.35 : 0.2), value: layout.rows)
+            .frame(width: geometry.size.width, height: max(0, geometry.size.height - topInset), alignment: .center)
+            .padding(.top, topInset)
             .mask {
                 LinearGradient(stops: [.init(color: .clear, location: 0),
                     .init(color: .black, location: 0.04),
@@ -71,44 +72,55 @@ struct CompactLyricsView: View {
         let id: String
         let text: String
         let opacity: Double
+        let lineLimit: Int
     }
 
     private func fittedRows(hero: String, width: CGFloat, height: CGFloat) -> (font: CGFloat, rows: [Row]) {
         let font = fittedFont(hero: hero, width: width, height: height)
-        var rows = [Row(id: hero, text: hero, opacity: 1)]
-        var used = measuredHeight(hero, width: width, font: font)
-        if let previous = previousLines.last, !previous.isEmpty {
-            let previous = LyricSegmenter.segmentedDisplayText(for: previous, maxWords: maxWords)
-            let amount = measuredHeight(previous, width: width, font: font) + 5
-            if used + amount <= height * 0.7 {
-                rows.insert(Row(id: previous, text: previous, opacity: 0.35), at: 0)
-                used += amount
-            }
-        }
-        for (index, text) in upcomingLines.filter({ !$0.isEmpty }).prefix(3).enumerated() {
-            let text = LyricSegmenter.segmentedDisplayText(for: text, maxWords: maxWords)
-            let amount = measuredHeight(text, width: width, font: font) + 5
-            guard used + amount <= height else { break }
-            rows.append(Row(id: text, text: text, opacity: index == 0 ? 0.6 : 0.38))
+        let heroSize = measure(hero, width: width, font: font)
+        let heroLimit = max(1, min(4, Int((height - 2) / heroSize.lineHeight)))
+        var rows = [Row(id: hero, text: hero, opacity: 1, lineLimit: heroLimit)]
+        guard status == .playing || status == .paused else { return (font, rows) }
+        var used = heroSize.height
+        var lines = max(1, heroSize.lines)
+        func add(_ text: String, opacity: Double, before: Bool = false) {
+            let size = measure(text, width: width, font: font)
+            let amount = size.height + 5
+            guard lines + size.lines <= 4, used + amount <= height else { return }
+            let row = Row(id: text, text: text, opacity: opacity, lineLimit: size.lines)
+            if before { rows.insert(row, at: 0) } else { rows.append(row) }
+            lines += size.lines
             used += amount
+        }
+        let upcoming = upcomingLines.filter { !$0.isEmpty }
+        if let next = upcoming.first { add(next, opacity: 0.75) }
+        if let previous = previousLines.last, !previous.isEmpty { add(previous, opacity: 0.6, before: true) }
+        for text in upcoming.dropFirst().prefix(2) {
+            let rowCount = rows.count
+            add(text, opacity: 0.6)
+            if rows.count == rowCount { break }
         }
         var seen: [String: Int] = [:]
         let uniqueRows = rows.map { row in
             let occurrence = seen[row.id, default: 0]
             seen[row.id] = occurrence + 1
-            return Row(id: "\(row.id)\u{0}\(occurrence)", text: row.text, opacity: row.opacity)
+            return Row(id: "\(row.id)\u{0}\(occurrence)", text: row.text, opacity: row.opacity, lineLimit: row.lineLimit)
         }
         return (font, uniqueRows)
     }
 
     /// Bounded search avoids repeatedly measuring in half-point increments.
     private func fittedFont(hero: String, width: CGFloat, height: CGFloat) -> CGFloat {
-        if measuredHeight(hero, width: width, font: fontSize) <= height { return fontSize }
-        var low: CGFloat = 1
-        var high = fontSize
+        func fits(_ font: CGFloat) -> Bool {
+            let size = measure(hero, width: width, font: font)
+            return size.height <= height && size.lines <= 4
+        }
+        var high = max(12, fontSize)
+        if fits(high) { return high }
+        var low: CGFloat = 12
         while high - low > 0.5 {
             let candidate = (low + high) / 2
-            if measuredHeight(hero, width: width, font: candidate) <= height {
+            if fits(candidate) {
                 low = candidate
             } else {
                 high = candidate
@@ -117,14 +129,16 @@ struct CompactLyricsView: View {
         return low
     }
 
-    private func measuredHeight(_ text: String, width: CGFloat, font: CGFloat) -> CGFloat {
+    private func measure(_ text: String, width: CGFloat, font: CGFloat) -> (height: CGFloat, lineHeight: CGFloat, lines: Int) {
 #if canImport(UIKit)
-        let face = UIFont.systemFont(ofSize: font, weight: boldText && legibilityWeight != .bold ? .semibold : .regular)
+        let face = UIFont.systemFont(ofSize: font, weight: bold ? .semibold : .regular)
+        let lineHeight = face.lineHeight
 #else
-        let face = NSFont.systemFont(ofSize: font, weight: boldText && legibilityWeight != .bold ? .semibold : .regular)
+        let face = NSFont.systemFont(ofSize: font, weight: bold ? .semibold : .regular)
+        let lineHeight = face.ascender - face.descender + face.leading
 #endif
         let bounds = (text as NSString).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: face], context: nil)
-        return ceil(bounds.height) + 2
+        return (ceil(bounds.height) + 2, lineHeight, max(1, Int(ceil(bounds.height / lineHeight))))
     }
 }

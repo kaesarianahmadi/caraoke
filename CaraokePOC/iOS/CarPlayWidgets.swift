@@ -29,8 +29,8 @@ private struct CaraokeCarPlayTransport: View {
     let tint: Color
     var size: CGFloat = 15
     var spacing: CGFloat = 2
-    var buttonWidth: CGFloat = 34
-    var buttonHeight: CGFloat = 34
+    var buttonWidth: CGFloat = 44
+    var buttonHeight: CGFloat = 44
     /// The hybrid widget drops Previous so its title row gets the width back
     /// and renders un-truncated (user direction, build 66).
     var showPrevious: Bool = true
@@ -72,12 +72,16 @@ private struct CaraokeCarPlayResyncButton<Content: View>: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
-                .overlay {
+                .overlay(alignment: .topTrailing) {
                     if entry.status == .expired {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                             .shadow(color: .black.opacity(0.5), radius: 3)
+                            .padding(4)
+                            .background(.black.opacity(0.7), in: Capsule())
+                            .padding(6)
+                            .accessibilityHidden(true)
                     }
                 }
         }
@@ -90,6 +94,7 @@ private struct CaraokeCarPlayResyncButton<Content: View>: View {
 private struct CaraokeCarPlayCover: View {
     let entry: CaraokeWidgetEntry
     let size: CGFloat
+    var minTapTarget: CGFloat = 44
     var cornerRadius: CGFloat? = nil
     var hideResyncGlyph: Bool = false
     private var radius: CGFloat { cornerRadius ?? max(4, size * 0.22) }
@@ -122,7 +127,7 @@ private struct CaraokeCarPlayCover: View {
                 }
             }
             .opacity(entry.resyncPulse)
-            .frame(minWidth: 44, minHeight: 44)
+            .frame(minWidth: minTapTarget, minHeight: minTapTarget)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -138,11 +143,13 @@ private struct CaraokeCarPlayProgress: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(tint.opacity(0.18))
-                Capsule().fill(tint.opacity(0.92))
-                    .frame(width: max(3, geo.size.width * CGFloat(min(max(progress, 0), 1))))
+                if progress > 0 {
+                    Capsule().fill(tint.opacity(0.92))
+                        .frame(width: geo.size.width * CGFloat(min(progress, 1)))
+                }
             }
         }
-        .frame(height: 3)
+        .frame(height: 2)
     }
 }
 
@@ -156,14 +163,12 @@ private struct CaraokeCarPlayIdentity: View {
 
     var body: some View {
         VStack(spacing: 1) {
-            // Build 66: `minimumScaleFactor(0.85)` is GONE (spec §2.3 — nothing
-            // scales at render time). The title wraps to its 2 lines instead of
-            // shrinking or ellipsizing mid-word.
             Text(entry.title.isEmpty ? "Caraoke" : entry.title)
                 .font(.system(size: titleSize,
                              weight: LyricType.chromeWeight(.semibold, boldText: bold)))
                 .foregroundColor(titleColor)
                 .lineLimit(2)
+                .minimumScaleFactor(0.92)
             if !entry.artist.isEmpty {
                 Text(entry.artist)
                     .font(.system(size: titleSize - 1.5))
@@ -208,19 +213,17 @@ private struct CaraokePlayerWidgetView: View {
     var body: some View {
         let t = entry.theme
         GeometryReader { geo in
-            let cover = min(geo.size.width, geo.size.height) * 0.52
-            VStack(spacing: 0) {
+            // Reserve two title lines, artist, progress, and the full control row.
+            let cover = min(62, max(44, geo.size.height - 98))
+            VStack(spacing: 2) {
                 CaraokeCarPlayCover(entry: entry, size: cover)
-                    .padding(.top, 6)
-                Spacer(minLength: 2)
                 CaraokeCarPlayIdentity(entry: entry, titleColor: t.textColor,
                                        mutedColor: t.mutedTextColor, titleSize: 13)
-                Spacer(minLength: 4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 6)
                 CaraokeCarPlayProgress(progress: entry.progress, tint: t.textColor)
-                    .frame(width: 130)
-                    .padding(.bottom, 6)
-                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, spacing: 10, buttonWidth: 38, buttonHeight: 32)
-                    .padding(.bottom, 6)
+                    .frame(width: max(0, min(130, geo.size.width - 8)))
+                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, spacing: 2, buttonWidth: 44)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -238,7 +241,7 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
                 previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                 title: entry.title, artist: entry.artist, status: entry.status,
                 fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText,
-                maxWords: 4, slideTransitions: true))
+                 topInset: entry.status == .expired ? 30 : 0, slideTransitions: true))
     }
 }
 
@@ -255,13 +258,16 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                     previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                     title: entry.title, artist: entry.artist, status: entry.status,
                     fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText,
-                    maxWords: 4, slideTransitions: true))
+                     topInset: entry.status == .expired ? 30 : 0, slideTransitions: true))
             .frame(maxHeight: .infinity)
             .layoutPriority(1)
+            CaraokeCarPlayProgress(progress: entry.progress, tint: t.textColor)
+                .padding(.horizontal, 6)
             // Compact competitor-style strip: metadata gets one line each and
             // may ellipsize; it never steals rows from the lyrics.
             HStack(spacing: 6) {
-                CaraokeCarPlayCover(entry: entry, size: 28, hideResyncGlyph: true)
+                // The full lyrics area already provides a large resync target.
+                CaraokeCarPlayCover(entry: entry, size: 28, minTapTarget: 28, hideResyncGlyph: true)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(entry.title.isEmpty ? "Caraoke" : entry.title)
                         .font(.system(size: 11, weight: .semibold))
@@ -275,11 +281,11 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
-                    buttonWidth: 24, buttonHeight: 30, showPrevious: false)
+                    buttonWidth: 44, showPrevious: false)
             }
             .foregroundStyle(t.textColor)
-            .frame(height: 34)
-            .padding(.horizontal, 8)
+            .frame(height: 44)
+            .padding(.horizontal, 4)
         }
     }
 }
