@@ -245,6 +245,24 @@ extension Color {
 }
 
 extension UIImage {
+    @MainActor var widgetArtwork: (data: Data, hex: String?)? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let scale = min(1, 160 / max(size.width, size.height))
+        let thumbnailSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let thumbnail = UIGraphicsImageRenderer(size: thumbnailSize).jpegData(withCompressionQuality: 0.8) { _ in
+            self.draw(in: CGRect(origin: .zero, size: thumbnailSize))
+        }
+        return (thumbnail, averageColorHex)
+    }
+
+    @MainActor static func fetchWidgetArtwork(_ urlString: String?, timeout: TimeInterval = 6) async -> (data: Data, hex: String?)? {
+        guard let urlString, let url = URL(string: urlString), url.scheme == "https" else { return nil }
+        let request = URLRequest(url: url, timeoutInterval: timeout)
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return UIImage(data: data)?.widgetArtwork
+    }
+
     /// Average colour of the cover as `RRGGBB`. Computed once in the app and
     /// shipped in the shared payload so the widget paints a song-following
     /// background without re-running CoreImage on every timeline reload.

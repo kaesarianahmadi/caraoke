@@ -631,18 +631,29 @@ final class TestRunner {
             check("spotifyRefreshOfflineIsNotRevocation", (offline.error as? URLError)?.code == .notConnectedToInternet)
 
             // currently-playing parsing
-            let playingJSON = Data(#"{"progress_ms":45000,"is_playing":true,"item":{"name":"Song X","duration_ms":200000,"artists":[{"name":"Artist X"}],"album":{"name":"Album X"}}}"#.utf8)
-            let state = try? SpotifySource.parseCurrentlyPlaying(playingJSON, capturedAt: fixedNow)
+            let playingJSON = Data(#"{"progress_ms":45000,"is_playing":true,"item":{"name":"Song X","duration_ms":200000,"artists":[{"name":"Artist X"}],"album":{"name":"Album X","images":[{"url":"https://i.scdn.co/image/example"}]}}}"#.utf8)
+            let state: NowPlayingState?
+            if case .track(let track)? = try? SpotifyPlayback.decode(playingJSON, statusCode: 200, capturedAt: fixedNow) {
+                state = track
+            } else { state = nil }
             check("spotifyParsePlaying", state?.title == "Song X"
                 && state?.artist == "Artist X"
                 && state?.album == "Album X"
+                && state?.artworkURL == "https://i.scdn.co/image/example"
                 && state?.positionMs == 45000
                 && state?.durationMs == 200000
                 && state?.isPlaying == true
                 && state?.source == .spotify)
             let emptyItemJSON = Data(#"{"progress_ms":null,"is_playing":false,"item":null}"#.utf8)
-            let noItem = try? SpotifySource.parseCurrentlyPlaying(emptyItemJSON, capturedAt: fixedNow)
-            check("spotifyParseNoItem", noItem == nil)
+            if case .idle? = try? SpotifyPlayback.decode(emptyItemJSON, statusCode: 200, capturedAt: fixedNow) {
+                check("spotifyParseNoItem", true)
+            } else { check("spotifyParseNoItem", false) }
+            if case .idle? = try? SpotifyPlayback.decode(Data(), statusCode: 204, capturedAt: fixedNow) {
+                check("spotify204ClearsPlayback", true)
+            } else { check("spotify204ClearsPlayback", false) }
+            if case .unavailable? = try? SpotifyPlayback.decode(Data(), statusCode: 503, capturedAt: fixedNow) {
+                check("spotify503DoesNotClearPlayback", true)
+            } else { check("spotify503DoesNotClearPlayback", false) }
         }
 
         // MARK: Entitlement model + cache lifecycle
@@ -743,14 +754,15 @@ final class TestRunner {
             // arbiter
             let applePlaying = nowPlayingState(posMs: 1, playedAgo: 0, playing: true, at: t0, source: .appleMusic)
             let spotifyPlaying = nowPlayingState(title: "Sp", posMs: 2, playedAgo: 0, playing: true, at: t0, source: .spotify)
-            check("arbiterAppleWins", NowPlayingArbiter.arbitrate(apple: applePlaying, spotify: spotifyPlaying, pin: .auto, previous: nil)?.title == "S")
-            check("arbiterSpotifyWhenAppleIdle", NowPlayingArbiter.arbitrate(apple: nil, spotify: spotifyPlaying, pin: .auto, previous: nil)?.title == "Sp")
+            check("arbiterAppleWins", NowPlayingArbiter.arbitrate(apple: applePlaying, spotify: spotifyPlaying, pin: .auto)?.title == "S")
+            check("arbiterSpotifyWhenAppleIdle", NowPlayingArbiter.arbitrate(apple: nil, spotify: spotifyPlaying, pin: .auto)?.title == "Sp")
             let bothIdle = NowPlayingArbiter.arbitrate(apple: applePlaying.with(isPlaying: false),
                                                        spotify: spotifyPlaying.with(isPlaying: false),
-                                                       pin: .auto, previous: nil)
+                                                        pin: .auto)
             check("arbiterBothIdle", bothIdle?.title == "S" && bothIdle?.isPlaying == false)
-            check("arbiterPinnedSpotify", NowPlayingArbiter.arbitrate(apple: applePlaying, spotify: spotifyPlaying, pin: .spotify, previous: nil)?.title == "Sp")
-            check("arbiterPinnedMissing", NowPlayingArbiter.arbitrate(apple: nil, spotify: spotifyPlaying, pin: .appleMusic, previous: nil) == nil)
+            check("arbiterPinnedSpotify", NowPlayingArbiter.arbitrate(apple: applePlaying, spotify: spotifyPlaying, pin: .spotify)?.title == "Sp")
+            check("arbiterPinnedMissing", NowPlayingArbiter.arbitrate(apple: nil, spotify: spotifyPlaying, pin: .appleMusic) == nil)
+            check("arbiterNoPlayerClearsTrack", NowPlayingArbiter.arbitrate(apple: nil, spotify: nil, pin: .auto) == nil)
         }
 
         // MARK: relay payload
@@ -874,6 +886,8 @@ final class TestRunner {
             let acrossBoundary = chainedEntries.filter { $0.currentLine.hasPrefix("next-") }
             checkEqual("widgetChainedCrossesBoundary", acrossBoundary.count, 2)
             check("widgetChainedMarksNextTrack", acrossBoundary.allSatisfy { $0.isNextTrack })
+            check("widgetChainedFirstLineHasNoPreviousSongLyrics", acrossBoundary.first?.previousLines == [])
+            check("widgetChainedOutroKeepsNextTrack", chainedEntries.last?.isNextTrack == true)
             check("widgetChainedKeepsCurrentTrackCurrent",
                   chainedEntries.filter { !$0.currentLine.isEmpty && !$0.currentLine.hasPrefix("next-") }
                       .allSatisfy { !$0.isNextTrack })
@@ -889,20 +903,18 @@ final class TestRunner {
                        WidgetTimelineBuilder.progressFraction(for: 15_000, payload: payload(lines: lines)), 0.5)
 
             // The chained cover. Its failure mode is silent — the header
-            // switched to the next song while the art stayed on the one that
-            // ended — so the selection and its fallback are pinned here rather
-            // than left to the widget view.
+            // switched to the next song while the art stayed on the one that ended.
             var withArt = chained
             withArt.artworkColorHex = "AAAAAA"
             withArt.nextArtworkData = Data([0x02])
             withArt.nextArtworkColorHex = "BBBBBB"
             checkEqual("widgetCoverTailUsesNextArt", withArt.cover(forChainedEntry: true).hex, "BBBBBB")
             checkEqual("widgetCoverHeadUsesCurrentArt", withArt.cover(forChainedEntry: false).hex, "AAAAAA")
-            // A queue entry with no image must not blank the tail's cover.
+            // A missing cover must not reuse the outgoing track's cover.
             withArt.nextArtworkData = nil
             withArt.nextArtworkColorHex = nil
-            checkEqual("widgetCoverTailFallsBackToCurrent",
-                       withArt.cover(forChainedEntry: true).hex, "AAAAAA")
+            checkEqual("widgetCoverTailDoesNotReuseCurrent",
+                       withArt.cover(forChainedEntry: true).hex, nil)
 
             // The terminal entry: built while the payload is still valid, dated
             // past the end of everything it covers, so the tile flips itself to
@@ -965,6 +977,9 @@ final class TestRunner {
             check("widgetChainedNextIntroEmitted", nextIntro != nil)
             checkEqual("widgetChainedNextIntroDate", nextIntro?.date,
                        Date(timeIntervalSince1970: start.timeIntervalSince1970 + 2))
+            let midIntro = WidgetTimelineBuilder.entries(for: chainedWithIntro, now: start.addingTimeInterval(4)).first
+            check("widgetRebakeInsideNextIntroHasNoOldLyrics", midIntro?.isNextTrack == true
+                  && midIntro?.currentLine.isEmpty == true && midIntro?.nextLine == "next-delayed")
             var noClock = payload(lines: lines)
             noClock.trackStartEpochMs = 0
             check("widgetNotExpiredWithoutStart", !WidgetTimelineBuilder.isExpired(payload: noClock, now: start))
@@ -1269,17 +1284,34 @@ final class TestRunner {
         }
 
         do {
-            let result = awaitResult {
-                let gate = AutomaticWidgetRepair()
-                let now = Date(timeIntervalSince1970: 1000)
-                let first = await gate.begin(now: now)
-                let concurrent = await gate.begin(now: now)
-                await gate.finish(now: now)
-                let early = await gate.begin(now: now.addingTimeInterval(4))
-                let afterCooldown = await gate.begin(now: now.addingTimeInterval(5))
-                return [first, concurrent, early, afterCooldown]
+            let result = awaitResult { () -> Bool in
+                actor Fetches {
+                    var count = 0
+                    func fetch() async -> WidgetRepairOutcome {
+                        count += 1
+                        try? await Task.sleep(for: .milliseconds(150))
+                        return .updated(SharedWidgetPayload(title: "New track", artist: "Artist", currentLine: "Line",
+                                                            isPlaying: true, progress: 0, status: LyricStatus.playing.rawValue))
+                    }
+                }
+                let repair = AutomaticWidgetRepair()
+                let fetches = Fetches()
+                let outcomes = await withTaskGroup(of: WidgetRepairOutcome.self) { group -> [WidgetRepairOutcome] in
+                    for _ in 0..<5 { group.addTask { await repair.refresh { await fetches.fetch() } } }
+                    var outcomes: [WidgetRepairOutcome] = []
+                    for await outcome in group { outcomes.append(outcome) }
+                    return outcomes
+                }
+                let count = await fetches.count
+                let now = Date(timeIntervalSince1970: 1_000)
+                let failed = await repair.refresh(now: { now }) { .unavailable }
+                let early = await repair.refresh(now: { now.addingTimeInterval(4) }) { .idle }
+                let retried = await repair.refresh(now: { now.addingTimeInterval(5) }) { .idle }
+                guard case .updated(let payload)? = outcomes.first, payload.title == "New track" else { return false }
+                return count == 1 && outcomes == Array(repeating: .updated(payload), count: 5)
+                    && failed == .unavailable && early == .unavailable && retried == .idle
             }
-            checkEqual("automaticRepairCoalescesAndRecovers", result.value, [true, false, false, true])
+            check("automaticRepairSharesResultAndRetriesFailure", result.value == true)
         }
         // MARK: display segmentation (provider sentences chunked for tiles)
         //

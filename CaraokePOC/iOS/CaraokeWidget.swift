@@ -112,7 +112,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
 
     func getSnapshot(in context: Context, completion: @escaping (CaraokeWidgetEntry) -> Void) {
         guard let payload = SharedWidgetStore.read(), !payload.title.isEmpty else {
-            completion(placeholder(in: context))
+            completion(context.isPreview ? placeholder(in: context) : idleEntry())
             return
         }
         let settings = SharedWidgetStore.readSettings()
@@ -123,27 +123,49 @@ struct CaraokeWidgetProvider: TimelineProvider {
         completion(entry(from: built, payload: payload, settings: settings))
     }
 
+    private func idleEntry() -> CaraokeWidgetEntry {
+        CaraokeWidgetEntry(date: Date(), lineIndex: nil, currentLine: "Play a song to see lyrics",
+                           previousLines: [], nextLine: nil, upcomingLines: [], progress: 0,
+                           title: "", artist: "", isPlaying: false, status: .idle, artworkData: nil,
+                           artworkColorHex: nil, resyncPulse: 1, settings: SharedWidgetStore.readSettings(),
+                           debugStamp: nil)
+    }
+
     func getTimeline(in context: Context, completion: @escaping (Timeline<CaraokeWidgetEntry>) -> Void) {
-        guard let payload = SharedWidgetStore.read(), !payload.title.isEmpty else {
-            completion(Timeline(entries: [placeholder(in: context)], policy: .atEnd))
+        guard let payload = SharedWidgetStore.read() else {
+            completion(idleTimeline(retry: false))
             return
         }
         // A wake that finds the baked timeline already spent is the one moment
         // the extension can repair itself. Ask the player what is on now and
         // rebuild from the answer — this is what keeps the tile following the
         // music when the app itself has been suspended and cannot reload us.
-        // Gated on expiry so an ordinary wake never costs a network round trip.
-        guard WidgetTimelineBuilder.isExpired(payload: payload, now: Date()) else {
+        // An expired track or idle Spotify session can ask the player again.
+        guard payload.title.isEmpty || WidgetTimelineBuilder.isExpired(payload: payload, now: Date()) else {
             Self.log.notice("getTimeline direct: lines=\(payload.lines.count, privacy: .public) chain=\(payload.nextStartMs, privacy: .public)")
             completion(timeline(for: payload, in: context))
             return
         }
         Task {
             let started = Date()
-            let refreshed = await WidgetResync.refreshAutomatically(timeout: 6)
-            Self.log.notice("getTimeline self-fetch took=\(Date().timeIntervalSince(started), privacy: .public)s track=\((refreshed ?? payload).title, privacy: .public)")
-            completion(timeline(for: refreshed ?? payload, in: context))
+            let outcome = await WidgetResync.refreshAutomatically(timeout: 6)
+            Self.log.notice("getTimeline self-fetch took=\(Date().timeIntervalSince(started), privacy: .public)s")
+            switch outcome {
+            case .updated(let current):
+                completion(timeline(for: current, in: context))
+            case .idle, .unavailable:
+                let current = SharedWidgetStore.read()
+                if let current, !current.title.isEmpty {
+                    completion(timeline(for: current, in: context))
+                } else {
+                    completion(idleTimeline(retry: current != nil))
+                }
+            }
         }
+    }
+
+    private func idleTimeline(retry: Bool) -> Timeline<CaraokeWidgetEntry> {
+        Timeline(entries: [idleEntry()], policy: retry ? .after(Date().addingTimeInterval(60)) : .never)
     }
 
     /// Builds the timeline for a payload, choosing a reload policy that always
@@ -199,7 +221,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
             // Failed self-repair must not resubmit an already-spent timeline.
             policy = .after(now.addingTimeInterval(60))
         } else if !payload.isPlaying || payload.lines.isEmpty {
-            policy = .atEnd
+            // A static timeline must not request a reload as soon as it is read.
+            policy = .after(now.addingTimeInterval(60))
         } else if covered {
             // A whole song fits in one timeline, so no periodic reload is
             // needed — reloading every few seconds is what exhausted

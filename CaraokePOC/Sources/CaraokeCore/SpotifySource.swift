@@ -156,8 +156,10 @@ final class SpotifySource: NowPlayingSource {
             // from there instead of the arrival time.
             let capturedAt = requestedAt.addingTimeInterval(Date().timeIntervalSince(requestedAt) / 2)
             switch http.statusCode {
-            case 200:
-                let state = try Self.parseCurrentlyPlaying(data, capturedAt: capturedAt)
+            case 200, 204:
+                let playback = try SpotifyPlayback.decode(data, statusCode: http.statusCode, capturedAt: capturedAt)
+                let state: NowPlayingState?
+                if case .track(let track) = playback { state = track } else { state = nil }
                 publishIfCurrent(generation) {
                     subject.send(state)
                     if isCurrent(generation) { availabilitySubject.send(.connected) }
@@ -168,12 +170,6 @@ final class SpotifySource: NowPlayingSource {
                 // discovered at the next poll, so the poll must stay quick
                 // while a ride is live. Only back off when nothing is playing.
                 return state != nil ? activeInterval() : Self.idleInterval
-            case 204: // nothing playing
-                publishIfCurrent(generation) {
-                    subject.send(nil)
-                    if isCurrent(generation) { availabilitySubject.send(.connected) }
-                }
-                return Self.idleInterval
             case 401:
                 guard isCurrent(generation) else { return Self.idleInterval }
                 await tokenProvider.handleUnauthorized()
@@ -201,41 +197,5 @@ final class SpotifySource: NowPlayingSource {
             // Transient network error (tunnel, dead zone) — just try again.
             return Self.idleInterval
         }
-    }
-
-    // MARK: - Parsing (pure, fixture-tested)
-
-    static func parseCurrentlyPlaying(_ data: Data, capturedAt: Date) throws -> NowPlayingState? {
-        struct Payload: Decodable {
-            struct Item: Decodable {
-                struct Artist: Decodable { let name: String }
-                struct Image: Decodable { let url: String }
-                struct Album: Decodable {
-                    let name: String?
-                    let images: [Image]?
-                }
-                let name: String
-                let duration_ms: Int?
-                let artists: [Artist]?
-                let album: Album?
-            }
-            let progress_ms: Int?
-            let is_playing: Bool?
-            let item: Item?
-        }
-
-        let payload = try JSONDecoder().decode(Payload.self, from: data)
-        guard let item = payload.item else { return nil } // e.g. private session or ad
-        return NowPlayingState(
-            title: item.name,
-            artist: item.artists?.first?.name ?? "",
-            album: item.album?.name,
-            durationMs: item.duration_ms,
-            positionMs: payload.progress_ms ?? 0,
-            isPlaying: payload.is_playing ?? false,
-            source: .spotify,
-            capturedAt: capturedAt,
-            artworkURL: item.album?.images?.first?.url
-        )
     }
 }

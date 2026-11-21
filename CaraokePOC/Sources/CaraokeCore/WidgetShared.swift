@@ -24,9 +24,13 @@ struct SharedLyricLine: Codable, Hashable, Sendable {
 /// Everything a widget needs to render AND keep advancing without the app:
 /// the full timed lyric list plus the track's wall-clock start, so the widget
 /// extrapolates the current line itself instead of waiting for a reload.
-struct SharedWidgetPayload: Codable, Sendable {
+struct SharedWidgetPayload: Codable, Equatable, Sendable {
+    static let spotifyIdle = Self(title: "", artist: "", currentLine: "", isPlaying: false,
+                                  progress: 0, status: LyricStatus.idle.rawValue, source: "spotify")
+
     var title: String
     var artist: String
+    var album: String?
     var currentLine: String
     var currentTranslation: String?
     var previousLines: [String]
@@ -65,6 +69,7 @@ struct SharedWidgetPayload: Codable, Sendable {
 
     init(title: String,
          artist: String,
+         album: String? = nil,
          currentLine: String,
          currentTranslation: String? = nil,
          previousLines: [String] = [],
@@ -88,6 +93,7 @@ struct SharedWidgetPayload: Codable, Sendable {
          nextArtworkColorHex: String? = nil) {
         self.title = title
         self.artist = artist
+        self.album = album
         self.currentLine = currentLine
         self.currentTranslation = currentTranslation
         self.previousLines = previousLines
@@ -116,13 +122,10 @@ struct SharedWidgetPayload: Codable, Sendable {
         nextStartMs > 0 && nextDurationMs > 0 ? nextStartMs + nextDurationMs : durationMs
     }
 
-    /// Which cover an entry paints. A chained entry belongs to the next song
-    /// and must show its art; when the queue entry carried no image the current
-    /// song's cover is a better answer than a blank — the same degradation the
-    /// tile had before chaining existed.
+    /// A chained entry never borrows the previous song's cover.
     func cover(forChainedEntry chained: Bool) -> (data: Data?, hex: String?) {
         guard chained else { return (artworkData, artworkColorHex) }
-        return (nextArtworkData ?? artworkData, nextArtworkColorHex ?? artworkColorHex)
+        return (nextArtworkData, nextArtworkColorHex)
     }
 }
 
@@ -274,18 +277,20 @@ enum WidgetTimelineBuilder {
         // where the tile shows one picture and never slides. Staleness is
         // `isExpired`'s job (and the provider's self-fetch), not a reason to
         // refuse to advance.
-        var startIndex = 0
-        for (index, line) in lines.enumerated() {
-            if line.timeMs <= positionMs { startIndex = index } else { break }
-        }
+        let nextTrackIndex = payload.nextStartMs > 0
+            ? lines.firstIndex(where: { $0.timeMs >= payload.nextStartMs }) : nil
+        let trackIndex = positionMs >= payload.nextStartMs ? (nextTrackIndex ?? 0) : 0
+        var startIndex = trackIndex
+        while startIndex + 1 < lines.count, lines[startIndex + 1].timeMs <= positionMs { startIndex += 1 }
 
         let end = min(lines.count, startIndex + limit)
         var entries: [WidgetTimelineEntry] = []
         entries.reserveCapacity(end - startIndex + 2)
 
         // Intro entry for track start before first lyric
-        if let firstLine = lines.first, positionMs < firstLine.timeMs {
-            let introUpcoming = Array(lines.prefix(upcomingShown).map(\.text))
+        if positionMs < lines[trackIndex].timeMs {
+            let trackEnd = trackIndex == 0 ? (nextTrackIndex ?? lines.count) : lines.count
+            let introUpcoming = Array(lines[trackIndex..<trackEnd].prefix(upcomingShown).map(\.text))
             entries.append(WidgetTimelineEntry(
                 date: now,
                 lineIndex: nil,
@@ -297,13 +302,12 @@ enum WidgetTimelineBuilder {
                 // Elapsed fraction, not 0: a long instrumental intro otherwise
                 // pins the bar at zero and then jumps when the first lyric lands.
                 progress: progressFraction(for: positionMs, payload: payload),
-                isNextTrack: false
+                isNextTrack: trackIndex > 0
             ))
         }
 
         // Chained next-track intro entry before its first lyric
-        if payload.nextStartMs > 0,
-           let nextTrackIndex = lines.firstIndex(where: { $0.timeMs >= payload.nextStartMs }) {
+        if let nextTrackIndex, nextTrackIndex < end {
             let nextLine = lines[nextTrackIndex]
             if nextLine.timeMs > payload.nextStartMs {
                 let nextStartDate = Date(timeIntervalSince1970: startEpoch + Double(payload.nextStartMs) / 1000.0)
@@ -327,8 +331,11 @@ enum WidgetTimelineBuilder {
         for index in startIndex..<end {
             let line = lines[index]
             let lineDate = Date(timeIntervalSince1970: startEpoch + Double(line.timeMs) / 1000.0)
-            let previous = index > 0 ? Array(lines[max(0, index - 2)..<index].map(\.text)) : []
-            let upcoming = Array(lines.dropFirst(index + 1).prefix(upcomingShown).map(\.text))
+            let isNextTrack = nextTrackIndex.map { index >= $0 } ?? false
+            let first = isNextTrack ? (nextTrackIndex ?? 0) : 0
+            let last = isNextTrack ? lines.count : (nextTrackIndex ?? lines.count)
+            let previous = Array(lines[max(first, index - 2)..<index].map(\.text))
+            let upcoming = Array(lines[(index + 1)..<last].prefix(upcomingShown).map(\.text))
             entries.append(WidgetTimelineEntry(
                 date: max(lineDate, now),
                 lineIndex: index,
@@ -338,7 +345,7 @@ enum WidgetTimelineBuilder {
                 nextLine: upcoming.first,
                 upcomingLines: upcoming,
                 progress: progressFraction(for: line.timeMs, payload: payload),
-                isNextTrack: payload.nextStartMs > 0 && line.timeMs >= payload.nextStartMs
+                isNextTrack: isNextTrack
             ))
         }
 
@@ -355,7 +362,8 @@ enum WidgetTimelineBuilder {
                     previousLines: [lastLine.text],
                     nextLine: nil,
                     upcomingLines: [],
-                    progress: progressFraction(for: lastLine.timeMs + 7000, payload: payload)
+                    progress: progressFraction(for: lastLine.timeMs + 7000, payload: payload),
+                    isNextTrack: nextTrackIndex != nil
                 ))
             }
             let stage2Date = Date(timeIntervalSince1970: startEpoch + Double(lastLine.timeMs + 10000) / 1000.0)
@@ -368,7 +376,8 @@ enum WidgetTimelineBuilder {
                     previousLines: [],
                     nextLine: nil,
                     upcomingLines: [],
-                    progress: 1.0
+                    progress: 1.0,
+                    isNextTrack: nextTrackIndex != nil
                 ))
             }
             // Terminal entry: past the end of everything the payload covers, so
@@ -389,6 +398,7 @@ enum WidgetTimelineBuilder {
                     nextLine: nil,
                     upcomingLines: [],
                     progress: 1.0,
+                    isNextTrack: nextTrackIndex != nil,
                     isExpired: true
                 ))
             }

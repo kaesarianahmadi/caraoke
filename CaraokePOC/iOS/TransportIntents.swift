@@ -38,21 +38,10 @@ struct PlayPauseIntent: AppIntent {
     static let description = IntentDescription("Plays or pauses the current song.")
 
     func perform() async throws -> some IntentResult {
-        let before = SharedWidgetStore.read()
-        if var payload = before {
-            payload.isPlaying.toggle()
-            SharedWidgetStore.write(payload)
+        if case .performed = await TransportControl.perform(.playPause) {
+            // Let the player snapshot publish the new clock and play state together.
+            SharedWidgetStore.requestReload(reason: "tap-playpause")
         }
-        let outcome = await TransportControl.perform(.playPause)
-        if case .performed = outcome {
-            // Real change — the app's next snapshot confirms the new state.
-        } else {
-            // A failed call must undo the optimistic toggle: a payload left
-            // inverted freezes the widget, whose timeline only advances
-            // while `isPlaying`.
-            SharedWidgetStore.write(before)
-        }
-        SharedWidgetStore.requestReload(reason: "tap-playpause")
         return .result()
     }
 }

@@ -22,31 +22,23 @@ enum SourcePin: String, CaseIterable, Identifiable {
 }
 
 /// Pure arbitration: Apple Music playing wins (local, exact position) →
-/// Spotify playing → otherwise keep the last known track, marked not playing.
+/// Spotify playing → otherwise use a reported paused item, if there is one.
 enum NowPlayingArbiter {
     static func arbitrate(
         apple: NowPlayingState?,
         spotify: NowPlayingState?,
-        pin: SourcePin,
-        previous: NowPlayingState?
+        pin: SourcePin
     ) -> NowPlayingState? {
         switch pin {
         case .appleMusic:
-            return apple ?? carryOver(previous, matching: .appleMusic)
+            return apple
         case .spotify:
-            return spotify ?? carryOver(previous, matching: .spotify)
+            return spotify
         case .auto:
             if let apple, apple.isPlaying { return apple }
             if let spotify, spotify.isPlaying { return spotify }
-            // Both idle: prefer a source still reporting an item, else the
-            // last known state — always flagged as not playing.
-            return (apple ?? spotify ?? previous)?.with(isPlaying: false)
+            return apple ?? spotify
         }
-    }
-
-    private static func carryOver(_ previous: NowPlayingState?, matching source: MusicSource) -> NowPlayingState? {
-        guard let previous, previous.source == source else { return nil }
-        return previous.with(isPlaying: false)
     }
 }
 
@@ -73,10 +65,9 @@ final class NowPlayingCoordinator {
     ) {
         pinSubject = CurrentValueSubject(pin)
         cancellable = Publishers.CombineLatest3(applePublisher, spotifyPublisher, pinSubject)
-            .map { [subject] apple, spotify, pin in
+            .map { apple, spotify, pin in
                 NowPlayingArbiter.arbitrate(
-                    apple: apple, spotify: spotify,
-                    pin: pin, previous: subject.value
+                    apple: apple, spotify: spotify, pin: pin
                 )
             }
             .sink { [subject] state in subject.send(state) }

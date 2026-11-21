@@ -1,57 +1,24 @@
 import Foundation
-import WidgetKit
+import UIKit
 import os
 
 /// Widget-side resync. One repair, two triggers: `ResyncWidgetIntent` when the
 /// user taps a widget's record/cover, and the widget provider itself when a
 /// timeline wake finds its payload spent.
 ///
-/// The tap must not be a no-op and must not merely open the app. So: pulse the
-/// cover immediately (the widget has no animation, the pulse rides the
-/// timeline), then ask Spotify what is playing right now and re-anchor the
-/// shared payload to it — same song ⇒ correct the clock, different song ⇒ pull
-/// its synced lyrics from LRCLIB and rebuild the payload. The app's next
-/// snapshot overwrites all of this, so there is no second source of truth.
+/// Ask Spotify what is playing, then re-anchor the same track or build a
+/// fresh payload. Concurrent calls in this process share that work.
 
 enum WidgetResync {
     private static let automaticRepair = AutomaticWidgetRepair()
 
-    static func refreshAutomatically(timeout: TimeInterval) async -> SharedWidgetPayload? {
-        guard await automaticRepair.begin(now: Date()) else { return nil }
-        let payload = await refreshNowPlaying(timeout: timeout)
-        await automaticRepair.finish(now: Date())
-        return payload
-    }
-
-    private struct NowPlaying {
-        let title: String
-        let artist: String
-        let durationMs: Int
-        let progressMs: Int
-        let isPlaying: Bool
-        let capturedAt: Date
+    static func refreshAutomatically(timeout: TimeInterval) async -> WidgetRepairOutcome {
+        await automaticRepair.refresh { await refreshNowPlaying(timeout: timeout) }
     }
 
     static func run() async {
-        guard var payload = SharedWidgetStore.read() else {
-            SharedWidgetStore.requestReload(reason: "resync-no-payload")
-            return
-        }
-        let start = Date()
-        let nowMs = Int(start.timeIntervalSince1970 * 1000)
-        payload.resyncingUntilMs = nowMs + WidgetTimelineBuilder.resyncPulseWindowMs
-        SharedWidgetStore.write(payload)
-        SharedWidgetStore.requestReload(reason: "resync-pulse")
-
-        await refreshNowPlaying()
-
-        // Give the pulse at least 1.2s to visually register and prevent chronod
-        // from throttling back-to-back reloads within milliseconds.
-        let elapsed = Date().timeIntervalSince(start)
-        if elapsed < 1.2 {
-            try? await Task.sleep(for: .seconds(1.2 - elapsed))
-        }
-        SharedWidgetStore.requestReload(reason: "resync-settle")
+        _ = await automaticRepair.refresh(force: true) { await refreshNowPlaying(timeout: 6) }
+        SharedWidgetStore.requestReload(reason: "manual-resync")
     }
 
     /// Asks the player what is on right now and rewrites the shared payload
@@ -63,121 +30,117 @@ enum WidgetResync {
     /// `timeout` is per request — the timeline wake runs on WidgetKit's clock
     /// and must not outlive it, because an overrunning extension is killed and
     /// the old timeline is kept.
-    @discardableResult
-    static func refreshNowPlaying(timeout: TimeInterval = 8) async -> SharedWidgetPayload? {
-        guard var payload = SharedWidgetStore.read() else { return nil }
+    private static func refreshNowPlaying(timeout: TimeInterval) async -> WidgetRepairOutcome {
+        guard let original = SharedWidgetStore.read() else { return .idle }
 
         let log = Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
-        guard payload.source == "spotify" else {
-            log.notice("timeline self-repair requires app for source=\(payload.source, privacy: .public)")
-            return nil
+        guard original.source == "spotify" else {
+            log.notice("timeline self-repair requires app for source=\(original.source, privacy: .public)")
+            return .unavailable
         }
         guard let token = await TransportControl.accessToken() else {
             log.error("timeline self-repair failed: Spotify credentials unavailable")
-            return nil
+            return .unavailable
         }
-        guard let playing = await spotifyNowPlaying(token: token, timeout: timeout) else { return nil }
+        let playing: NowPlayingState
+        switch await spotifyNowPlaying(token: token, timeout: timeout) {
+        case .idle: return publish(.spotifyIdle, replacing: original)
+        case .unavailable: return .unavailable
+        case .track(let track): playing = track
+        }
         // Match the app poller's request-midpoint clock. Token refresh and
         // network time must not move the playback anchor back to request start.
         let nowMs = Int(playing.capturedAt.timeIntervalSince1970 * 1000)
 
-        // Same song with lyrics already loaded: the only thing that drifts is
-        // the clock, so re-anchor it and keep everything else — including a
-        // chained next song, which is still the one that follows this track.
-        if playing.title == payload.title, playing.artist == payload.artist, !payload.lines.isEmpty {
-            payload.trackStartEpochMs = nowMs - playing.progressMs
-            payload.durationMs = playing.durationMs
-            payload.isPlaying = playing.isPlaying
-            payload.progress = fraction(playing.progressMs, playing.durationMs)
-            payload.status = (playing.isPlaying ? LyricStatus.playing : LyricStatus.paused).rawValue
-            payload.resyncingUntilMs = 0
-            SharedWidgetStore.write(payload)
-            return payload
-        }
-
-        let lines = await syncedLyrics(title: playing.title, artist: playing.artist,
-                                       durationMs: playing.durationMs, timeout: timeout)
-        let elapsedMs = playing.isPlaying ? max(0, Int(Date().timeIntervalSince(playing.capturedAt) * 1000)) : 0
-        let position = SyncEngine.position(atMs: playing.progressMs + elapsedMs, lines: lines,
-                                           durationMs: playing.durationMs,
-                                           isPlaying: playing.isPlaying)
-        let status: LyricStatus
-        if lines.isEmpty {
-            status = .noLyrics
+        let sameTrack = playing.title == original.title && playing.artist == original.artist && playing.album == original.album
+        let durationMs = playing.durationMs ?? 0
+        var payload: SharedWidgetPayload
+        if sameTrack, !original.lines.isEmpty {
+            payload = original
+            if payload.artworkData == nil,
+               let cover = await UIImage.fetchWidgetArtwork(playing.artworkURL, timeout: timeout) {
+                payload.artworkData = cover.data
+                payload.artworkColorHex = cover.hex
+            }
         } else {
-            status = playing.isPlaying ? .playing : .paused
+            async let artwork = UIImage.fetchWidgetArtwork(playing.artworkURL, timeout: timeout)
+            let signature = TrackSignature(title: playing.title, artist: playing.artist, album: playing.album,
+                                           durationMs: durationMs > 0 ? durationMs : nil)
+            let track: LyricTrack?
+            let status: LyricStatus
+            do {
+                track = try await LRCLIBLyricsProvider(timeout: timeout).lyrics(for: signature)
+                status = track == nil ? .noLyrics : (playing.isPlaying ? .playing : .paused)
+            } catch {
+                // Spotify confirmed the new track even if lyrics are unavailable.
+                track = nil
+                status = .loading
+            }
+            let cover = await artwork
+            payload = SharedWidgetPayload(
+                title: playing.title, artist: playing.artist, album: playing.album, currentLine: "",
+                isPlaying: playing.isPlaying, progress: 0, status: status.rawValue,
+                lines: track?.lines.map {
+                    SharedLyricLine(timeMs: $0.startMs, text: $0.text, translation: $0.translation)
+                } ?? [], artworkData: cover?.data ?? (sameTrack ? original.artworkData : nil),
+                artworkColorHex: cover == nil && sameTrack ? original.artworkColorHex : cover?.hex,
+                source: "spotify"
+            )
         }
-        // Built fresh, so the previous chain is dropped: this payload describes
-        // a different song now, and nothing has looked ahead for it yet. The
-        // app re-chains on its next track change.
-        let refreshed = SharedWidgetPayload(
-            title: playing.title,
-            artist: playing.artist,
-            currentLine: position.currentLine ?? "",
-            previousLines: position.previousLines,
-            nextLine: position.nextLine,
-            upcomingLines: position.upcomingLines,
-            isPlaying: playing.isPlaying,
-            progress: position.trackProgress,
-            status: status.rawValue,
-            trackStartEpochMs: nowMs - playing.progressMs,
-            durationMs: playing.durationMs,
-            lines: lines.map { SharedLyricLine(timeMs: $0.timeMs, text: $0.text) },
-            source: "spotify"
+        let elapsedMs = playing.isPlaying ? max(0, Int(Date().timeIntervalSince(playing.capturedAt) * 1000)) : 0
+        let position = SyncEngine.position(
+            atMs: playing.positionMs + elapsedMs,
+            lines: payload.lines.map { LRCLine(timeMs: $0.timeMs, text: $0.text, translation: $0.translation) },
+            durationMs: playing.durationMs, isPlaying: playing.isPlaying
         )
-        SharedWidgetStore.write(refreshed)
-        return refreshed
+        payload.currentLine = position.currentLine ?? ""
+        payload.currentTranslation = position.currentTranslation
+        payload.previousLines = position.previousLines
+        payload.nextLine = position.nextLine
+        payload.upcomingLines = position.upcomingLines
+        payload.isPlaying = playing.isPlaying
+        payload.progress = position.trackProgress
+        if !payload.lines.isEmpty {
+            payload.status = (playing.isPlaying ? LyricStatus.playing : .paused).rawValue
+        }
+        payload.trackStartEpochMs = nowMs - playing.positionMs
+        payload.durationMs = durationMs
+        payload.resyncingUntilMs = 0
+        return publish(payload, replacing: original)
     }
 
-    private static func fraction(_ positionMs: Int, _ durationMs: Int) -> Double {
-        guard durationMs > 0 else { return 0 }
-        return min(1, max(0, Double(positionMs) / Double(durationMs)))
+    private static func publish(_ payload: SharedWidgetPayload, replacing original: SharedWidgetPayload) -> WidgetRepairOutcome {
+        // ponytail: Keychain has no atomic compare-and-swap. Reject a snapshot
+        // superseded during network I/O; serialize cross-process writes with S7.
+        let current = SharedWidgetStore.read()
+        guard current == original else {
+            guard let current, !current.title.isEmpty else { return .idle }
+            return .updated(current)
+        }
+        if payload != original { SharedWidgetStore.write(payload) }
+        return payload.title.isEmpty ? .idle : .updated(payload)
     }
 
     // MARK: - Spotify
 
-    private static func spotifyNowPlaying(token: String, timeout: TimeInterval) async -> NowPlaying? {
-        guard let url = URL(string: "https://api.spotify.com/v1/me/player") else { return nil }
+    private static func spotifyNowPlaying(token: String, timeout: TimeInterval) async -> SpotifyPlayback {
+        let url = URL(string: "https://api.spotify.com/v1/me/player")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = timeout
         let requestedAt = Date()
         let log = Logger(subsystem: "com.caraoke.poc", category: "widgetintent")
-        let data: Data
-        let response: URLResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return .unavailable }
+            let capturedAt = requestedAt.addingTimeInterval(Date().timeIntervalSince(requestedAt) / 2)
+            if http.statusCode != 200 {
+                log.notice("Spotify resync response HTTP \(http.statusCode, privacy: .public)")
+            }
+            return try SpotifyPlayback.decode(data, statusCode: http.statusCode, capturedAt: capturedAt)
         } catch {
             log.error("Spotify resync request failed: \(error.localizedDescription, privacy: .public)")
-            return nil
+            return .unavailable
         }
-        guard let http = response as? HTTPURLResponse else { return nil }
-        guard http.statusCode == 200 else {
-            log.notice("Spotify resync response HTTP \(http.statusCode, privacy: .public)")
-            return nil
-        }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let item = json["item"] as? [String: Any],
-              let title = item["name"] as? String else { return nil }
-        let artists = (item["artists"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
-        return NowPlaying(
-            title: title,
-            artist: artists.first ?? "",
-            durationMs: item["duration_ms"] as? Int ?? 0,
-            progressMs: json["progress_ms"] as? Int ?? 0,
-            isPlaying: json["is_playing"] as? Bool ?? false,
-            capturedAt: requestedAt.addingTimeInterval(Date().timeIntervalSince(requestedAt) / 2)
-        )
-    }
-
-    // MARK: - LRCLIB (free, keyless — same endpoint the app's provider uses)
-
-    private static func syncedLyrics(title: String, artist: String, durationMs: Int,
-                                     timeout: TimeInterval) async -> [LRCLine] {
-        let provider = LRCLIBLyricsProvider(timeout: timeout)
-        let signature = TrackSignature(title: title, artist: artist,
-                                       durationMs: durationMs > 0 ? durationMs : nil)
-        guard let track = try? await provider.lyrics(for: signature) else { return [] }
-        return track.lines.map { LRCLine(timeMs: $0.startMs, text: $0.text) }
     }
 }

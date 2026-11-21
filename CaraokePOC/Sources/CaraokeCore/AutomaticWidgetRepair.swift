@@ -1,18 +1,27 @@
 import Foundation
 
-/// Coalesces automatic timeline repairs; explicit user taps are never gated.
+enum WidgetRepairOutcome: Equatable, Sendable {
+    case updated(SharedWidgetPayload)
+    case idle
+    case unavailable
+}
+
+/// Concurrent widget wakes share the same repair. Cache only failures briefly
+/// so an unavailable player does not trigger a request from every wake.
 actor AutomaticWidgetRepair {
-    private var inFlight = false
+    private var inFlight: Task<WidgetRepairOutcome, Never>?
     private var nextAttempt = Date.distantPast
 
-    func begin(now: Date) -> Bool {
-        guard !inFlight, now >= nextAttempt else { return false }
-        inFlight = true
-        return true
-    }
-
-    func finish(now: Date) {
-        inFlight = false
-        nextAttempt = now.addingTimeInterval(5)
+    func refresh(force: Bool = false, now: @Sendable () -> Date = { Date() },
+                 operation: @escaping @Sendable () async -> WidgetRepairOutcome) async -> WidgetRepairOutcome {
+        if let inFlight { return await inFlight.value }
+        guard force || now() >= nextAttempt else { return .unavailable }
+        let task = Task { await operation() }
+        inFlight = task
+        let outcome = await task.value
+        if case .unavailable = outcome { nextAttempt = now().addingTimeInterval(5) }
+        else { nextAttempt = .distantPast }
+        inFlight = nil
+        return outcome
     }
 }
