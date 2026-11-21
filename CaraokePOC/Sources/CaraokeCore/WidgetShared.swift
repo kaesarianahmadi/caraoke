@@ -122,6 +122,16 @@ struct SharedWidgetPayload: Codable, Equatable, Sendable {
         nextStartMs > 0 && nextDurationMs > 0 ? nextStartMs + nextDurationMs : durationMs
     }
 
+    func hasSamePlayerTimeline(as other: Self) -> Bool {
+        title == other.title && artist == other.artist && album == other.album
+            && source == other.source && isPlaying == other.isPlaying && durationMs == other.durationMs
+            && artworkData == other.artworkData && artworkColorHex == other.artworkColorHex
+            && nextStartMs == other.nextStartMs && nextDurationMs == other.nextDurationMs
+            && nextTitle == other.nextTitle && nextArtist == other.nextArtist
+            && nextArtworkData == other.nextArtworkData && nextArtworkColorHex == other.nextArtworkColorHex
+            && abs(trackStartEpochMs - other.trackStartEpochMs) <= 1000
+    }
+
     /// A chained entry never borrows the previous song's cover.
     func cover(forChainedEntry chained: Bool) -> (data: Data?, hex: String?) {
         guard chained else { return (artworkData, artworkColorHex) }
@@ -215,6 +225,39 @@ enum WidgetTimelineBuilder {
     /// full ten-minute hold while the music had moved on — a wake costs one
     /// bounded self-fetch, so repair within a minute instead.
     static let pausedHoldMs = 60_000
+
+    /// The Player tile has no lyrics. Bake coarse progress and a track boundary,
+    /// independent of the number or spacing of lyric lines.
+    static func playerEntries(for payload: SharedWidgetPayload, now: Date) -> [WidgetTimelineEntry] {
+        let expired = isExpired(payload: payload, now: now)
+        let position = positionMs(for: payload, now: now)
+        func entry(at date: Date, position: Int) -> WidgetTimelineEntry {
+            WidgetTimelineEntry(date: date, lineIndex: nil, currentLine: "", currentTranslation: nil,
+                                previousLines: [], nextLine: nil, upcomingLines: [],
+                                progress: payload.isPlaying && payload.durationMs > 0 && payload.trackStartEpochMs > 0
+                                    ? progressFraction(for: position, payload: payload) : payload.progress,
+                                isNextTrack: payload.isPlaying && payload.nextStartMs > 0 && position >= payload.nextStartMs,
+                                isExpired: expired)
+        }
+        var entries = [entry(at: now, position: position)]
+        guard !expired, payload.isPlaying, payload.trackStartEpochMs > 0 else { return entries }
+        var offsets = (1...5).map { position + $0 * 30_000 }.filter { $0 <= payload.chainedSpanMs }
+        if payload.nextStartMs > position, payload.nextStartMs <= position + 150_000 {
+            offsets.append(payload.nextStartMs)
+        }
+        for offset in Set(offsets).sorted() {
+            let date = Date(timeIntervalSince1970: Double(payload.trackStartEpochMs + offset) / 1000)
+            if date > now { entries.append(entry(at: date, position: offset)) }
+        }
+        return entries
+    }
+
+    static func playerReloadDate(for payload: SharedWidgetPayload, now: Date) -> Date {
+        guard payload.trackStartEpochMs > 0, payload.chainedSpanMs > 0 else { return now.addingTimeInterval(60) }
+        if !payload.isPlaying { return now.addingTimeInterval(60) }
+        let end = Date(timeIntervalSince1970: Double(payload.trackStartEpochMs + payload.chainedSpanMs) / 1000)
+        return max(now.addingTimeInterval(30), min(end.addingTimeInterval(20), now.addingTimeInterval(150)))
+    }
 
     /// Pulse cadence for an in-flight resync. WidgetKit renders static
     /// snapshots, so the fade in/out is emitted as alternating entries.

@@ -295,15 +295,16 @@ private struct CaraokeCarPlayHybridWidgetView: View {
 
 /// Layer 1. Cover + identity + progress + working transport buttons.
 struct CaraokePlayerWidget: Widget {
-    let kind: String = "CaraokePlayerWidget"
+    let kind = SharedWidgetStore.Kind.player.rawValue
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: CaraokeWidgetProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: CaraokeWidgetProvider(playerOnly: true)) { entry in
             CaraokeCarPlayChrome(entry: entry) { CaraokePlayerWidgetView(entry: entry) }
         }
         .configurationDisplayName("Caraoke Player")
         .description("Cover, track and playback controls for the CarPlay widget stack.")
         .supportedFamilies([.systemSmall])
+        .disfavoredLocations([.homeScreen, .lockScreen], for: [.systemSmall])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(true)
     }
@@ -311,15 +312,16 @@ struct CaraokePlayerWidget: Widget {
 
 /// Layer 2. Lyrics only — no cover, no controls.
 struct CaraokeLyricsWidget: Widget {
-    let kind: String = "CaraokeLyricsWidget"
+    let kind = SharedWidgetStore.Kind.lyrics.rawValue
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CaraokeWidgetProvider()) { entry in
             CaraokeCarPlayChrome(entry: entry) { CaraokeCarPlayLyricsWidgetView(entry: entry) }
         }
-        .configurationDisplayName("Caraoke Lyrics")
+        .configurationDisplayName("Caraoke CarPlay Lyrics")
         .description("Synced lyrics only, sized for the CarPlay widget stack.")
         .supportedFamilies([.systemSmall])
+        .disfavoredLocations([.homeScreen, .lockScreen], for: [.systemSmall])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(true)
     }
@@ -327,7 +329,7 @@ struct CaraokeLyricsWidget: Widget {
 
 /// Layer 3. The huge-square layout in one tile: lyrics on top, player bar under.
 struct CaraokeHybridWidget: Widget {
-    let kind: String = "CaraokeHybridWidget"
+    let kind = SharedWidgetStore.Kind.hybrid.rawValue
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CaraokeWidgetProvider()) { entry in
@@ -336,6 +338,7 @@ struct CaraokeHybridWidget: Widget {
         .configurationDisplayName("Caraoke Hybrid")
         .description("Lyrics, cover and controls together for the CarPlay widget stack.")
         .supportedFamilies([.systemSmall])
+        .disfavoredLocations([.homeScreen, .lockScreen], for: [.systemSmall])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(true)
     }

@@ -79,6 +79,7 @@ struct WidgetDebugStamp {
 // MARK: - Timeline Provider
 
 struct CaraokeWidgetProvider: TimelineProvider {
+    var playerOnly = false
 
     /// Boundary diagnostics. Readable on device with Console.app (or
     /// `log collect --predicate 'subsystem == "com.caraoke.poc"'`), which is
@@ -116,8 +117,11 @@ struct CaraokeWidgetProvider: TimelineProvider {
             return
         }
         let settings = SharedWidgetStore.readSettings()
-        guard let built = WidgetTimelineBuilder.entries(for: payload, now: Date(), limit: 1).first else {
-            completion(placeholder(in: context))
+        let now = Date()
+        let entries = playerOnly ? WidgetTimelineBuilder.playerEntries(for: payload, now: now)
+            : WidgetTimelineBuilder.entries(for: payload, now: now, limit: 1)
+        guard let built = entries.first else {
+            completion(context.isPreview ? placeholder(in: context) : idleEntry())
             return
         }
         completion(entry(from: built, payload: payload, settings: settings))
@@ -173,10 +177,9 @@ struct CaraokeWidgetProvider: TimelineProvider {
     private func timeline(for payload: SharedWidgetPayload, in context: Context) -> Timeline<CaraokeWidgetEntry> {
         let settings = SharedWidgetStore.readSettings()
         let now = Date()
-        let built = WidgetTimelineBuilder.entries(for: payload,
-                                                  now: now,
-                                                  limit: WidgetTimelineBuilder.maxEntries,
-                                                  includeOutro: true)
+        let built = playerOnly
+            ? WidgetTimelineBuilder.playerEntries(for: payload, now: now)
+            : WidgetTimelineBuilder.entries(for: payload, now: now, includeOutro: true)
         // Read from the shared keychain settings, never UserDefaults: the
         // extension cannot see the app's `.standard` domain without an App
         // Group, which this project deliberately does not use.
@@ -192,10 +195,11 @@ struct CaraokeWidgetProvider: TimelineProvider {
                                              builtAt: now,
                                              anchorMs: payload.trackStartEpochMs,
                                              anchorAgeSec: anchorAge) : nil
+        let covered = !playerOnly && built.contains { $0.lineIndex == payload.lines.count - 1 }
         if let stamp {
             // Millisecond precision here, not on the tile: this line is what
             // lines a bake up against the app's reload requests.
-            Self.log.notice("timeline baked entries=\(built.count, privacy: .public) covered=\(built.contains { $0.lineIndex == payload.lines.count - 1 }, privacy: .public) \(stamp.logLine, privacy: .public)")
+            Self.log.notice("timeline baked entries=\(built.count, privacy: .public) covered=\(covered, privacy: .public) \(stamp.logLine, privacy: .public)")
         }
         let entries = built.enumerated().map { index, item in
             entry(from: item,
@@ -215,11 +219,12 @@ struct CaraokeWidgetProvider: TimelineProvider {
         // a chained tail counts, because it is in the same array. Deliberately
         // not `built.last`: the trailing outro and expired entries sit past the
         // final line and would make every timeline look complete.
-        let covered = built.contains { $0.lineIndex == payload.lines.count - 1 }
         let policy: TimelineReloadPolicy
         if WidgetTimelineBuilder.isExpired(payload: payload, now: now) {
             // Failed self-repair must not resubmit an already-spent timeline.
             policy = .after(now.addingTimeInterval(60))
+        } else if playerOnly {
+            policy = .after(WidgetTimelineBuilder.playerReloadDate(for: payload, now: now))
         } else if !payload.isPlaying || payload.lines.isEmpty {
             // A static timeline must not request a reload as soon as it is read.
             policy = .after(now.addingTimeInterval(60))
@@ -362,15 +367,16 @@ struct CaraokeWidgetEntryView: View {
 // MARK: - Widget Definition
 
 struct CaraokeWidget: Widget {
-    let kind: String = "CaraokeWidget"
+    let kind = SharedWidgetStore.Kind.home.rawValue
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CaraokeWidgetProvider()) { entry in
             CaraokeWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Caraoke Lyrics")
-        .description("Synced lyrics widget for Home Screen and CarPlay dashboard.")
+        .description("Synced lyrics for the Home Screen.")
         .supportedFamilies([.systemMedium, .systemLarge])
+        .disfavoredLocations([.carPlay], for: [.systemMedium, .systemLarge])
         .contentMarginsDisabled()
         // StandBy and CarPlay drop the background and render the tile on
         // black; the widget palette is card-free so the content survives it.

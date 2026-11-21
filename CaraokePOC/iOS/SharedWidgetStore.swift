@@ -71,6 +71,14 @@ enum SharedKeychain {
 }
 
 enum SharedWidgetStore {
+    enum Kind: String, CaseIterable {
+        case home = "CaraokeWidget"
+        case player = "CaraokePlayerWidget"
+        case lyrics = "CaraokeLyricsWidget"
+        case hybrid = "CaraokeHybridWidget"
+
+        static let lyricSurfaces: Set<Self> = [.home, .lyrics, .hybrid]
+    }
     private static let service = "app.caraoke.widget"
     private static let payloadAccount = "state"
     private static let settingsAccount = "settings"
@@ -88,9 +96,11 @@ enum SharedWidgetStore {
     /// screen. Only the log tells them apart. `reason` should name the trigger
     /// (track change, play/pause, seek, artwork, tap) — never a value that
     /// changes every call, or the log stops being groupable.
-    static func requestReload(reason: String) {
-        reloadLog.notice("reloadAllTimelines reason=\(reason, privacy: .public)")
-        WidgetCenter.shared.reloadAllTimelines()
+    static func requestReload(reason: String, kinds: Set<Kind> = Set(Kind.allCases)) {
+        for kind in kinds {
+            reloadLog.notice("reloadTimeline kind=\(kind.rawValue, privacy: .public) reason=\(reason, privacy: .public)")
+            WidgetCenter.shared.reloadTimelines(ofKind: kind.rawValue)
+        }
     }
 
     private static let reloadLog = Logger(subsystem: "com.caraoke.poc", category: "widgetreload")

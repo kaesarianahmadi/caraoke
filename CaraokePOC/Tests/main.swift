@@ -899,6 +899,18 @@ final class TestRunner {
             // boundary instead of sitting pinned at 100 %.
             checkEqual("widgetChainedProgressRestarts", acrossBoundary.first?.progress, 0)
             checkEqual("widgetChainedProgressAtBoundaryEnd", acrossBoundary.last?.progress, 0.2)
+            let player = WidgetTimelineBuilder.playerEntries(for: chained, now: start)
+            check("playerTimelineIgnoresLyricBoundaries", player.count == 2 && player.allSatisfy { $0.currentLine.isEmpty })
+            check("playerTimelineChangesTrackAtBoundary", player.last?.isNextTrack == true
+                  && player.last?.date == start.addingTimeInterval(2) && player.last?.progress == 0)
+            check("playerTimelineReloadsAfterTrackExpires", WidgetTimelineBuilder.playerReloadDate(for: chained, now: start)
+                  == start.addingTimeInterval(42))
+            var lyricOnlyChange = chained
+            lyricOnlyChange.currentLine = "Another line"
+            lyricOnlyChange.lines.removeAll()
+            check("playerReloadIgnoresLyricsOnly", chained.hasSamePlayerTimeline(as: lyricOnlyChange))
+            lyricOnlyChange.artworkData = Data([1])
+            check("playerReloadIncludesArtworkChanges", !chained.hasSamePlayerTimeline(as: lyricOnlyChange))
             checkEqual("widgetProgressUnchained",
                        WidgetTimelineBuilder.progressFraction(for: 15_000, payload: payload(lines: lines)), 0.5)
 

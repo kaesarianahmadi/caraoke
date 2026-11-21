@@ -97,6 +97,7 @@ final class RidePlaybackController: ObservableObject {
     /// queue chain, seek jumps) into a trailing debounce so chronod never
     /// penalizes the widget with a 70+ second lockout.
     private var pendingWidgetReloadTask: Task<Void, Never>?
+    private var pendingReloadKinds: Set<SharedWidgetStore.Kind> = []
     private var lastWidgetReloadDate: Date = .distantPast
     private let minWidgetReloadInterval: TimeInterval = 1.0
     private let widgetReloadDebounce: TimeInterval = 0.2
@@ -183,6 +184,7 @@ final class RidePlaybackController: ObservableObject {
     private var lastWidgetIsPlaying: Bool?
     private var lastWidgetStatus: String?
     private var lastWidgetPausedPositionMs: Int?
+    private var lastPlayerPayload: SharedWidgetPayload?
     /// Track start in wall-clock epoch ms carried by the next widget reload.
     private var trackStartEpochMs = 0
 
@@ -196,6 +198,7 @@ final class RidePlaybackController: ObservableObject {
         syncHeartbeatTask = nil
         pendingWidgetReloadTask?.cancel()
         pendingWidgetReloadTask = nil
+        pendingReloadKinds = []
         audioKeeper.stop()
         relay.end()
         clearTrack()
@@ -206,6 +209,7 @@ final class RidePlaybackController: ObservableObject {
         lastWidgetIsPlaying = nil
         lastWidgetStatus = nil
         lastWidgetPausedPositionMs = nil
+        lastPlayerPayload = nil
         trackStartEpochMs = 0
         lastReloadedTrackStartMs = 0
         pendingBake = Bake()
@@ -281,6 +285,7 @@ final class RidePlaybackController: ObservableObject {
             clearTrack()
             trackStartEpochMs = 0
             pendingBake = Bake()
+            lastPlayerPayload = nil
             trackTitle = ""
             trackArtist = ""
             positionMs = 0
@@ -645,7 +650,12 @@ final class RidePlaybackController: ObservableObject {
         if playStateChanged { causes.append("playstate") }
         if statusChanged { causes.append("status") }
         if pausedSeek, !playStateChanged { causes.append("paused-seek") }
-        scheduleWidgetReload(reason: causes.joined(separator: "+"))
+        var kinds = SharedWidgetStore.Kind.lyricSurfaces
+        if pausedSeek || lastPlayerPayload?.hasSamePlayerTimeline(as: payload) != true {
+            lastPlayerPayload = payload
+            kinds.insert(.player)
+        }
+        scheduleWidgetReload(reason: causes.joined(separator: "+"), kinds: kinds)
         Self.log.notice("widget reload scheduled: lines=\(widgetLines.count, privacy: .public) chain=\(nextStartMs, privacy: .public) forced=\(forced, privacy: .public)")
     }
 
@@ -655,7 +665,8 @@ final class RidePlaybackController: ObservableObject {
     // bursts (< 1 s apart), placing the widget into a 70+ second penalty box
     // where all reloads are ignored. We coalesce rapid triggers (lyrics landing,
     // artwork landing, queue chain, and seeks) through a trailing debounce.
-    private func scheduleWidgetReload(reason: String) {
+    private func scheduleWidgetReload(reason: String, kinds: Set<SharedWidgetStore.Kind> = Set(SharedWidgetStore.Kind.allCases)) {
+        pendingReloadKinds.formUnion(kinds)
         pendingWidgetReloadTask?.cancel()
         pendingWidgetReloadTask = Task { [weak self] in
             guard let self else { return }
@@ -678,7 +689,9 @@ final class RidePlaybackController: ObservableObject {
             // The bake rides along for the same reason.
             self.lastReloadedTrackStartMs = self.trackStartEpochMs
             self.reloadedBake = self.pendingBake
-            SharedWidgetStore.requestReload(reason: reason)
+            let kinds = self.pendingReloadKinds
+            self.pendingReloadKinds.removeAll()
+            SharedWidgetStore.requestReload(reason: reason, kinds: kinds)
             Self.log.notice("widget reload executed (coalesced) reason=\(reason, privacy: .public)")
         }
     }
@@ -760,6 +773,6 @@ final class RidePlaybackController: ObservableObject {
             return
         }
         Self.log.notice("widget self-heal: \(cause, privacy: .public) → reload")
-        scheduleWidgetReload(reason: "selfheal-\(cause)")
+        scheduleWidgetReload(reason: "selfheal-\(cause)", kinds: SharedWidgetStore.Kind.lyricSurfaces)
     }
 }
