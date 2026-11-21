@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import os
 
 /// Keeps the Caraoke process alive while a ride is active so it can detect
 /// track changes (skips/seeks, via MusicKit/MediaPlayer notifications and the
@@ -18,8 +19,12 @@ import Foundation
 /// The keeper now observes interruptions and route changes and re-arms
 /// itself, so background execution survives the whole ride.
 final class RideAudioKeeper {
+    private static let log = Logger(subsystem: "com.caraoke.poc", category: "audio-keeper")
+    private let queue = DispatchQueue(label: "app.caraoke.audio-keeper", qos: .userInitiated)
     private var player: AVAudioPlayer?
-    private var isActive = false
+    private var wantsPlayback = false
+    private var isInterrupted = false
+    private var sessionActive = false
     private var observers: [NSObjectProtocol] = []
 
     deinit {
@@ -28,52 +33,64 @@ final class RideAudioKeeper {
 
     /// Starts the silent keeper session. Safe to call repeatedly.
     func start() {
-        guard !isActive else { return }
-        observeSession()
-        guard play() else { return }
-        isActive = true
+        queue.async {
+            self.wantsPlayback = true
+            self.observeSession()
+            self.resumeIfAllowed()
+        }
     }
 
     /// Stops the keeper so the app can suspend normally between rides.
     func stop() {
-        guard isActive else { return }
-        removeObservers()
-        player?.pause()
-        player = nil
-        try? AVAudioSession.sharedInstance().setActive(false)
-        isActive = false
+        queue.async {
+            guard self.wantsPlayback else { return }
+            self.wantsPlayback = false
+            self.isInterrupted = false
+            self.removeObservers()
+            self.player?.stop()
+            self.player = nil
+            self.deactivateSession()
+        }
     }
 
-    /// Builds the session, starts the loop, and reports whether audio is
-    /// actually rendering. Called from `start()` and from every recovery path.
-    @discardableResult
-    private func play() -> Bool {
+    /// Runs only on `queue`, including when recovering from system callbacks.
+    private func resumeIfAllowed() {
+        guard wantsPlayback, !isInterrupted, player?.isPlaying != true else { return }
         let session = AVAudioSession.sharedInstance()
         do {
-            // .playback + .mixWithOthers: plays alongside Apple Music/Spotify
-            // without ducking or interrupting them.; NO .duckOthers.
-            try session.setCategory(.playback, options: [.mixWithOthers])
-            try session.setActive(true)
-            guard let url = Bundle.main.url(forResource: "ride-keeper", withExtension: "wav") else {
-                return false
-            }
-            // Reuse the player across an interruption when we still have it —
-            // rebuilding it costs a disk read on every navigation prompt.
-            // (`try` cannot sit inside `??`, hence the explicit branch.)
             let p: AVAudioPlayer
             if let existing = player {
                 p = existing
             } else {
+                guard let url = Bundle.main.url(forResource: "ride-keeper", withExtension: "wav") else {
+                    Self.log.error("Ride keeper audio asset is missing")
+                    return
+                }
                 p = try AVAudioPlayer(contentsOf: url)
+                p.numberOfLoops = -1
+                p.volume = 1.0
+                player = p
             }
-            p.numberOfLoops = -1  // loop forever — one 1 s inaudible sample
-            p.volume = 1.0      // the asset itself is already ~-68 dBFS
-            if !p.isPlaying { p.play() }
-            player = p
-            return true
+            try session.setCategory(.playback, options: [.mixWithOthers])
+            try session.setActive(true)
+            sessionActive = true
+            guard p.play() else {
+                Self.log.error("Ride keeper player did not start")
+                deactivateSession()
+                return
+            }
         } catch {
-            // Not fatal for the ride; foreground sync still works.
-            return false
+            Self.log.error("Ride keeper audio unavailable: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func deactivateSession() {
+        guard sessionActive else { return }
+        defer { sessionActive = false }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            Self.log.error("Ride keeper could not deactivate: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -85,18 +102,33 @@ final class RideAudioKeeper {
         observers.append(center.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance(),
-            queue: .main
+            queue: nil
         ) { [weak self] note in
-            self?.handleInterruption(note)
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            self?.queue.async { [weak self] in self?.handleInterruption(type) }
         })
         // CarPlay connect/disconnect and Bluetooth hand-offs deactivate the
         // session out from under us on some head units, with no interruption.
         observers.append(center.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak self] note in
-            self?.handleRouteChange(note)
+            queue: nil
+        ) { [weak self] _ in
+            self?.queue.async { [weak self] in self?.resumeIfAllowed() }
+        })
+        observers.append(center.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: nil
+        ) { [weak self] _ in
+            self?.queue.async { [weak self] in
+                guard let self, self.wantsPlayback else { return }
+                self.player = nil
+                self.isInterrupted = false
+                self.sessionActive = false
+                self.resumeIfAllowed()
+            }
         })
     }
 
@@ -105,19 +137,14 @@ final class RideAudioKeeper {
         observers = []
     }
 
-    private func handleInterruption(_ note: Notification) {
-        guard isActive,
-              let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: raw),
-              type == .ended else { return }
-        // .shouldResume is advisory; resume either way. iOS takes the session
-        // back cleanly whether or not we ask, and a keeper that stays silent
-        // is the bug we are fixing.
-        _ = play()
-    }
-
-    private func handleRouteChange(_ note: Notification) {
-        guard isActive, let p = player, !p.isPlaying else { return }
-        _ = play()
+    private func handleInterruption(_ type: AVAudioSession.InterruptionType) {
+        guard wantsPlayback else { return }
+        switch type {
+        case .began: isInterrupted = true
+        case .ended:
+            isInterrupted = false
+            resumeIfAllowed()
+        @unknown default: break
+        }
     }
 }
