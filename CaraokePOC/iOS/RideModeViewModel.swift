@@ -25,6 +25,8 @@ final class RideModeViewModel: ObservableObject {
     static let useSimulatedPlayback = false
 
     @Published private(set) var isOn = false
+    @Published private(set) var hasActiveActivity = false
+    @Published private(set) var liveActivityIssue: String?
     @Published private(set) var elapsedMs = 0
     @Published private(set) var currentLine = ""
     @Published private(set) var currentLineIndex: Int? = nil
@@ -174,6 +176,10 @@ final class RideModeViewModel: ObservableObject {
         // log — the locked Home design has no diagnostic line.
         activity.onDiagnostic = { message in
             Logger(subsystem: "com.caraoke.poc", category: "ride").notice("\(message, privacy: .public)")
+        }
+        activity.onAvailabilityChange = { [weak self] isActive, issue in
+            self?.hasActiveActivity = isActive
+            self?.liveActivityIssue = issue
         }
         // Re-publish object changes when Spotify auth changes.
         spotifyAuth.objectWillChange
@@ -331,6 +337,8 @@ final class RideModeViewModel: ObservableObject {
     /// A user resync must sample the selected player, not replay the cached clock.
     func resync() async {
         startRide()
+        await waitForActivityLifecycle()
+        guard isOn else { return }
         guard !Self.useSimulatedPlayback else { return }
         await realPlayback.resync()
     }
@@ -355,6 +363,7 @@ final class RideModeViewModel: ObservableObject {
     }
 
     func stopRide() {
+        activity.endNow()
         guard isOn else { return }
         isOn = false
         UserDefaults.standard.set(false, forKey: Self.rideModeKey)
@@ -365,7 +374,6 @@ final class RideModeViewModel: ObservableObject {
         if !Self.useSimulatedPlayback {
             realPlayback.stop()
         }
-        Task { await activity.endNow() }
         trackTitle = ""
         trackArtist = ""
         currentLine = ""
@@ -379,6 +387,10 @@ final class RideModeViewModel: ObservableObject {
         lyricStatus = .idle
         artworkData = nil
         artworkColorHex = nil
+    }
+
+    func waitForActivityLifecycle() async {
+        await activity.waitForLifecycle()
     }
 
     private func startDemoClock() {

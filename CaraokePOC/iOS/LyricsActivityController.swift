@@ -6,12 +6,8 @@ import os
 /// see THIRD_PARTY_NOTICES.md), adapted to Caraoke's `LyricSnapshot` model and
 /// renamed. This replaces the PoC's original thin start/update/end wrapper.
 ///
-/// One activity spans the whole ride: iOS refuses Activity.request from a
-/// backgrounded app, so an end-and-restart-per-track design loses the tile on
-/// every backgrounded song change. Track changes are plain updates (allowed
-/// from the background); the activity ends when Ride Mode stops, or after the
-/// no-playback grace period once real pause support lands. On iOS 26 the
-/// Lock Screen presentation mirrors onto CarPlay.
+/// One activity spans the whole ride. Track changes update its content;
+/// only explicit start/stop requests change its lifecycle.
 @MainActor
 final class CaraokeActivityController {
     /// Rapid line changes are coalesced (never dropped) to one update per
@@ -22,6 +18,9 @@ final class CaraokeActivityController {
     private static let log = Logger(subsystem: "com.caraoke.poc", category: "activity")
 
     private var activity: Activity<LyricsActivityAttributes>?
+    private var lifecycleTask: Task<Void, Never>?
+    private var startSnapshot: LyricSnapshot?
+    private var needsTeardown = false
     private var policy = ActivityUpdatePolicy()
     private var throttle = ActivityUpdateThrottle(minInterval: CaraokeActivityController.minLineUpdateInterval)
     private var stateWatcher: Task<Void, Never>?
@@ -39,8 +38,17 @@ final class CaraokeActivityController {
     /// silently prevent the activity from appearing reports here — a no-show
     /// with zero feedback cost us a device-test round-trip (build 4).
     var onDiagnostic: ((String) -> Void)?
+    var onAvailabilityChange: ((Bool, String?) -> Void)?
 
-    var isActive: Bool { activity != nil }
+    var isActive: Bool { activity?.activityState == .active }
+
+    private static func canReuse(_ activity: Activity<LyricsActivityAttributes>) -> Bool {
+        switch activity.activityState {
+        case .active, .pending, .stale: return true
+        case .ended, .dismissed: return false
+        @unknown default: return false
+        }
+    }
 
     /// True when the system-level Live Activities toggle for this app is off
     /// (design state D) — the Home gate banner and "Needs attention" row key
@@ -57,18 +65,10 @@ final class CaraokeActivityController {
     /// tile accurate instead). It ends only when Ride Mode stops (endNow) or
     /// the system ends it.
     func sync(snapshot: LyricSnapshot) {
+        if startSnapshot != nil { startSnapshot = snapshot }
+        guard let activity, Self.canReuse(activity), !needsTeardown else { return }
         let key = Self.trackKey(for: snapshot)
         guard policy.shouldUpdate(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying) else { return }
-
-        guard let activity else {
-            // Fallback start: a live activity can be requested only from the
-            // foreground. The ride path requests it eagerly (startIdle), so
-            // this only matters if that failed (e.g. authorization race) and
-            // the first real playing snapshot can retry.
-            guard snapshot.isPlaying else { return }
-            beginSession(snapshot: snapshot)
-            return
-        }
 
         let critical = key != lastSentTrackKey || snapshot.isPlaying != lastSentIsPlaying
         lastSentTrackKey = key
@@ -78,7 +78,8 @@ final class CaraokeActivityController {
         switch throttle.decide(critical: critical, now: Date()) {
         case .sendNow:
             cancelPendingUpdate() // superseded by newer content
-            Task {
+            Task { [weak self] in
+                guard self?.activity?.id == activity.id else { return }
                 await activity.update(ActivityContent(state: content,
                                                       staleDate: Self.staleDate(for: snapshot, at: Date())))
             }
@@ -94,12 +95,12 @@ final class CaraokeActivityController {
     /// the tile persists across backgrounding (requesting here happens in the
     /// foreground where Activity.request is allowed).
     func startIdle() {
-        guard activity == nil else { return }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            onDiagnostic?("Live Activities are OFF — Settings → Caraoke → Live Activities")
-            return
+        if let activity {
+            if Self.canReuse(activity) { return }
+            detach()
         }
-        let placeholder = LyricSnapshot(
+        guard startSnapshot == nil else { return }
+        startSnapshot = LyricSnapshot(
             title: "Ride Mode",
             artist: "",
             currentLine: "Play a song to see lyrics",
@@ -111,7 +112,7 @@ final class CaraokeActivityController {
             durationMs: nil,
             lineIndex: nil
         )
-        beginSession(snapshot: placeholder)
+        reconcileLifecycle()
     }
 
     /// Trailing edge of the throttle: deliver the newest coalesced content
@@ -135,40 +136,46 @@ final class CaraokeActivityController {
         pendingContent = nil
     }
 
-    private func beginSession(snapshot: LyricSnapshot) {
-        guard activity == nil else { return }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            onDiagnostic?("Live Activities are OFF — Settings → Caraoke → Live Activities")
-            return
+    private func reconcileLifecycle() {
+        guard lifecycleTask == nil else { return }
+        lifecycleTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.lifecycleTask = nil }
+            while self.needsTeardown || self.startSnapshot != nil {
+                if self.needsTeardown {
+                    self.needsTeardown = false
+                    for activity in Activity<LyricsActivityAttributes>.activities {
+                        await activity.end(nil, dismissalPolicy: .immediate)
+                    }
+                    continue
+                }
+                await self.beginSession()
+            }
+        }
+    }
+
+    private func beginSession() async {
+        let activities = Activity<LyricsActivityAttributes>.activities
+        let existing = activities.first { $0.activityState == .active } ?? activities.first(where: Self.canReuse)
+        for other in activities where other.id != existing?.id && other.activityState != .dismissed {
+            await other.end(nil, dismissalPolicy: .immediate)
+            if needsTeardown { return }
         }
 
-        // Reattach to existing active activity to prevent duplicate/frozen tiles
-        if let existing = Activity<LyricsActivityAttributes>.activities.first(where: { $0.activityState == .active }) {
-            activity = existing
-            watch(existing)
-            observePushToken(existing)
-            throttle.noteSent(now: Date())
-            lastSentTrackKey = Self.trackKey(for: snapshot)
-            lastSentIsPlaying = snapshot.isPlaying
-            policy.seed(
-                trackKey: lastSentTrackKey ?? "",
-                lineIndex: snapshot.lineIndex,
-                isPlaying: snapshot.isPlaying
-            )
-            let content = Self.content(from: snapshot)
-            Task {
-                await existing.update(ActivityContent(state: content,
+        guard !needsTeardown, let snapshot = startSnapshot else { return }
+        startSnapshot = nil
+        guard !authorizationDenied else {
+            onAvailabilityChange?(false, nil)
+            return
+        }
+        if let existing, Self.canReuse(existing) {
+            attach(existing, snapshot: snapshot)
+            if existing.activityState != .pending {
+                await existing.update(ActivityContent(state: Self.content(from: snapshot),
                                                       staleDate: Self.staleDate(for: snapshot, at: Date())))
             }
-            onDiagnostic?("Live Activity reattached")
             return
         }
-
-        // Clean up any stale or ended activities
-        for stale in Activity<LyricsActivityAttributes>.activities {
-            Task { await stale.end(nil, dismissalPolicy: .immediate) }
-        }
-
         do {
             // pushType: .token makes the activity receive an APNs push token
             // that a server can use to UPDATE it (mechanism #2 relay). The
@@ -191,22 +198,23 @@ final class CaraokeActivityController {
                 )
                 onDiagnostic?("Live Activity started (no push: \(error.localizedDescription))")
             }
-            activity = requested
-            watch(requested)
-            observePushToken(requested)
-            throttle.noteSent(now: Date())
-            lastSentTrackKey = Self.trackKey(for: snapshot)
-            lastSentIsPlaying = snapshot.isPlaying
-            policy.seed(
-                trackKey: lastSentTrackKey ?? "",
-                lineIndex: snapshot.lineIndex,
-                isPlaying: snapshot.isPlaying
-            )
+            attach(requested, snapshot: snapshot)
         } catch {
-            onDiagnostic?("Could not start Live Activity: \(error.localizedDescription)")
             Self.log.error("Activity.request failed: \(error.localizedDescription, privacy: .public)")
-            activity = nil
+            onAvailabilityChange?(false, "Couldn’t start the Live Activity. Try switching Live Lyrics off and back on.")
         }
+    }
+
+    private func attach(_ activity: Activity<LyricsActivityAttributes>, snapshot: LyricSnapshot) {
+        self.activity = activity
+        watch(activity)
+        observePushToken(activity)
+        throttle.noteSent(now: Date())
+        let key = Self.trackKey(for: snapshot)
+        lastSentTrackKey = key
+        lastSentIsPlaying = snapshot.isPlaying
+        policy.seed(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying)
+        reportState(activity.activityState)
     }
 
     /// Streams the activity's push token (APNs tokens rotate; a fresh token
@@ -217,7 +225,8 @@ final class CaraokeActivityController {
         pushTokenTask?.cancel()
         pushTokenTask = Task { [weak self] in
             for await token in requested.pushTokenUpdates {
-                self?.onPushToken?(token)
+                guard !Task.isCancelled, let self, self.activity?.id == requested.id else { return }
+                self.onPushToken?(token)
             }
         }
     }
@@ -229,18 +238,40 @@ final class CaraokeActivityController {
         stateWatcher?.cancel()
         stateWatcher = Task { [weak self] in
             for await state in requested.activityStateUpdates {
-                guard let self, state == .ended || state == .dismissed else { continue }
-                if self.activity?.id == requested.id {
-                    self.activity = nil
-                    self.policy.reset()
-                    self.cancelPendingUpdate()
+                guard !Task.isCancelled, let self, self.activity?.id == requested.id else { return }
+                self.reportState(state)
+                if state == .ended || state == .dismissed {
                     Self.log.warning("activity ended outside the app — reopen Caraoke to restart Ride Mode")
+                    self.detach()
+                    return
                 }
             }
         }
     }
 
-    func endNow() async {
+    private func reportState(_ state: ActivityState) {
+        switch state {
+        case .active: onAvailabilityChange?(true, nil)
+        case .pending: onAvailabilityChange?(false, nil)
+        case .stale: onAvailabilityChange?(false, "Live Activity is out of date. Keep Caraoke open to refresh it.")
+        case .ended, .dismissed: onAvailabilityChange?(false, "Live Activity ended. Switch Live Lyrics off and back on to restart it.")
+        @unknown default: onAvailabilityChange?(false, nil)
+        }
+    }
+
+    func endNow() {
+        startSnapshot = nil
+        needsTeardown = true
+        detach()
+        onAvailabilityChange?(false, nil)
+        reconcileLifecycle()
+    }
+
+    func waitForLifecycle() async {
+        await lifecycleTask?.value
+    }
+
+    private func detach() {
         stateWatcher?.cancel()
         stateWatcher = nil
         pushTokenTask?.cancel()
@@ -248,9 +279,6 @@ final class CaraokeActivityController {
         cancelPendingUpdate()
         activity = nil
         policy.reset()
-        for act in Activity<LyricsActivityAttributes>.activities {
-            await act.end(nil, dismissalPolicy: .immediate)
-        }
     }
 
     // MARK: - Internals

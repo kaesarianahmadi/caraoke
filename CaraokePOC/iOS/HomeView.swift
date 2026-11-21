@@ -145,7 +145,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Live Lyrics")
-                .accessibilityValue(model.isOn ? "On" : "Off")
+                .accessibilityValue(!model.isOn ? "Off" : model.hasActiveActivity ? "On, Live Activity active" : "On, no active Live Activity")
                 .accessibilityHint(model.isOn ? "Turn off live lyrics" : "Start live lyrics")
             }
 
@@ -153,6 +153,11 @@ struct HomeView: View {
 
             if let gate = model.liveActivityGateMessage {
                 gateNotice(gate)
+            } else if model.isOn, !model.hasActiveActivity {
+                Label(model.liveActivityIssue ?? "Live Activity isn’t active yet.", systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundColor(AppTheme.warn)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let error = model.transportError {

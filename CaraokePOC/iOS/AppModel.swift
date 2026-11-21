@@ -10,11 +10,13 @@ final class AppModel {
 
     private init() {}
 
-    func startRideSession() {
+    func startRideSession() async {
         ride.startRide()
+        await ride.waitForActivityLifecycle()
     }
 
-    func stopRideSession() {
+    func stopRideSession() async {
         ride.stopRide()
+        await ride.waitForActivityLifecycle()
     }
 }
