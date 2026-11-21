@@ -1325,6 +1325,38 @@ final class TestRunner {
             }
             check("automaticRepairSharesResultAndRetriesFailure", result.value == true)
         }
+        do {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let files = WidgetStateFiles(directory: directory)
+            let cover = Data([1, 2, 3])
+            let first = SharedWidgetPayload(title: "First", artist: "Artist", currentLine: "Line", isPlaying: true,
+                                            progress: 0.2, status: "playing", artworkData: cover, nextArtworkData: cover)
+            do {
+                try files.write(first)
+                let coverDirectory = directory.appendingPathComponent("covers")
+                checkEqual("widgetFilesRoundTrip", try files.read(), first)
+                checkEqual("widgetFilesDeduplicateCovers", try FileManager.default.contentsOfDirectory(atPath: coverDirectory.path).count, 1)
+                let stateJSON = try String(contentsOf: directory.appendingPathComponent("state.json"), encoding: .utf8)
+                check("widgetFilesKeepCoverDataOutOfJSON", !stateJSON.contains(cover.base64EncodedString()))
+                var next = first
+                next.title = "Next"
+                try files.write(next)
+                checkEqual("widgetFilesRejectStaleRepair", try files.replace(first, with: .spotifyIdle), next)
+                checkEqual("widgetFilesReplaceCurrentPayload", try files.replace(next, with: .spotifyIdle), .spotifyIdle)
+                checkEqual("widgetFilesRemoveUnreferencedCovers", try FileManager.default.contentsOfDirectory(atPath: coverDirectory.path).count, 0)
+                let settings = SharedWidgetSettings(theme: "midnight", boldText: false)
+                try files.writeSettings(settings)
+                checkEqual("widgetFilesSettingsRoundTrip", try files.readSettings(), settings)
+                try files.write(nil)
+                try files.write(nil)
+                let cleared = try files.read()
+                check("widgetFilesClearPayload", cleared == nil)
+            } catch {
+                check("widgetFiles: \(error)", false)
+            }
+        }
+
         // MARK: display segmentation (provider sentences chunked for tiles)
         //
         // Long provider lines arrive as whole sentences; the renderer wraps
