@@ -175,6 +175,7 @@ final class RidePlaybackController: ObservableObject {
         }
         engine.startTicking()
         startSyncHeartbeat()
+        scheduleWidgetReload(reason: "ride-mode-start")
     }
 
     private var lastWidgetTitle: String?
@@ -253,11 +254,6 @@ final class RidePlaybackController: ObservableObject {
         if pin != .appleMusic { spotify.pollNow() }
     }
 
-    /// Publish the boundary before the intent asks the extension to read state.
-    func refreshWidgetSnapshot() {
-        engine.tick()
-    }
-
     func resync() async {
         resyncGeneration &+= 1
         let generation = resyncGeneration
@@ -272,6 +268,10 @@ final class RidePlaybackController: ObservableObject {
             if FeatureFlags.spotifyEnabled { _ = await spotify.pollOnce() }
         }
         guard generation == resyncGeneration, !Task.isCancelled else { return }
+        guard engine.anchor != nil else {
+            scheduleWidgetReload(reason: "manual-resync")
+            return
+        }
         if let track = lastTrack { armRelay(track: track) }
         forceWidgetReload = true
         engine.tick()
@@ -703,8 +703,6 @@ final class RidePlaybackController: ObservableObject {
         let isTitleChanged = snapshot.title != lastWidgetTitle
         let isPlayStateChanged = snapshot.isPlaying != lastWidgetIsPlaying
         let isStatusChanged = snapshot.status.rawValue != lastWidgetStatus
-        // The system-run refresh chain owns lyric stepping; do not compete
-        // with it using per-line WidgetCenter requests from the app.
         // Artwork (and its colour) often lands a beat AFTER the track change —
         // Spotify serves it over the network — so the widget must reload again
         // or it keeps the artwork-less timeline it was first handed.

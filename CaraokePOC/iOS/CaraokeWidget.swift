@@ -198,17 +198,8 @@ struct CaraokeWidgetProvider: TimelineProvider {
         if WidgetTimelineBuilder.isExpired(payload: payload, now: now) {
             // Failed self-repair must not resubmit an already-spent timeline.
             policy = .after(now.addingTimeInterval(60))
-        } else if context.family == .systemSmall, SharedWidgetStore.hasWidgetRefreshSession {
-            // Intent cycles own lyric stepping. Keep a later recovery wake
-            // rather than competing at each boundary or parking a dead chain forever.
-            policy = .after(now.addingTimeInterval(30))
         } else if !payload.isPlaying || payload.lines.isEmpty {
             policy = .atEnd
-        } else if context.family == .systemSmall {
-            // Without an active intent session, keep the existing boundary
-            // request so a standalone tile can repair itself on WidgetKit's clock.
-            policy = WidgetTimelineBuilder.nextLineBoundary(payload: payload, now: now)
-                .map { TimelineReloadPolicy.after($0) } ?? .atEnd
         } else if covered {
             // A whole song fits in one timeline, so no periodic reload is
             // needed — reloading every few seconds is what exhausted

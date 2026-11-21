@@ -987,61 +987,11 @@ final class TestRunner {
             check("widgetMidSongEntriesAreDated", midSong.allSatisfy { $0.date >= start })
             check("widgetMidSongShowsRemainingLines", midSong.map(\.currentLine).contains("three"))
 
-            // The CarPlay tiles bake ONE entry with `.atEnd`. A spent timeline
-            // carrying no date is not re-requested on any predictable schedule
-            // (drive log 2026-10-26: 6–16 s bursts, then 60–90 s with zero
-            // wakes), so the tile freezes on whatever line that one entry held.
-            // `nextLineBoundary` is what turns that into a date-driven cadence:
-            // one wake per lyric line, just before the line on screen rolls over.
-            let boundaryStart = Date(timeIntervalSince1970: 1_000)
-            func boundaryPayload(startedSecondsAgo: Double) -> SharedWidgetPayload {
-                SharedWidgetPayload(
-                    title: "T", artist: "A", currentLine: "ignored",
-                    isPlaying: true, progress: 0,
-                    status: LyricStatus.playing.rawValue,
-                    trackStartEpochMs: Int((boundaryStart.timeIntervalSince1970 - startedSecondsAgo) * 1000),
-                    durationMs: 60_000,
-                    lines: [
-                        SharedLyricLine(timeMs: 0, text: "one"),
-                        SharedLyricLine(timeMs: 10_000, text: "two"),
-                        SharedLyricLine(timeMs: 20_000, text: "three"),
-                    ],
-                    source: "spotify"
-                )
-            }
-            // 3 s in: the next line ("two") starts at +7 s, less the 3 s lead.
-            checkEqual("widgetTileRolloverDate",
-                       WidgetTimelineBuilder.nextLineBoundary(payload: boundaryPayload(startedSecondsAgo: 3),
-                                                              now: boundaryStart),
-                       boundaryStart.addingTimeInterval(4))
-            // The wake must be strictly ahead of `now` — chronod treats a spent
-            // date as "nothing to do" and will not wake for a past date. When the
-            // 3 s lead would land before `now` (playhead already inside the lead
-            // window), the boundary is clamped to a minimum, not returned stale.
-            let clamped = WidgetTimelineBuilder.nextLineBoundary(
-                payload: boundaryPayload(startedSecondsAgo: 18.5), now: boundaryStart)
-            check("widgetTileRolloverNeverInThePast", clamped.map { $0 > boundaryStart } ?? false)
-            // 18.5 s in: the last line is at 20 s, so a boundary still exists —
-            // this asserts the clamp, not the absence of a boundary.
-            check("widgetTileRolloverClampsToNow", clamped != nil)
-            // Past the final lyric there is nothing to wake for; the provider
-            // falls back to `.atEnd` rather than parking a wake on a date that
-            // will never correspond to a line change.
-            check("widgetTileRolloverNilPastLastLine",
-                  WidgetTimelineBuilder.nextLineBoundary(
-                    payload: boundaryPayload(startedSecondsAgo: 30), now: boundaryStart) == nil)
-            // Paused / loading / clockless payloads have no line to roll over to.
-            check("widgetTileRolloverNilWhenPaused",
-                  WidgetTimelineBuilder.nextLineBoundary(
-                    payload: payload(lines: lines, playing: false), now: start) == nil)
-            check("widgetTileRolloverNilWithoutStart",
-                  WidgetTimelineBuilder.nextLineBoundary(payload: noClock, now: start) == nil)
-            // The boundary feeds the provider's `.systemSmall` policy, so the
-            // one-entry bake keeps a way back to the correct line.
-            check("widgetTileRolloverWithinTrack",
-                  (WidgetTimelineBuilder.nextLineBoundary(payload: boundaryPayload(startedSecondsAgo: 0),
-                                                          now: boundaryStart)
-                    .map { $0.timeIntervalSince(boundaryStart) } ?? 999) <= 60)
+            // One bake must carry later lyrics at their actual playback times.
+            let bake = WidgetTimelineBuilder.entries(for: overrun, now: start, includeOutro: true)
+            checkEqual("widgetBakeAdvancesLyricsWithoutReload",
+                       bake.first(where: { $0.currentLine == "three" })?.date,
+                       start.addingTimeInterval(4))
         }
 
         // MARK: Lyric layout budget (build 41, revised build 46)
@@ -1318,35 +1268,6 @@ final class TestRunner {
                     now: now))
         }
 
-        // A delayed intent from an older ride must not refresh or renew the new ride.
-        do {
-            var session = WidgetRefreshSession()
-            let first = session.start()
-            check("refreshCurrentSessionAccepted", session.contains(first))
-            let restored = WidgetRefreshSession(token: session.token)
-            check("refreshSessionSurvivesCrossProcessRead", restored.contains(first))
-            session.stop()
-            check("refreshStoppedSessionRejected", !session.contains(first))
-            let second = session.start()
-            check("refreshNewSessionAccepted", session.contains(second))
-            check("refreshPreviousRideCannotResume", !session.contains(first))
-        }
-
-        do {
-            let now = Date(timeIntervalSince1970: 1_000)
-            var payload = SharedWidgetPayload(title: "t", artist: "a", currentLine: "first",
-                isPlaying: true, progress: 0, status: LyricStatus.playing.rawValue,
-                trackStartEpochMs: 1_000_000, durationMs: 20_000,
-                lines: [SharedLyricLine(timeMs: 0, text: "first"),
-                        SharedLyricLine(timeMs: 1_500, text: "second"),
-                        SharedLyricLine(timeMs: 10_000, text: "third")])
-            checkEqual("refreshCapsTrackChangeDetection", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1)
-            checkEqual("refreshAdvancesPastExactBoundary", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now.addingTimeInterval(1.5)), 1)
-            check("refreshNearBoundaryAvoidsBusyLoop", abs(WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now.addingTimeInterval(1.49)) - 0.05) < 0.0001)
-            payload.isPlaying = false
-            checkEqual("refreshPausedChecksResume", WidgetRefreshSession.nextRefreshDelay(payload: payload, now: now), 1)
-            checkEqual("refreshMissingPayloadChecksAgain", WidgetRefreshSession.nextRefreshDelay(payload: nil, now: now), 1)
-        }
         do {
             let result = awaitResult {
                 let gate = AutomaticWidgetRepair()

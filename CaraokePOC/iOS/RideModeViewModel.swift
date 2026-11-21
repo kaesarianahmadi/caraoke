@@ -328,14 +328,8 @@ final class RideModeViewModel: ObservableObject {
         activity.startIdle()
     }
 
-    func refreshWidgetSnapshot() {
-        guard isOn, !Self.useSimulatedPlayback else { return }
-        realPlayback.refreshWidgetSnapshot()
-    }
-
     /// A user resync must sample the selected player, not replay the cached clock.
-    func resync(session: String? = nil) async {
-        if let session, !SharedWidgetStore.isWidgetRefreshSession(session) { return }
+    func resync() async {
         startRide()
         guard !Self.useSimulatedPlayback else { return }
         await realPlayback.resync()
@@ -361,7 +355,6 @@ final class RideModeViewModel: ObservableObject {
     }
 
     func stopRide() {
-        SharedWidgetStore.stopWidgetRefreshSession()
         guard isOn else { return }
         isOn = false
         UserDefaults.standard.set(false, forKey: Self.rideModeKey)

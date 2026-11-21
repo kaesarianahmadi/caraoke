@@ -75,7 +75,6 @@ targets:
       - iOS/CompactLyricsView.swift
       - iOS/AppTheme.swift
       - iOS/TransportIntents.swift
-      - iOS/WidgetRefreshIntent.swift
       - iOS/TransportControl.swift
       - iOS/SharedWidgetStore.swift
       - iOS/WidgetResync.swift
@@ -92,7 +91,6 @@ targets:
       - Sources/CaraokeCore/TrackMatcher.swift
       - Sources/CaraokeCore/AutomaticWidgetRepair.swift
       - Sources/CaraokeCore/WidgetShared.swift
-      - Sources/CaraokeCore/WidgetRefreshSession.swift
       - Sources/CaraokeCore/SpotifyAuthCore.swift
       - Sources/CaraokeCore/LRCParser.swift
       - Sources/CaraokeCore/SyncEngine.swift
