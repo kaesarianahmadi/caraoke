@@ -102,7 +102,7 @@ struct LyricsPageView: View {
                     .font(.system(size: 11, weight: .bold).monospacedDigit())
                     .foregroundColor(model.lyricOffsetMs == 0 ? .white.opacity(0.85) : .black)
                     .padding(.horizontal, 8)
-                    .frame(minWidth: 36, height: 34)
+                    .frame(minWidth: 36, minHeight: 34)
                     .background(Capsule().fill(model.lyricOffsetMs == 0 ? Color.white.opacity(0.14) : AppTheme.darkAccent))
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
@@ -365,7 +365,7 @@ struct LyricsPageView: View {
                 }
                 .accessibilityLabel("Previous track")
 
-                Button { Task { await model.transport(.togglePlayPause) } } label: {
+                Button { Task { await model.transport(.playPause) } } label: {
                     Image(systemName: model.isPlaybackActive ? "pause.circle.fill" : "play.circle.fill")
                         .font(.system(size: 56))
                         .foregroundColor(.white)

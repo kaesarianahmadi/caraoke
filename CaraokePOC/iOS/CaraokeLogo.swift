@@ -37,6 +37,26 @@ struct CaraokeLogo: View {
 
 typealias BrandMark = CaraokeLogo
 
+/// Apple Music vector badge matching SpotifyLogo proportions.
+struct AppleMusicLogo: View {
+    var size: CGFloat = 34
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    colors: [Color(hex: 0xFA576C), Color(hex: 0xFA233B)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+            Image(systemName: "music.note")
+                .font(.system(size: size * 0.48, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 private struct CaraokeCRingShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()

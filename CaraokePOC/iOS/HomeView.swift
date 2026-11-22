@@ -636,7 +636,7 @@ struct HomeView: View {
                             .foregroundColor(AppTheme.fg(scheme))
                             .frame(width: 34, height: 44)
                     }
-                    Button { Task { await model.transport(.togglePlayPause) } } label: {
+                    Button { Task { await model.transport(.playPause) } } label: {
                         Image(systemName: model.isPlaybackActive ? "pause.fill" : "play.fill")
                             .font(.system(size: 17, weight: .bold))
                             .foregroundColor(AppTheme.fg(scheme))
