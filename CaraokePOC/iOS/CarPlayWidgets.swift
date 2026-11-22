@@ -240,6 +240,10 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
         (!showsBackground && entry.theme == .ivoryWhite) ? .white : entry.theme.textColor
     }
 
+    private var mutedForeground: Color {
+        (!showsBackground && entry.theme == .ivoryWhite) ? .white.opacity(0.68) : entry.theme.mutedTextColor
+    }
+
     var body: some View {
         CaraokeCarPlayResyncButton(entry: entry, content:
             CompactLyricsView(currentLine: entry.currentLine,
@@ -258,6 +262,10 @@ private struct CaraokeCarPlayHybridWidgetView: View {
 
     private var foreground: Color {
         (!showsBackground && entry.theme == .ivoryWhite) ? .white : entry.theme.textColor
+    }
+
+    private var mutedForeground: Color {
+        (!showsBackground && entry.theme == .ivoryWhite) ? .white.opacity(0.68) : entry.theme.mutedTextColor
     }
 
     var body: some View {
@@ -285,15 +293,15 @@ private struct CaraokeCarPlayHybridWidgetView: View {
                         .truncationMode(.tail)
                     Text(entry.artist)
                         .font(.system(size: 10))
-                        .foregroundStyle(t.mutedTextColor)
+                        .foregroundStyle(mutedForeground)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                CaraokeCarPlayTransport(entry: entry, tint: t.textColor, size: 12,
+                CaraokeCarPlayTransport(entry: entry, tint: fg, size: 12,
                     buttonWidth: 44, showPrevious: false)
             }
-            .foregroundStyle(t.textColor)
+            .foregroundStyle(fg)
             .frame(height: 44)
             .padding(.horizontal, 4)
         }
