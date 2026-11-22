@@ -22,12 +22,12 @@ struct HomeView: View {
     @AppStorage("widget.coverStyle") private var widgetCoverRaw = WidgetCoverStyle.vinyl.rawValue
 
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityBoldText) private var systemBoldText
+    @Environment(\.legibilityWeight) private var legibilityWeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var layoutMode: HomeLayoutMode { HomeLayoutMode(rawValue: layoutRaw) ?? .stageFocus }
     private var backdropStyle: LyricsBackdropStyle { LyricsBackdropStyle(rawValue: backdropRaw) ?? .ambientCover }
-    private var useBoldLyrics: Bool { boldText || systemBoldText }
+    private var useBoldLyrics: Bool { boldText || legibilityWeight == .bold }
     private var widgetTheme: WidgetTheme { WidgetTheme(rawValue: widgetThemeRaw) ?? .artwork }
     private var widgetCoverStyle: WidgetCoverStyle { WidgetCoverStyle(rawValue: widgetCoverRaw) ?? .vinyl }
 

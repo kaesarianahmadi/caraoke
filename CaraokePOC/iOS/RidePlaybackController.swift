@@ -274,7 +274,10 @@ final class RidePlaybackController: ObservableObject {
     }
 
     private func wire() {
-        engine.setLyricOffsetMs(SharedWidgetStore.readSettings().lyricOffsetMs)
+        Task { @MainActor [weak self] in
+            let offset = await SharedWidgetStore.readSettings().lyricOffsetMs
+            self?.engine.setLyricOffsetMs(offset)
+        }
         coordinator.statePublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in self?.handle(state) }

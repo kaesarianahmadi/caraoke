@@ -50,7 +50,7 @@ final class RideModeViewModel: ObservableObject {
     @Published private(set) var appleMusicAuthDenied = false
     @Published private(set) var spotifyNeedsAllowlist = false
     @Published private(set) var isPlayerPlaying = false
-    @Published private(set) var lyricOffsetMs: Int = SharedWidgetStore.readSettings().lyricOffsetMs
+    @Published private(set) var lyricOffsetMs: Int = 0
 
     // Home screen bindings (design states A–D).
 
@@ -203,6 +203,11 @@ final class RideModeViewModel: ObservableObject {
 
         bindPlayback()
         isOn = UserDefaults.standard.bool(forKey: Self.rideModeKey)
+        Task { @MainActor [weak self] in
+            let offset = await SharedWidgetStore.readSettings().lyricOffsetMs
+            self?.lyricOffsetMs = offset
+            self?.realPlayback.setLyricOffsetMs(offset)
+        }
     }
 
     private func bindPlayback() {

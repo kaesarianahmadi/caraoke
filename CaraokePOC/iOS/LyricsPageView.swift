@@ -6,7 +6,7 @@ import UIKit
 struct LyricsPageView: View {
     @ObservedObject var model: RideModeViewModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityBoldText) private var systemBoldText
+    @Environment(\.legibilityWeight) private var legibilityWeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage(AppearanceSettings.boldTextKey) private var boldText = true
@@ -18,7 +18,7 @@ struct LyricsPageView: View {
     @State private var isResyncing = false
 
     private var backdropStyle: LyricsBackdropStyle { LyricsBackdropStyle(rawValue: backdropRaw) ?? .ambientCover }
-    private var useBoldLyrics: Bool { boldText || systemBoldText }
+    private var useBoldLyrics: Bool { boldText || legibilityWeight == .bold }
 
     var body: some View {
         ZStack {

@@ -14,7 +14,7 @@ struct WidgetSettingsView: View {
     @State private var family: SurfaceFamily = .widget
     @AppStorage("widget.theme") private var themeRaw = WidgetTheme.artwork.rawValue
     @AppStorage("widget.coverStyle") private var coverRaw = WidgetCoverStyle.vinyl.rawValue
-    @State private var offsetMs: Int = SharedWidgetStore.readSettings().lyricOffsetMs
+    @State private var offsetMs: Int = 0
     @State private var showHelp = false
     @Environment(\.colorScheme) private var scheme
 
@@ -164,6 +164,9 @@ struct WidgetSettingsView: View {
         }
         .navigationTitle("Surface Studio")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            offsetMs = await SharedWidgetStore.readSettings().lyricOffsetMs
+        }
         .onChange(of: themeRaw) { _, newValue in
             SharedWidgetStore.updateSettings { $0.theme = newValue }
         }
