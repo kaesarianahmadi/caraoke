@@ -302,7 +302,7 @@ struct HomeView: View {
                             .lineLimit(1)
                         Spacer(minLength: 6)
                         Button {
-                            Task { await model.resyncNow() }
+                            Task { await model.resync() }
                         } label: {
                             HStack(spacing: 4) {
                                 Text("Resync")

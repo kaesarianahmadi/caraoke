@@ -118,7 +118,7 @@ struct LyricsPageView: View {
                 guard !isResyncing else { return }
                 isResyncing = true
                 Task {
-                    await model.resyncNow()
+                    await model.resync()
                     isResyncing = false
                 }
             } label: {
