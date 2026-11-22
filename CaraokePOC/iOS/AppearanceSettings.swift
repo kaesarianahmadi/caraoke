@@ -47,6 +47,10 @@ enum AppearanceSettings {
     /// When OFF — or when the system's Bold Text accessibility setting is on —
     /// our already-bold faces step down instead of stacking a second bold.
     static let boldTextKey = "appearance.boldText"
+    static let homeLayoutKey = "cockpit.homeLayout"
+    static let backdropStyleKey = "cockpit.backdropStyle"
+    static let showTranslationsKey = "lyrics.showTranslations"
+    static let autoOpenLyricsKey = "cockpit.autoOpenLyrics"
 
     static var mode: AppearanceMode {
         get { AppearanceMode(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .auto }

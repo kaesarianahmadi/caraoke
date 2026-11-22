@@ -15,5 +15,8 @@ struct CaraokeWidgetBundle: WidgetBundle {
         CaraokePlayerWidget()
         CaraokeLyricsWidget()
         CaraokeHybridWidget()
+        if #available(iOS 18.0, *) {
+            CaraokeControlWidget()
+        }
     }
 }

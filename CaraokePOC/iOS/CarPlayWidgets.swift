@@ -86,7 +86,7 @@ private struct CaraokeCarPlayResyncButton<Content: View>: View {
                 }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Resync lyrics")
+        .accessibilityLabel(entry.currentLine.isEmpty ? "Resync lyrics" : "\(entry.currentLine). Tap to resync lyrics")
     }
 }
 
@@ -131,7 +131,7 @@ private struct CaraokeCarPlayCover: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Resync lyrics")
+        .accessibilityLabel(entry.currentLine.isEmpty ? "Resync lyrics" : "\(entry.currentLine). Tap to resync lyrics")
     }
 }
 
@@ -234,13 +234,18 @@ private struct CaraokePlayerWidgetView: View {
 
 private struct CaraokeCarPlayLyricsWidgetView: View {
     let entry: CaraokeWidgetEntry
+    @Environment(\.showsWidgetContainerBackground) private var showsBackground
+
+    private var foreground: Color {
+        (!showsBackground && entry.theme == .ivoryWhite) ? .white : entry.theme.textColor
+    }
 
     var body: some View {
         CaraokeCarPlayResyncButton(entry: entry, content:
             CompactLyricsView(currentLine: entry.currentLine,
                 previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                 title: entry.title, artist: entry.artist, status: entry.status,
-                fontSize: 15, foreground: entry.theme.textColor, boldText: entry.settings.boldText,
+                fontSize: 15, foreground: foreground, boldText: entry.settings.boldText,
                  topInset: entry.status == .expired ? 30 : 0, slideTransitions: true))
     }
 }
@@ -249,19 +254,24 @@ private struct CaraokeCarPlayLyricsWidgetView: View {
 
 private struct CaraokeCarPlayHybridWidgetView: View {
     let entry: CaraokeWidgetEntry
+    @Environment(\.showsWidgetContainerBackground) private var showsBackground
+
+    private var foreground: Color {
+        (!showsBackground && entry.theme == .ivoryWhite) ? .white : entry.theme.textColor
+    }
 
     var body: some View {
-        let t = entry.theme
+        let fg = foreground
         VStack(spacing: 2) {
             CaraokeCarPlayResyncButton(entry: entry, content:
                 CompactLyricsView(currentLine: entry.currentLine,
                     previousLines: entry.previousLines, upcomingLines: entry.upcomingLines,
                     title: entry.title, artist: entry.artist, status: entry.status,
-                    fontSize: 15, foreground: t.textColor, boldText: entry.settings.boldText,
+                    fontSize: 15, foreground: fg, boldText: entry.settings.boldText,
                      topInset: entry.status == .expired ? 30 : 0, slideTransitions: true))
             .frame(maxHeight: .infinity)
             .layoutPriority(1)
-            CaraokeCarPlayProgress(progress: entry.progress, tint: t.textColor)
+            CaraokeCarPlayProgress(progress: entry.progress, tint: fg)
                 .padding(.horizontal, 6)
             // Compact competitor-style strip: metadata gets one line each and
             // may ellipsize; it never steals rows from the lyrics.

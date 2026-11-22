@@ -8,7 +8,7 @@ struct SpotifyLogo: View {
         self.size = size
     }
 
-    public var body: some View {
+    var body: some View {
         ZStack {
             Circle()
                 .fill(Color(hex: 0x1DB954))
@@ -30,7 +30,7 @@ private struct SpotifyWavesShape: Shape {
         // Bottom wave
         path.move(to: CGPoint(x: 17.521 * sx, y: 17.34 * sy))
         path.addCurve(to: CGPoint(x: 16.5 * sx, y: 17.58 * sy), control1: CGPoint(x: 17.28 * sx, y: 17.7 * sy), control2: CGPoint(x: 16.86 * sx, y: 17.82 * sy))
-        path.addCurve(to: CGPoint(x: 5.94 * sx, y: 16.44 * sy), control1: CGPoint(x: 13.68 * sx, y: 15.84 * sy), control2: CGPoint(x: 10.14 * sy, y: 15.48 * sy))
+        path.addCurve(to: CGPoint(x: 5.94 * sx, y: 16.44 * sy), control1: CGPoint(x: 13.68 * sx, y: 15.84 * sy), control2: CGPoint(x: 10.14 * sx, y: 15.48 * sy))
         path.addCurve(to: CGPoint(x: 5.04 * sx, y: 15.9 * sy), control1: CGPoint(x: 5.52 * sx, y: 16.56 * sy), control2: CGPoint(x: 5.16 * sx, y: 16.26 * sy))
         path.addCurve(to: CGPoint(x: 5.58 * sx, y: 15.0 * sy), control1: CGPoint(x: 4.92 * sx, y: 15.48 * sy), control2: CGPoint(x: 5.22 * sx, y: 15.12 * sy))
         path.addCurve(to: CGPoint(x: 17.22 * sx, y: 16.32 * sy), control1: CGPoint(x: 10.14 * sx, y: 13.98 * sy), control2: CGPoint(x: 14.1 * sx, y: 14.4 * sy))

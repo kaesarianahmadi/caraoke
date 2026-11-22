@@ -68,7 +68,8 @@ final class CaraokeActivityController {
         if startSnapshot != nil { startSnapshot = snapshot }
         guard let activity, Self.canReuse(activity), !needsTeardown else { return }
         let key = Self.trackKey(for: snapshot)
-        guard policy.shouldUpdate(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying) else { return }
+        guard policy.shouldUpdate(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying,
+                                  status: snapshot.status.rawValue, currentLine: snapshot.currentLine) else { return }
 
         let critical = key != lastSentTrackKey || snapshot.isPlaying != lastSentIsPlaying
         lastSentTrackKey = key
@@ -213,7 +214,8 @@ final class CaraokeActivityController {
         let key = Self.trackKey(for: snapshot)
         lastSentTrackKey = key
         lastSentIsPlaying = snapshot.isPlaying
-        policy.seed(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying)
+        policy.seed(trackKey: key, lineIndex: snapshot.lineIndex, isPlaying: snapshot.isPlaying,
+                    status: snapshot.status.rawValue, currentLine: snapshot.currentLine)
         reportState(activity.activityState)
     }
 
@@ -293,6 +295,7 @@ final class CaraokeActivityController {
             title: snapshot.title,
             artist: snapshot.artist,
             currentLine: snapshot.currentLine,
+            currentTranslation: snapshot.currentTranslation,
             previousLines: Array(snapshot.previousLines.suffix(2)),
             nextLine: snapshot.nextLine,
             upcomingLines: Array(snapshot.upcomingLines.prefix(2)),

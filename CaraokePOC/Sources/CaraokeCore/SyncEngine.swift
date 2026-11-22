@@ -58,6 +58,7 @@ final class SyncEngine {
     var now: () -> Date
     private(set) var anchor: NowPlayingState?
     private(set) var lines: [LRCLine] = []
+    private(set) var lyricOffsetMs: Int = 0
     let positionSubject = CurrentValueSubject<LyricsPosition?, Never>(nil)
     private var timer: AnyCancellable?
 
@@ -67,6 +68,12 @@ final class SyncEngine {
 
     func setLyrics(_ lines: [LRCLine]) {
         self.lines = lines
+        tick()
+    }
+
+    func setLyricOffsetMs(_ ms: Int) {
+        guard lyricOffsetMs != ms else { return }
+        lyricOffsetMs = ms
         tick()
     }
 
@@ -127,7 +134,7 @@ final class SyncEngine {
             positionSubject.send(nil)
             return
         }
-        let pos = Self.extrapolatedPositionMs(anchor: anchor, at: now())
+        let pos = max(0, Self.extrapolatedPositionMs(anchor: anchor, at: now()) + lyricOffsetMs)
         positionSubject.send(Self.position(
             atMs: pos, lines: lines,
             durationMs: anchor.durationMs, isPlaying: anchor.isPlaying

@@ -1,140 +1,304 @@
 import SwiftUI
+import ActivityKit
+import UIKit
+#if canImport(TipKit)
+import TipKit
+#endif
 
-/// Short dismissible welcome sheet. Presented once by the root app
-/// (first-launch persistence lives in `CaraokeApp.swift`) and replayable
-/// from Settings → Welcome guide. Explains only behavior the app actually
-/// supports: choose a music source, turn on Live Lyrics, open Full lyrics.
-/// No permission prompts, no competitor screenshots, no external images.
+/// Interactive 3-step visual onboarding with pure SwiftUI surface diagrams.
 struct OnboardingView: View {
-    var onDismiss: () -> Void
+    let onDismiss: () -> Void
 
+    @State private var step = 0
+    @State private var chosenSource: RideModeViewModel.ActiveMusicSource = AppModel.shared.ride.activeSource
+    @State private var showSpotifySetup = false
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var activitiesEnabled: Bool {
+        ActivityAuthorizationInfo().areActivitiesEnabled
+    }
 
     var body: some View {
         ZStack {
-            AppTheme.background(scheme)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    header
-                    steps
+            AppTheme.bg(scheme).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack {
+                    HStack(spacing: 6) {
+                        ForEach(0..<3, id: \.self) { index in
+                            Capsule()
+                                .fill(index == step ? AppTheme.accent(scheme) : AppTheme.border(scheme))
+                                .frame(width: index == step ? 22 : 8, height: 6)
+                                .animation(.easeInOut(duration: 0.2), value: step)
+                        }
+                    }
+                    Spacer()
+                    Button("Skip for now") {
+                        onDismiss()
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(AppTheme.muted(scheme))
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 8)
-            }
-            .safeAreaInset(edge: .bottom) {
-                actions
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
-                    .background(AppTheme.bg(scheme))
+                .padding(.top, 16)
+
+                TabView(selection: $step) {
+                    sourcePickerStep.tag(0)
+                    surfacesBlueprintStep.tag(1)
+                    resyncGestureStep.tag(2)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+
+                VStack(spacing: 10) {
+                    Button {
+                        if step < 2 {
+                            withAnimation { step += 1 }
+                        } else {
+                            completeOnboarding()
+                        }
+                    } label: {
+                        Text(step < 2 ? "Continue" : primaryFinishTitle)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 52)
+                            .background(AppTheme.accent(scheme))
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
         }
-        .preferredColorScheme(AppearanceSettings.preferredScheme)
+        .sheet(isPresented: $showSpotifySetup, onDismiss: {
+            onDismiss()
+        }) {
+            SpotifySetupView(spotifyAuth: AppModel.shared.ride.spotifyAuth) {
+                AppModel.shared.ride.selectMusicSource(.spotify)
+            }
+        }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Welcome to Caraoke")
-                .font(.title.weight(.bold))
+    private var primaryFinishTitle: String {
+        if chosenSource == .spotify && !AppModel.shared.ride.spotifyAuth.isConnected {
+            return "Connect Spotify & Start"
+        }
+        return "Start Caraoke"
+    }
+
+    private func completeOnboarding() {
+        let model = AppModel.shared.ride
+        model.selectMusicSource(chosenSource)
+        if chosenSource == .spotify && !model.spotifyAuth.isConnected {
+            showSpotifySetup = true
+            return
+        }
+        onDismiss()
+    }
+
+    // MARK: - Step 1: Pick Your Music App
+
+    private var sourcePickerStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Spacer(minLength: 8)
+            Text("Pick Your Music App")
+                .font(.system(size: 26, weight: .bold))
                 .foregroundColor(AppTheme.fg(scheme))
-                .accessibilityAddTraits(.isHeader)
-            Text("Live lyrics while you ride — made for passengers.")
+            Text("Caraoke syncs lyrics from whichever player you drive with.")
                 .font(.subheadline)
                 .foregroundColor(AppTheme.muted(scheme))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
 
-    private var steps: some View {
-        VStack(spacing: 0) {
-            stepRow(number: 1, symbol: "music.note.list", title: "Choose your music",
-                    body: "Choose Apple Music or connect Spotify in Settings → Music connections.")
-            divider
-            stepRow(number: 2, symbol: "waveform", title: "Turn on Live Lyrics",
-                    body: "Enable the session from Home for supported external displays.")
-            divider
-            stepRow(number: 3, symbol: "rectangle.on.rectangle", title: "Open Full lyrics",
-                    body: "Tap the Full lyrics preview to read the whole song.")
-        }
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(AppTheme.surface(scheme)))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .stroke(AppTheme.border(scheme), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
+            VStack(spacing: 12) {
+                sourceOptionCard(
+                    source: .appleMusic,
+                    title: "Apple Music",
+                    subtitle: "Built-in Music app · Instant sync"
+                ) { AppleMusicLogo(size: 34) }
 
-    private func stepRow(number: Int, symbol: String, title: String, body: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            VStack(spacing: 4) {
-                ZStack {
-                    Circle().fill(AppTheme.accent(scheme).opacity(0.14))
-                    Image(systemName: symbol)
-                        .font(.system(size: 14, weight: .semibold))
+                sourceOptionCard(
+                    source: .spotify,
+                    title: "Spotify",
+                    subtitle: AppModel.shared.ride.spotifyAuth.isConnected ? "Connected" : "1-tap sign-in or custom Client ID"
+                ) { SpotifyLogo(size: 34) }
+
+                sourceOptionCard(
+                    source: .auto,
+                    title: "Automatic",
+                    subtitle: "Follows whichever player starts first"
+                ) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(AppTheme.accent(scheme))
+                        .frame(width: 34, height: 34)
                 }
-                .frame(width: 34, height: 34)
-                Text("Step \(number)")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundColor(AppTheme.muted(scheme))
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(AppTheme.fg(scheme))
-                Text(body)
-                    .font(.subheadline)
-                    .foregroundColor(AppTheme.muted(scheme))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Step \(number) of 3: \(title). \(body)")
+            Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 20)
     }
 
-    private var divider: some View {
-        Divider().overlay(AppTheme.border(scheme))
+    private func sourceOptionCard<Icon: View>(
+        source: RideModeViewModel.ActiveMusicSource,
+        title: String,
+        subtitle: String,
+        @ViewBuilder icon: () -> Icon
+    ) -> some View {
+        let selected = chosenSource == source
+        return Button {
+            chosenSource = source
+        } label: {
+            HStack(spacing: 14) {
+                icon()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(AppTheme.fg(scheme))
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(AppTheme.muted(scheme))
+                }
+                Spacer()
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22))
+                    .foregroundColor(selected ? AppTheme.accent(scheme) : AppTheme.border(scheme))
+            }
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(selected ? AppTheme.accent(scheme) : AppTheme.border(scheme), lineWidth: selected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
-    private var actions: some View {
-        VStack(spacing: 8) {
-            Button {
-                if reduceMotion {
-                    onDismiss()
-                } else {
-                    withAnimation(.easeInOut(duration: 0.15)) { onDismiss() }
-                }
-            } label: {
-                Text("Get started")
-                    .font(.headline.weight(.semibold))
-                    .foregroundColor(scheme == .dark ? .black : .white)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 52)
-                    .contentShape(Rectangle())
-            }
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(AppTheme.accent(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(AppTheme.accent(scheme).opacity(0.6), lineWidth: 1))
-            .accessibilityHint("Dismiss the welcome sheet and start using Caraoke")
+    // MARK: - Step 2: Lyrics on Every Screen
 
-            Button {
-                if reduceMotion {
-                    onDismiss()
-                } else {
-                    withAnimation(.easeInOut(duration: 0.15)) { onDismiss() }
+    private var surfacesBlueprintStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Spacer(minLength: 8)
+            Text("Lyrics on Every Screen")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundColor(AppTheme.fg(scheme))
+            Text("Switch Live Lyrics on from Home to mirror to Dynamic Island, Lock Screen, and CarPlay Dashboard.")
+                .font(.subheadline)
+                .foregroundColor(AppTheme.muted(scheme))
+
+            // Vector Blueprint Diagram
+            VStack(spacing: 12) {
+                // Dynamic Island mockup
+                HStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "waveform").foregroundColor(AppTheme.darkAccent)
+                        Text("Bright and early").font(.caption.weight(.semibold)).foregroundColor(.white)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+                    .background(Capsule().fill(Color.black))
+                    Circle().fill(AppTheme.darkAccent.opacity(0.35)).frame(width: 32, height: 32)
+                        .overlay(Image(systemName: "music.note").font(.caption2).foregroundColor(.white))
                 }
-            } label: {
-                Text("Not now")
-                    .font(.headline.weight(.medium))
-                    .foregroundColor(AppTheme.accent(scheme))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 52)
-                    .contentShape(Rectangle())
+
+                // CarPlay Split-Screen mockup
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(height: 68)
+                        .overlay(
+                            VStack(spacing: 4) {
+                                Image(systemName: "map.fill").foregroundColor(.white.opacity(0.5))
+                                Text("Maps").font(.caption2).foregroundColor(.white.opacity(0.5))
+                            }
+                        )
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.black)
+                        .frame(height: 68)
+                        .overlay(
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Bright and early").font(.caption.weight(.bold)).foregroundColor(.white)
+                                Text("I'm up with the sun").font(.caption2).foregroundColor(.white.opacity(0.6))
+                            }
+                            .padding(8)
+                            , alignment: .leading
+                        )
+                }
+
+                // Live Activities readiness badge
+                HStack(spacing: 8) {
+                    Image(systemName: activitiesEnabled ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                        .foregroundColor(activitiesEnabled ? AppTheme.ok : AppTheme.warn)
+                    Text(activitiesEnabled ? "Live Activities Ready" : "Live Activities Off — Enable in iOS Settings")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(AppTheme.fg(scheme))
+                    Spacer()
+                    if !activitiesEnabled {
+                        Button("Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(AppTheme.accent(scheme))
+                    }
+                }
+                .padding(.top, 4)
             }
-            .accessibilityHint("Dismiss the welcome sheet without starting setup")
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(AppTheme.surface(scheme)))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
+
+            Spacer()
         }
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - Step 3: Tap Cover to Resync
+
+    private var resyncGestureStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Spacer(minLength: 8)
+            Text("Tap Tile to Resync")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundColor(AppTheme.fg(scheme))
+            Text("iOS pauses background apps ~30s after locking. Relay keeps your current song moving — if you skip from the steering wheel, tap the widget cover or lyric tile to resync.")
+                .font(.subheadline)
+                .foregroundColor(AppTheme.muted(scheme))
+
+            ZStack(alignment: .topTrailing) {
+                HStack(spacing: 14) {
+                    VinylRecordView(diameter: 66, labelDiameter: 40)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Tap cover or lyric tile")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                        Text("Samples the active player and updates timelines.")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.65))
+                    }
+                    Spacer()
+                }
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color(hex: 0x16161A)))
+
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.black)
+                    .padding(7)
+                    .background(Circle().fill(AppTheme.darkAccent))
+                    .padding(10)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
     }
 }
+
+#if canImport(TipKit)
+@available(iOS 17.0, *)
+struct StageExpandTip: Tip {
+    var title: Text { Text("Full-Screen Stage") }
+    var message: Text? { Text("Tap the Stage card anytime to zoom into full-screen lyrics and Bluetooth offset controls.") }
+    var image: Image? { Image(systemName: "music.mic") }
+}
+#endif

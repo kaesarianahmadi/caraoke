@@ -66,6 +66,9 @@ struct SharedWidgetPayload: Codable, Equatable, Sendable {
     /// next song while the art stays on the one that already ended.
     var nextArtworkData: Data?
     var nextArtworkColorHex: String?
+    /// Monotonic generation + wall-clock observation epoch (ms) for CAS & pause expiry.
+    var generation: UInt64 = 0
+    var observedAtEpochMs: Int = 0
 
     init(title: String,
          artist: String,
@@ -90,7 +93,9 @@ struct SharedWidgetPayload: Codable, Equatable, Sendable {
          nextTitle: String = "",
          nextArtist: String = "",
          nextArtworkData: Data? = nil,
-         nextArtworkColorHex: String? = nil) {
+         nextArtworkColorHex: String? = nil,
+         generation: UInt64 = 0,
+         observedAtEpochMs: Int = 0) {
         self.title = title
         self.artist = artist
         self.album = album
@@ -115,6 +120,8 @@ struct SharedWidgetPayload: Codable, Equatable, Sendable {
         self.nextArtist = nextArtist
         self.nextArtworkData = nextArtworkData
         self.nextArtworkColorHex = nextArtworkColorHex
+        self.generation = generation
+        self.observedAtEpochMs = observedAtEpochMs
     }
 
     /// Total span `lines` covers: one song, or two when the next one is chained.
@@ -153,15 +160,19 @@ struct SharedWidgetSettings: Codable, Sendable, Equatable {
     /// Enable bake detail in system logs. Diagnostic text is never painted
     /// over widgets, even when an older saved setting enables this flag.
     var debugStamp: Bool
+    /// Global Bluetooth / CarPlay lyric timing offset in milliseconds.
+    var lyricOffsetMs: Int
 
     init(theme: String = "artwork",
          coverStyle: String = "vinyl",
          boldText: Bool = true,
-         debugStamp: Bool = false) {
+         debugStamp: Bool = false,
+         lyricOffsetMs: Int = 0) {
         self.theme = theme
         self.coverStyle = coverStyle
         self.boldText = boldText
         self.debugStamp = debugStamp
+        self.lyricOffsetMs = lyricOffsetMs
     }
 
     /// Hand-written so a settings blob written before a field existed still
@@ -175,6 +186,7 @@ struct SharedWidgetSettings: Codable, Sendable, Equatable {
         coverStyle = try container.decodeIfPresent(String.self, forKey: .coverStyle) ?? "vinyl"
         boldText = try container.decodeIfPresent(Bool.self, forKey: .boldText) ?? true
         debugStamp = try container.decodeIfPresent(Bool.self, forKey: .debugStamp) ?? false
+        lyricOffsetMs = try container.decodeIfPresent(Int.self, forKey: .lyricOffsetMs) ?? 0
     }
 }
 
@@ -395,24 +407,9 @@ enum WidgetTimelineBuilder {
         // Outro entries: after the final lyric line, shift it up into previous,
         // then clear all lines so the widget smoothly scrolls off and disappears.
         if includeOutro, end == lines.count, let lastLine = lines.last {
-            let stage1Date = Date(timeIntervalSince1970: startEpoch + Double(lastLine.timeMs + 7000) / 1000.0)
-            if stage1Date > now {
-                entries.append(WidgetTimelineEntry(
-                    date: stage1Date,
-                    lineIndex: lines.count,
-                    currentLine: "",
-                    currentTranslation: nil,
-                    previousLines: [lastLine.text],
-                    nextLine: nil,
-                    upcomingLines: [],
-                    progress: progressFraction(for: lastLine.timeMs + 7000, payload: payload),
-                    isNextTrack: nextTrackIndex != nil
-                ))
-            }
-            let stage2Date = Date(timeIntervalSince1970: startEpoch + Double(lastLine.timeMs + 10000) / 1000.0)
-            if stage2Date > now {
-                entries.append(WidgetTimelineEntry(
-                    date: stage2Date,
+            if positionMs >= lastLine.timeMs + 10_000 {
+                entries = [WidgetTimelineEntry(
+                    date: now,
                     lineIndex: lines.count + 1,
                     currentLine: "",
                     currentTranslation: nil,
@@ -421,7 +418,36 @@ enum WidgetTimelineBuilder {
                     upcomingLines: [],
                     progress: 1.0,
                     isNextTrack: nextTrackIndex != nil
-                ))
+                )]
+            } else {
+                let stage1Date = Date(timeIntervalSince1970: startEpoch + Double(lastLine.timeMs + 7000) / 1000.0)
+                if stage1Date > now {
+                    entries.append(WidgetTimelineEntry(
+                        date: stage1Date,
+                        lineIndex: lines.count,
+                        currentLine: "",
+                        currentTranslation: nil,
+                        previousLines: [lastLine.text],
+                        nextLine: nil,
+                        upcomingLines: [],
+                        progress: progressFraction(for: lastLine.timeMs + 7000, payload: payload),
+                        isNextTrack: nextTrackIndex != nil
+                    ))
+                }
+                let stage2Date = Date(timeIntervalSince1970: startEpoch + Double(lastLine.timeMs + 10000) / 1000.0)
+                if stage2Date > now {
+                    entries.append(WidgetTimelineEntry(
+                        date: stage2Date,
+                        lineIndex: lines.count + 1,
+                        currentLine: "",
+                        currentTranslation: nil,
+                        previousLines: [],
+                        nextLine: nil,
+                        upcomingLines: [],
+                        progress: 1.0,
+                        isNextTrack: nextTrackIndex != nil
+                    ))
+                }
             }
             // Terminal entry: past the end of everything the payload covers, so
             // the tile flips itself to "tap to resync" with no reload and no
@@ -475,10 +501,15 @@ enum WidgetTimelineBuilder {
     /// dead and the self-fetch runs.
     static func isExpired(payload: SharedWidgetPayload, now: Date) -> Bool {
         guard payload.chainedSpanMs > 0 else { return false }
-        let age = positionMs(for: payload, now: now)
         if payload.isPlaying {
+            let age = positionMs(for: payload, now: now)
             return age > payload.chainedSpanMs + expiredSlackMs
         }
+        if payload.observedAtEpochMs > 0 {
+            let pausedAgeMs = Int(now.timeIntervalSince1970 * 1000) - payload.observedAtEpochMs
+            return pausedAgeMs > pausedHoldMs
+        }
+        let age = positionMs(for: payload, now: now)
         return age > payload.chainedSpanMs + pausedHoldMs
     }
 

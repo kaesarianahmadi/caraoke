@@ -33,12 +33,14 @@ enum LyricsFileParser {
               document.version == "1.0", document.metadata.offset_ms == nil,
               document.metadata.instrumental != true, let lines = document.lines,
               !lines.isEmpty, lines.count <= 2000 else { return nil }
+        var fullLines: [LyricLine] = []
         var result: [LyricLine] = []
         var usedWordTiming = false
         for (index, line) in lines.enumerated() {
             let next = index + 1 < lines.count ? lines[index + 1].start_ms : nil
             guard line.start_ms >= 0, next.map({ $0 > line.start_ms }) ?? true,
                   line.end_ms.map({ end in end >= line.start_ms && (next.map { end <= $0 } ?? true) }) ?? true else { return nil }
+            fullLines.append(LyricLine(startMs: line.start_ms, text: line.text))
             let words = line.words ?? []
             let valid = !words.isEmpty && words.count <= 500 &&
                 words.map(\.text).joined() == line.text &&
@@ -76,8 +78,9 @@ enum LyricsFileParser {
                 result.append(LyricLine(startMs: chunkStart, text: chunk.trimmingCharacters(in: .whitespacesAndNewlines)))
             }
         }
-        guard !result.isEmpty, zip(result, result.dropFirst()).allSatisfy({ $0.startMs < $1.startMs }) else { return nil }
-        return LyricTrack(lines: result, hasWordTiming: usedWordTiming)
+        guard !fullLines.isEmpty, !result.isEmpty,
+              zip(result, result.dropFirst()).allSatisfy({ $0.startMs < $1.startMs }) else { return nil }
+        return LyricTrack(lines: fullLines, compactPhrases: result, hasWordTiming: usedWordTiming)
     }
 
     private static func validNode(_ node: Node, depth: Int) -> Bool {

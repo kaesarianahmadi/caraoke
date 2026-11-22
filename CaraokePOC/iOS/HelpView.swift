@@ -1,329 +1,247 @@
 import SwiftUI
 
-/// Offline setup guide + troubleshooting. Replayable in-app reference: the
-/// same surface backs Home's "?" and Settings → Help & setup. Pushed inside
-/// a NavigationStack, so it carries no NavigationStack of its own.
-///
-/// Content mirrors what the pipeline actually does: Live Lyrics → Live
-/// Activity, the one-track push relay for the locked-phone case, widget /
-/// CarPlay resync. Deliberately makes no "always works" promise — iOS
-/// delivery and widget refresh cadence are outside the app's control.
+/// Segmented visual setup & troubleshooting guide replacing the old prose wall.
 struct HelpView: View {
+    enum Topic: String, CaseIterable, Identifiable {
+        case quickStart = "Quick Start"
+        case carPlay = "CarPlay"
+        case lockedPhone = "Locked Phone"
+        case spotify = "Spotify"
+        case widgets = "Widgets"
+        var id: String { rawValue }
+    }
+
+    @State private var topic: Topic = .quickStart
+    @State private var copiedURI = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         ZStack {
-            AppTheme.background(scheme)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    intro
-                    quickStartSection
-                    lockedPhoneSection
-                    carPlaySection
-                    resyncSection
-                    spotifySection
-                    widgetsSection
-                    lyricsSection
-                    privacySection
-                    moreHelpSection
-                    footnote
+            AppTheme.bg(scheme).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Topic.allCases) { item in
+                            Button {
+                                topic = item
+                            } label: {
+                                Text(item.rawValue)
+                                    .font(.caption.weight(topic == item ? .bold : .medium))
+                                    .foregroundColor(topic == item ? .black : AppTheme.fg(scheme))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule().fill(topic == item ? AppTheme.accent(scheme) : AppTheme.surface(scheme))
+                                    )
+                                    .overlay(
+                                        Capsule().stroke(topic == item ? Color.clear : AppTheme.border(scheme), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 28)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        topicDiagram
+                        topicSteps
+                        docsLink
+                    }
+                    .padding(16)
+                }
             }
         }
-        .navigationTitle("Help & setup")
+        .navigationTitle("Setup & Help")
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: - Intro
-
-    private var intro: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Set up lyrics everywhere")
-                .font(.title2.weight(.bold))
-                .foregroundColor(AppTheme.fg(scheme))
-                .accessibilityAddTraits(.isHeader)
-            Text("The setup steps work offline; links and policies need a connection. It covers Live Lyrics, CarPlay, the Lock Screen, the Dynamic Island, and widgets.")
-                .font(.subheadline)
-                .foregroundColor(AppTheme.muted(scheme))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    // MARK: - Quick start
-
-    private var quickStartSection: some View {
-        section("Quick start") {
-            step("1", "Open Settings (gear on Home) → Music connections. Choose Apple Music, or connect Spotify.")
-            step("2", "On Home, switch Live Lyrics on.")
-            step("3", "Allow Live Activities: iOS Settings → Caraoke → Live Activities.")
-            step("4", "Play a song in the chosen app. Lyrics appear on the Lock Screen, in the Dynamic Island, and on the CarPlay dashboard.")
-            paragraph("Apple Music needs no account inside Caraoke — it reads the system player. Spotify needs authorization first; see Spotify setup below.")
-        }
-    }
-
-    // MARK: - Locked phone (the driving case)
-
-    private var lockedPhoneSection: some View {
-        section("While your phone is locked") {
-            paragraph("When Live Lyrics starts, Caraoke reads the current song's full lyric timeline and hands it to a push relay before iOS suspends the app (about 30 seconds after you leave it). The relay stores that schedule and the ride's Live Activity push token for the active session; stopping the ride tells it to drop the session. The relay advances the lines while the phone is locked, so the car screen does not need Caraoke running in front.")
-            callout(
-                icon: "exclamationmark.triangle.fill",
-                title: "One song at a time",
-                text: "The relay is armed for the song that was playing. If you change track, pause, or seek while Caraoke is suspended, the tile can hold the previous line or keep counting. Tap Resync to sample the selected player now; opening Caraoke only resumes normal polling.",
-                tint: AppTheme.warn
-            )
-            paragraph("iOS ends a Live Activity on its own after several hours; reopen Caraoke to start a fresh one. Low Power Mode, Focus, or Live Activities being off can delay or hide updates.")
-            docLink("Locked-phone details", path: "/docs#locked-phone")
-            settingsButton
-        }
-    }
-
-    private var settingsButton: some View {
-        Button {
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "gearshape")
-                    .font(.subheadline.weight(.semibold))
-                Text("Open iOS Settings for Caraoke")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .foregroundColor(AppTheme.accent(scheme))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .frame(minHeight: 44)
-            .background(Capsule().fill(AppTheme.fg(scheme).opacity(0.06)))
-            .overlay(Capsule().stroke(AppTheme.border(scheme), lineWidth: 1))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Opens Caraoke settings where Live Activities can be allowed")
-    }
-
-    // MARK: - CarPlay
-
-    private var carPlaySection: some View {
-        section("CarPlay") {
-            step("1", "Connect the iPhone to the car with wireless or wired CarPlay.")
-            step("2", "Start Live Lyrics in Caraoke, then play a song.")
-            step("3", "On the car screen, open the dashboard. The Caraoke tile mirrors the Live Activity.")
-            paragraph("Nothing needs configuring while driving. On touchscreen CarPlay, the lyrics-only and hybrid tiles show a centered Resync arrow when their timeline is known to be expired; the player and hybrid covers also request resync. On a non-touch screen, open Caraoke on the phone to resync.")
-        }
-    }
-
-    // MARK: - Resync
-
-    private var resyncSection: some View {
-        section("If lyrics freeze or drift") {
-            step("1", "When shown, tap the centered Resync arrow on the CarPlay lyrics-only or hybrid tile, the cover on the CarPlay player/hybrid tile, or the vinyl/album art on a Home Screen widget. The arrow indicates a known expired timeline; it cannot detect every timing error. When Caraoke handles the tap, it samples the selected player. The widget-extension fallback repairs Spotify only; Apple Music needs the app path.")
-            step("2", "In Caraoke, open the lyrics page and tap Resync in the header. Opening the app from a widget also resumes normal polling, but does not force an immediate sample or relay rearm.")
-            step("3", "Still stale? Switch Live Lyrics off, then on.")
-            step("4", "Confirm Settings → Music connections matches the app that is actually playing.")
-            step("5", "Paused or seeked from the car? Resume playback, then seek once in the track. With Caraoke open, it re-aligns within a couple of seconds.")
-            step("6", "No tile at all? Check iOS Settings → Caraoke → Live Activities, then switch Live Lyrics off and on.")
-            step("7", "Lock Screen and Dynamic Island have no Resync control — open Caraoke instead. On non-touchscreen CarPlay, do the same.")
-            docLink("Open the full troubleshooting guide", path: "/docs#problems")
-        }
-    }
-
-    // MARK: - Spotify
-
-    private var spotifySection: some View {
-        section("Spotify setup") {
-            paragraph("Spotify is a limited beta. The built-in credentials work for a small allowlist; if you get an authorization or 403 error, connect with your own free Client ID. That bypasses Caraoke's shared limit.")
-            step("1", "Open developer.spotify.com/dashboard and log in.")
-            step("2", "Create an app named Caraoke and select Web API.")
-            step("3", "Under App Settings → Redirect URIs add exactly caraoke://spotify-callback.")
-            step("4", "Copy the Client ID from Basic Information.")
-            step("5", "In Caraoke: Settings → Music connections → Spotify opens Spotify setup. Paste the Client ID, then tap Save & Connect.")
-            paragraph("To repair a broken connection, reopen the Spotify row and choose Reconnect. Disconnect is in the same Spotify setup screen.")
-            paragraph("Spotify access uses now-playing and playback-state scopes plus playback control (play, pause, skip). Caraoke requests no library or playlist scopes.")
-            spotifyDashboardLink
-        }
-    }
-
-    private var spotifyDashboardLink: some View {
-        Link(destination: URL(string: "https://developer.spotify.com/dashboard")!) {
-            HStack(spacing: 4) {
-                Text("Open Spotify Developer Dashboard")
-                    .font(.subheadline.weight(.semibold))
-                Image(systemName: "arrow.up.right.square")
-                    .font(.caption.weight(.medium))
-            }
-            .foregroundColor(AppTheme.accent(scheme))
-            .frame(minHeight: 32)
-            .contentShape(Rectangle())
-        }
-    }
-
-    // MARK: - Widgets
-
-    private var widgetsSection: some View {
-        section("Widgets & StandBy") {
-            step("1", "Long-press the Home Screen, tap +, search Caraoke, then pick a size.")
-            step("2", "Tap the vinyl disc, album art, or Resync to request a fresh sample. Rendering still follows iOS widget scheduling.")
-            step("3", "For themes, size previews, and widget options, open Settings → Display → Widgets inside Caraoke.")
-            step("4", "StandBy: place the iPhone horizontally on a charger, then add the Caraoke widget to the StandBy screen.")
-            paragraph("iOS chooses when widgets redraw on its own; a tap requests a fresh sample, but the redraw can lag. For continuous line-by-line updates use Live Lyrics.")
-        }
-    }
-
-    // MARK: - Lyrics sources
-
-    private var lyricsSection: some View {
-        section("Missing or early lyrics") {
-            paragraph("Caraoke asks LRCLIB and YouTube Music at the same time and uses the first synchronized lyric sheet that comes back. If neither has one, the song plays without lines — the title, artist, and progress still update.")
-            paragraph("If lines run ahead or behind, seek once in the music app. Bluetooth and car audio processing can add a fraction of a second of delay that no lyric file can predict.")
-            Text("Lyrics © their respective rights holders. Track data comes from the active music source.")
-                .font(.caption2)
-                .foregroundColor(AppTheme.muted(scheme))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    // MARK: - Privacy & data
-
-    private var privacySection: some View {
-        section("Privacy & data") {
-            paragraph("There is no Caraoke account. To match lyrics, Caraoke sends the track title and artist to LRCLIB and YouTube Music (LRCLIB also receives the duration). Crash diagnostics go to Sentry and Caraoke's crash relay; usage signals go to TelemetryDeck, and purchases use Apple StoreKit with RevenueCat.")
-            paragraph("For locked-phone lyrics, Caraoke's push relay stores the current ride's lyric schedule and Live Activity push token. Caraoke sends a stop request when the ride ends; the relay drops the session only after it successfully processes that request or the session expires, so a failed request can leave it stored. Spotify tokens stay in the device Keychain.")
-            docLink("Privacy Policy", path: "/privacy")
-            docLink("Terms of Use", path: "/terms")
-        }
-    }
-
-    // MARK: - More help
-
-    private var moreHelpSection: some View {
-        section("More help") {
-            Link(destination: URL(string: "https://caraokeapp.com/docs")!) {
-                HStack(spacing: 8) {
-                    Image(systemName: "safari")
-                        .font(.subheadline.weight(.medium))
-                    Text("Setup guides at caraokeapp.com")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.subheadline)
-                }
-                .foregroundColor(AppTheme.fg(scheme))
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-            }
-            Divider().overlay(AppTheme.border(scheme))
-            Link(destination: URL(string: "mailto:support@caraoke.app?subject=Caraoke%20help")!) {
-                HStack(spacing: 8) {
-                    Image(systemName: "envelope")
-                        .font(.subheadline.weight(.medium))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Email support")
-                            .font(.subheadline.weight(.semibold))
-                        Text("support@caraoke.app")
-                            .font(.caption)
-                            .foregroundColor(AppTheme.muted(scheme))
+    @ViewBuilder
+    private var topicDiagram: some View {
+        switch topic {
+        case .quickStart:
+            diagramCard(title: "3-Zone Cockpit") {
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Live Lyrics")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Capsule().fill(AppTheme.darkAccent).frame(width: 34, height: 18)
                     }
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.subheadline)
-                        .foregroundColor(AppTheme.muted(scheme))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(height: 44)
+                        .overlay(Text("Stage Card — Tap to expand").font(.caption).foregroundColor(.white.opacity(0.75)))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.12))
+                        .frame(height: 32)
+                        .overlay(Text("Docked Console · ⏮ ⏯ ⏭ · Source").font(.caption2).foregroundColor(.white.opacity(0.85)))
                 }
-                .foregroundColor(AppTheme.fg(scheme))
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+            }
+
+        case .carPlay:
+            diagramCard(title: "CarPlay Dashboard Split-Screen") {
+                HStack(spacing: 10) {
+                    VStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.14)).frame(width: 46, height: 46)
+                        Text("Player Tile").font(.caption2).foregroundColor(.white.opacity(0.75))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.06)))
+
+                    ZStack(alignment: .topTrailing) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Current lyric").font(.caption.weight(.bold)).foregroundColor(.white)
+                            Text("Next line").font(.caption2).foregroundColor(.white.opacity(0.6))
+                            Spacer(minLength: 4)
+                            Text("Tap tile to resync").font(.system(size: 10)).foregroundColor(AppTheme.darkAccent)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.black))
+
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(AppTheme.darkAccent)
+                            .padding(6)
+                    }
+                }
+            }
+
+        case .lockedPhone:
+            diagramCard(title: "Relay + Resync") {
+                HStack(spacing: 12) {
+                    Image(systemName: "lock.iphone")
+                        .font(.title2)
+                        .foregroundColor(AppTheme.darkAccent)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Relay advances current track while locked")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(.white)
+                        Text("Switched songs from the car? Tap any tile or open Caraoke to re-anchor.")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+            }
+
+        case .spotify:
+            diagramCard(title: "Canonical Redirect URI") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(SpotifyAuth.redirectURI)
+                        .font(.subheadline.weight(.bold).monospaced())
+                        .foregroundColor(Color(hex: 0x1DB954))
+                    Button {
+                        UIPasteboard.general.string = SpotifyAuth.redirectURI
+                        copiedURI = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedURI = false }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: copiedURI ? "checkmark.circle.fill" : "doc.on.doc")
+                            Text(copiedURI ? "Copied!" : "Copy Redirect URI")
+                        }
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color(hex: 0x1DB954)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+        case .widgets:
+            diagramCard(title: "Small, Medium & Large Widgets") {
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.1)).frame(width: 48, height: 48)
+                        .overlay(Text("S").font(.caption.weight(.bold)).foregroundColor(.white))
+                    RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.1)).frame(width: 96, height: 48)
+                        .overlay(Text("M · Vinyl").font(.caption.weight(.bold)).foregroundColor(.white))
+                    RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.1)).frame(width: 64, height: 64)
+                        .overlay(Text("L").font(.caption.weight(.bold)).foregroundColor(.white))
+                }
+                .frame(maxWidth: .infinity)
             }
         }
     }
 
-    private var footnote: some View {
-        Text("Caraoke · Designed for passengers · Do not interact with the phone while driving")
-            .font(.caption2)
-            .foregroundColor(AppTheme.muted(scheme))
-            .frame(maxWidth: .infinity)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 4)
+    @ViewBuilder
+    private var topicSteps: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            switch topic {
+            case .quickStart:
+                step("1", "Pick Apple Music or Spotify from the bottom console badge or Settings → Music Sources.")
+                step("2", "Turn Live Lyrics ON at the top of Home.")
+                step("3", "Allow Live Activities in iOS Settings → Caraoke → Live Activities.")
+            case .carPlay:
+                step("1", "Connect iPhone via wired or wireless CarPlay and open the CarPlay Dashboard.")
+                step("2", "Add Caraoke widgets in iOS Settings → General → CarPlay → Your Car → Widgets.")
+                step("3", "On touchscreen CarPlay, tap the entire lyric/hybrid tile or the player cover to resync. An expired badge appears at the top-trailing corner.")
+                step("4", "If wireless CarPlay audio lags behind lyrics, adjust Bluetooth Sync Offset (±0.25s) on the full lyrics page or Surface Studio.")
+            case .lockedPhone:
+                step("1", "iOS suspends background apps ~30s after locking; Caraoke's relay keeps the current song's Lock Screen & Dynamic Island moving.")
+                step("2", "If you skip or pause from the steering wheel while locked, tap a widget tile to trigger resync or reopen Caraoke.")
+                step("3", "For Apple Music, widget self-repair requires opening Caraoke; Spotify widgets can self-repair directly.")
+            case .spotify:
+                step("1", "Open Settings → Music Sources → Spotify (or tap the bottom console source badge) and tap Connect with Spotify.")
+                step("2", "If you hit the 5-user beta limit (HTTP 403), expand 'Use your own free Client ID' inside Spotify Setup.")
+                step("3", "In developer.spotify.com/dashboard, add Redirect URI: \(SpotifyAuth.redirectURI)")
+                step("4", "Paste your Client ID and tap Save Custom ID & Connect.")
+            case .widgets:
+                step("1", "Long-press Home Screen → Edit → Add Widget → search Caraoke (Small, Medium, or Large).")
+                step("2", "Customize Cover vs OLED/Slate/Ivory swatches and Vinyl vs Square art in Surface Studio (Home → Tune ›).")
+                step("3", "You can also add the Caraoke Live Lyrics toggle directly to Control Center.")
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
     }
 
-    // MARK: - Layout helpers
-
-    private func docLink(_ title: String, path: String) -> some View {
-        Link(destination: URL(string: "https://caraokeapp.com" + path)!) {
-            HStack(spacing: 4) {
-                Text(title)
+    private var docsLink: some View {
+        Link(destination: URL(string: "https://caraokeapp.com/docs")!) {
+            HStack {
+                Text("Open full web guide (caraokeapp.com/docs)")
                     .font(.subheadline.weight(.semibold))
+                Spacer()
                 Image(systemName: "arrow.up.right.square")
-                    .font(.caption.weight(.medium))
             }
             .foregroundColor(AppTheme.accent(scheme))
-            .frame(minHeight: 32)
-            .contentShape(Rectangle())
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(AppTheme.surface(scheme)))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
         }
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(AppTheme.muted(scheme))
-                .padding(.horizontal, 4)
-                .padding(.bottom, 8)
-                .accessibilityAddTraits(.isHeader)
-            VStack(alignment: .leading, spacing: 12) {
-                content()
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.border(scheme), lineWidth: 1))
+    private func diagramCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.heavy))
+                .foregroundColor(AppTheme.darkAccent)
+            content()
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(hex: 0x121214)))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
     }
 
-    private func step(_ number: String, _ text: String) -> some View {
+    private func step(_ num: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Text(number + ".")
-                .font(.subheadline.weight(.bold))
-                .foregroundColor(AppTheme.accent(scheme))
-                .frame(minWidth: 16, alignment: .leading)
+            Text(num)
+                .font(.caption.weight(.bold))
+                .foregroundColor(.black)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(AppTheme.accent(scheme)))
             Text(text)
                 .font(.subheadline)
                 .foregroundColor(AppTheme.fg(scheme))
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func paragraph(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline)
-            .foregroundColor(AppTheme.muted(scheme))
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func callout(icon: String, title: String, text: String, tint: Color) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon)
-                .font(.headline.weight(.semibold))
-                .foregroundColor(tint)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(AppTheme.fg(scheme))
-                Text(text)
-                    .font(.subheadline)
-                    .foregroundColor(AppTheme.muted(scheme))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(tint.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(tint.opacity(0.35), lineWidth: 1))
     }
 }

@@ -13,12 +13,16 @@ struct ActivityUpdatePolicy {
         var trackKey: String
         var lineIndex: Int?
         var isPlaying: Bool
+        var status: String
+        var currentLine: String
     }
 
     private var last: Snapshot?
 
-    mutating func shouldUpdate(trackKey: String, lineIndex: Int?, isPlaying: Bool) -> Bool {
-        let snapshot = Snapshot(trackKey: trackKey, lineIndex: lineIndex, isPlaying: isPlaying)
+    mutating func shouldUpdate(trackKey: String, lineIndex: Int?, isPlaying: Bool,
+                              status: String = "", currentLine: String = "") -> Bool {
+        let snapshot = Snapshot(trackKey: trackKey, lineIndex: lineIndex, isPlaying: isPlaying,
+                                status: status, currentLine: currentLine)
         guard snapshot != last else { return false }
         last = snapshot
         return true
@@ -26,8 +30,10 @@ struct ActivityUpdatePolicy {
 
     /// Call after starting a fresh activity whose initial content already
     /// reflects the given state, or after ending one.
-    mutating func seed(trackKey: String, lineIndex: Int?, isPlaying: Bool) {
-        last = Snapshot(trackKey: trackKey, lineIndex: lineIndex, isPlaying: isPlaying)
+    mutating func seed(trackKey: String, lineIndex: Int?, isPlaying: Bool,
+                       status: String = "", currentLine: String = "") {
+        last = Snapshot(trackKey: trackKey, lineIndex: lineIndex, isPlaying: isPlaying,
+                        status: status, currentLine: currentLine)
     }
 
     mutating func reset() {

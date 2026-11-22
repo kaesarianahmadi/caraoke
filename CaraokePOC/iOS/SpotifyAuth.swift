@@ -133,6 +133,7 @@ final class SpotifyAuth: NSObject, ObservableObject {
     private let tokenClient: SpotifyTokenClient
     private var refreshTask: Task<SpotifyToken, Error>?
     private var lastRefreshAt: Date?
+    private var authGeneration: UInt64 = 0
     var now: () -> Date = Date.init
 
     init(
@@ -153,6 +154,9 @@ final class SpotifyAuth: NSObject, ObservableObject {
     var tokenProvider: SpotifyTokenProviding { self as SpotifyTokenProviding }
 
     func disconnect() {
+        authGeneration &+= 1
+        refreshTask?.cancel()
+        refreshTask = nil
         store.clear()
         isConnected = false
         needsReconnect = false
@@ -195,21 +199,25 @@ func validAccessToken() async throws -> String {
         guard let token = store.load(), let clientID = clientIDProvider() else {
             throw SpotifyAuthError.notConnected
         }
+        let gen = authGeneration
         let client = tokenClient
         let task = Task { try await client.refresh(token, clientID: clientID) }
         refreshTask = task
         defer { refreshTask = nil }
         do {
             let newToken = try await task.value
+            guard gen == authGeneration else { throw SpotifyAuthError.notConnected }
             store.save(newToken)
             lastRefreshAt = now()
             isConnected = true
             if needsReconnect { needsReconnect = false }
             return newToken
         } catch SpotifyAuthError.refreshRejected {
-            store.clear()
-            isConnected = false
-            needsReconnect = true
+            if gen == authGeneration {
+                store.clear()
+                isConnected = false
+                needsReconnect = true
+            }
             throw SpotifyAuthError.refreshRejected
         }
     }

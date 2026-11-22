@@ -37,7 +37,10 @@ final class PurchaseManager: ObservableObject {
         #endif
 
         updatesTask = Task { [weak self] in
-            for await _ in Transaction.updates {
+            for await result in Transaction.updates {
+                if case .verified(let transaction) = result {
+                    await transaction.finish()
+                }
                 await self?.refreshEntitlement()
             }
         }
@@ -172,5 +175,25 @@ final class PurchaseManager: ObservableObject {
             return "Unavailable"
         }
         return product.displayPrice
+    }
+
+    func introOfferDescription(for productID: String) -> String? {
+        guard let product = products.first(where: { $0.id == productID }),
+              let intro = product.subscription?.introductoryOffer else {
+            return nil
+        }
+        let unit: String
+        switch intro.period.unit {
+        case .day: unit = intro.period.value == 1 ? "day" : "days"
+        case .week: unit = intro.period.value == 1 ? "week" : "weeks"
+        case .month: unit = intro.period.value == 1 ? "month" : "months"
+        case .year: unit = intro.period.value == 1 ? "year" : "years"
+        @unknown default: unit = "period"
+        }
+        let count = intro.period.value * intro.periodCount
+        if intro.paymentMode == .freeTrial {
+            return "\(count)-\(unit) free trial"
+        }
+        return "\(intro.displayPrice) for \(count) \(unit)"
     }
 }

@@ -47,9 +47,9 @@ struct WidgetArtworkBackground: View {
                         .frame(width: geo.size.width, height: geo.size.height)
                         .clipped()
                     LinearGradient(
-                        colors: [Color.black.opacity(0.35),
-                                 Color.black.opacity(0.58),
-                                 Color.black.opacity(0.74)],
+                        colors: [Color.black.opacity(0.48),
+                                 Color.black.opacity(0.62),
+                                 Color.black.opacity(0.76)],
                         startPoint: .top,
                         endPoint: .bottom
                     )

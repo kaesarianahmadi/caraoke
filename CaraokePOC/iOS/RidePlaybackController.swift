@@ -35,6 +35,9 @@ final class RidePlaybackController: ObservableObject {
     /// colour for the widget background.
     @Published private(set) var artworkData: Data?
     @Published private(set) var artworkColorHex: String?
+    @Published private(set) var appleMusicAuthDenied = false
+    @Published private(set) var spotifyNeedsAllowlist = false
+    @Published private(set) var isPlayerPlaying = false
 
     /// Active source from engine's anchor
     var currentSource: MusicSource? { engine.anchor?.source }
@@ -134,6 +137,7 @@ final class RidePlaybackController: ObservableObject {
     /// Last bold-text value written to the shared widget settings.
     private var lastWidgetBoldText: Bool?
     private var resyncGeneration: UInt64 = 0
+    private var playbackGeneration: UInt64 = 0
 
     init(activity: CaraokeActivityController,
          provider: any LyricsRepository = FallbackLyricsProvider(),
@@ -234,6 +238,15 @@ final class RidePlaybackController: ObservableObject {
         if pin != .appleMusic { spotify.pollNow() }
     }
 
+    func setLyricOffsetMs(_ ms: Int) {
+        let clamped = max(-5000, min(5000, ms))
+        SharedWidgetStore.updateSettings { $0.lyricOffsetMs = clamped }
+        engine.setLyricOffsetMs(clamped)
+        if let track = lastTrack {
+            armRelay(track: track)
+        }
+    }
+
     func resync() async {
         resyncGeneration &+= 1
         let generation = resyncGeneration
@@ -261,12 +274,21 @@ final class RidePlaybackController: ObservableObject {
     }
 
     private func wire() {
+        engine.setLyricOffsetMs(SharedWidgetStore.readSettings().lyricOffsetMs)
         coordinator.statePublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in self?.handle(state) }
             .store(in: &cancellables)
         engine.positionSubject
             .sink { [weak self] position in self?.render(position) }
+            .store(in: &cancellables)
+        apple.authStatusSubject
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in self?.appleMusicAuthDenied = (status == .denied) }
+            .store(in: &cancellables)
+        spotify.availabilityPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] availability in self?.spotifyNeedsAllowlist = (availability == .needsAllowlist) }
             .store(in: &cancellables)
     }
 
@@ -297,6 +319,7 @@ final class RidePlaybackController: ObservableObject {
         let isNewTrack = engine.anchor?.isSameTrack(as: state) != true
         let shouldFetch = isNewTrack || retryLyrics
         if shouldFetch {
+            playbackGeneration &+= 1
             clearTrack()
             forceWidgetReload = true
             lastWidgetPausedPositionMs = nil
@@ -304,6 +327,7 @@ final class RidePlaybackController: ObservableObject {
             Self.log.info("track change → \(state.title, privacy: .public)")
             lyricState = .loading
         }
+        let gen = playbackGeneration
         engine.apply(state)
         guard shouldFetch else {
             // Same track: re-register only if a seek or play/pause flip moved the
@@ -320,7 +344,8 @@ final class RidePlaybackController: ObservableObject {
         } else if let url = state.artworkURL {
             artworkFetchTask = Task { [weak self] in
                 guard let artwork = await UIImage.fetchWidgetArtwork(url), !Task.isCancelled else { return }
-                self?.setArtwork(artwork)
+                guard let self, self.playbackGeneration == gen else { return }
+                self.setArtwork(artwork)
             }
         }
 
@@ -335,12 +360,12 @@ final class RidePlaybackController: ObservableObject {
             // lyrics on a blip. Three attempts, 5 s apart, cancelled with
             // the task on track change.
             for attempt in 0..<3 {
-                if Task.isCancelled { return }
+                if Task.isCancelled || self.playbackGeneration != gen { return }
                 let fetched: LyricTrack?
                 do {
                     fetched = try await self.provider.lyrics(for: signature)
                 } catch {
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled, self.playbackGeneration == gen else { return }
                     if attempt < 2 {
                         try? await Task.sleep(for: .seconds(5))
                         continue
@@ -353,7 +378,7 @@ final class RidePlaybackController: ObservableObject {
                     }
                     return
                 }
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.playbackGeneration == gen else { return }
                 guard let track = fetched else {
                     // Definitive: the provider says no synced lyrics exist.
                     if self.lastTrack == nil {
@@ -538,6 +563,7 @@ final class RidePlaybackController: ObservableObject {
         )
         trackTitle = anchor?.title ?? ""
         trackArtist = anchor?.artist ?? ""
+        isPlayerPlaying = position.isPlaying
         self.positionMs = position.positionMs
         self.durationMs = anchor?.durationMs
         activity.sync(snapshot: snapshot)
@@ -570,7 +596,6 @@ final class RidePlaybackController: ObservableObject {
 
         if snapshot.isPlaying || trackStartEpochMs == 0 || playStateChanged || pausedSeek {
             trackStartEpochMs = Int(anchor.capturedAt.timeIntervalSince1970 * 1000) - anchor.positionMs
-            trackStartKey = key
         }
 
         var widgetLines = lastTrack?.lines.map {
@@ -621,7 +646,9 @@ final class RidePlaybackController: ObservableObject {
             nextTitle: nextTitle,
             nextArtist: nextArtist,
             nextArtworkData: chainedArtwork,
-            nextArtworkColorHex: chainedArtworkHex
+            nextArtworkColorHex: chainedArtworkHex,
+            generation: playbackGeneration,
+            observedAtEpochMs: Int(Date().timeIntervalSince1970 * 1000)
         )
         SharedWidgetStore.write(payload)
 

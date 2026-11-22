@@ -94,7 +94,7 @@ returns 401 and is not linkable. Deep links: `#carplay`, `#dynamic-island`,
 - **Spotify is a limited beta.** Built-in shared credentials use a Spotify
   development-mode app with a 5-user allowlist (403 for everyone else). The
   fix is the user's own free Client ID; the redirect URI must be exactly
-  `caraoke://spotify-callback`. Paste it in Connect music → Spotify →
+  `caraoke://callback`. Paste it in Connect music → Spotify →
   **Save & Connect**.
 - **Lyrics providers:** `FallbackLyricsProvider` races LRCLIB and YouTube
   Music (InnerTube) concurrently and takes the first valid synced result.

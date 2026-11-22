@@ -4,9 +4,9 @@ import Foundation
 enum CaraokeProducts {
     static let entitlementID = "caraoke_payment_plan"
 
-    static let monthly = "monthly"
-    static let yearly = "yearly"
-    static let lifetime = "lifetime"
+    static let monthly = "caraoke.plus.monthly"
+    static let yearly = "caraoke.plus.yearly"
+    static let lifetime = "caraoke.plus.lifetime"
     static let all: Set<String> = [monthly, yearly, lifetime]
 
     static func isEntitled(productIDs: Set<String>) -> Bool {

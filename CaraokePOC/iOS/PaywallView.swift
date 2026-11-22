@@ -70,6 +70,20 @@ struct PaywallView: View {
                         }
                         .padding(.horizontal, 24)
 
+                        if purchases.isEntitled {
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .foregroundColor(AppTheme.ok)
+                                Text("Caraoke Plus is active on this account.")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(AppTheme.ok.opacity(0.14)))
+                            .padding(.horizontal, 20)
+                        }
+
                         // Plan cards
                         VStack(spacing: 12) {
                             ForEach(purchases.planOffers, id: \.productID) { offer in
@@ -79,9 +93,16 @@ struct PaywallView: View {
                         .padding(.horizontal, 20)
 
                         if purchases.loadFailed {
-                            Text("Could not reach App Store. Please check connection.")
-                                .font(.caption)
-                                .foregroundColor(AppTheme.warn)
+                            VStack(spacing: 8) {
+                                Text("Could not reach App Store. Please check connection.")
+                                    .font(.caption)
+                                    .foregroundColor(AppTheme.warn)
+                                Button("Retry") {
+                                    Task { await purchases.loadProducts() }
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(Color(hex: 0xFFB800))
+                            }
                         }
                         Text("Subscriptions renew automatically. Cancel in Settings at least 24 hours before renewal.")
                             .font(.footnote)
@@ -139,6 +160,9 @@ struct PaywallView: View {
         }
         .onAppear {
             Analytics.signal("paywall_viewed")
+            if purchases.products.isEmpty {
+                Task { await purchases.loadProducts() }
+            }
         }
     }
 
@@ -187,6 +211,17 @@ struct PaywallView: View {
         }
     }
 
+    private func planSubtitle(for offer: PlanOffer) -> String {
+        if offer.productID == CaraokeProducts.lifetime {
+            return "One-time purchase"
+        }
+        let base = offer.productID == CaraokeProducts.monthly ? "Renews monthly" : "Renews yearly"
+        if let intro = purchases.introOfferDescription(for: offer.productID) {
+            return "\(intro) · \(base)"
+        }
+        return base
+    }
+
     private func planCard(offer: PlanOffer, isSelected: Bool) -> some View {
         Button {
             selectedProductID = offer.productID
@@ -203,10 +238,27 @@ struct PaywallView: View {
                     )
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(offer.title)
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text(offer.productID == CaraokeProducts.lifetime ? "One-time purchase" : (offer.productID == CaraokeProducts.monthly ? "Renews monthly" : "Renews yearly"))
+                    HStack(spacing: 8) {
+                        Text(offer.title)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        if offer.productID == CaraokeProducts.yearly {
+                            Text("SAVE 50%")
+                                .font(.system(size: 10, weight: .heavy))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color(hex: 0xFFB800)))
+                        } else if offer.productID == CaraokeProducts.lifetime {
+                            Text("FOUNDING")
+                                .font(.system(size: 10, weight: .heavy))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.white.opacity(0.16)))
+                        }
+                    }
+                    Text(planSubtitle(for: offer))
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.7))
                 }

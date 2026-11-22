@@ -691,7 +691,7 @@ struct LyricTileView: View {
             ? budget.maxRows(fitting: customBoxHeight ?? spec.boxHeight ?? spec.maxBoxHeight
                              ?? surface.profile.blockHeight)
             : budget.neighborRows
-        Text(row.kind == .hero ? LyricSegmenter.segmentedDisplayText(for: row.text) : row.text)
+        Text(row.text)
             .font(LyricType.font(size: spec.font, weight: weight))
             .foregroundColor(row.kind == .hero ? colors.heroText : colors.nextText.opacity(row.opacity))
             .multilineTextAlignment(.center)

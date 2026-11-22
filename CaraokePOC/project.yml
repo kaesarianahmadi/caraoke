@@ -21,7 +21,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "90"
+    CURRENT_PROJECT_VERSION: "91"
     GENERATE_INFOPLIST_FILE: false
     TARGETED_DEVICE_FAMILY: "1"
 targets:
@@ -32,6 +32,7 @@ targets:
       - path: iOS
         excludes:
           - "CaraokeWidgetBundle.swift"
+          - "CaraokeControlWidget.swift"
           - "LyricsLiveActivity.swift"
           - "CaraokeWidget.swift"
           - "CarPlayWidgets.swift"
@@ -66,6 +67,7 @@ targets:
     platform: iOS
     sources:
       - iOS/CaraokeWidgetBundle.swift
+      - iOS/CaraokeControlWidget.swift
       - iOS/LyricsLiveActivity.swift
       - iOS/CaraokeWidget.swift
       - iOS/CarPlayWidgets.swift

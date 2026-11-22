@@ -48,9 +48,17 @@ enum LRCParser {
             }
         }
 
-        return entries
+        let sorted = entries
             .map { LRCLine(timeMs: max(0, $0.timeMs - offsetMs), text: $0.text) }
             .sorted { $0.timeMs < $1.timeMs }
+
+        var normalized: [LRCLine] = []
+        normalized.reserveCapacity(sorted.count)
+        for line in sorted {
+            let nextMs = normalized.last.map { max($0.timeMs + 1, line.timeMs) } ?? line.timeMs
+            normalized.append(LRCLine(timeMs: nextMs, text: line.text, translation: line.translation))
+        }
+        return normalized
     }
 
     /// `mm:ss`, `mm:ss.frac` (1–3 digits), or `mm:ss:frac`. Returns nil for

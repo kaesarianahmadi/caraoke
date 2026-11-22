@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(TipKit)
+import TipKit
+#endif
 
 @main
 struct CaraokeApp: App {
@@ -17,6 +20,11 @@ struct CaraokeApp: App {
         // The widget extension refreshes the Spotify token with this ID, and
         // it only ships in the app bundle.
         SpotifyClientIDStore.mirrorBundledClientID()
+        #if canImport(TipKit)
+        if #available(iOS 17.0, *) {
+            try? Tips.configure([.displayFrequency(.immediate)])
+        }
+        #endif
     }
 
     private var preferredScheme: ColorScheme? {

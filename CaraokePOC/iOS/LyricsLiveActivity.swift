@@ -65,11 +65,12 @@ private struct FamilyAdaptiveTile: View {
     @Environment(\.activityFamily) private var activityFamily
 
     var body: some View {
+        let resolvedStatus: LyricStatus = context.isStale ? .stale : status(of: context.state)
         CompactLyricsView(currentLine: context.state.currentLine,
             previousLines: context.state.previousLines ?? [],
             upcomingLines: context.state.upcomingLines ?? (context.state.nextLine.map { [$0] } ?? []),
             title: context.state.title, artist: context.state.artist,
-            status: status(of: context.state), fontSize: activityFamily == .small ? 15 : 18,
+            status: resolvedStatus, fontSize: activityFamily == .small ? 15 : 18,
             boldText: context.state.boldText ?? true)
             .frame(height: activityFamily == .small ? 100 : 138)
     }
@@ -103,7 +104,6 @@ private struct IslandCompactText: View {
             .font(.system(size: 13, weight: LyricType.chromeWeight(.semibold, boldText: bold)))
             .foregroundColor(.white)
             .lineLimit(1)
-            .accessibilityHidden(true)
     }
 
     /// Per-state line shown in the compact/minimal slots and, via `IslandCenter`,
@@ -150,7 +150,6 @@ private struct IslandMinimal: View {
         }
         .foregroundColor(.white.opacity(0.85))
         .lineLimit(1)
-        .accessibilityHidden(true)
     }
 }
 

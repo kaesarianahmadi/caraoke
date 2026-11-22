@@ -47,6 +47,10 @@ final class RideModeViewModel: ObservableObject {
 
     /// Cached by the playback controller when the artwork changes.
     @Published private(set) var artworkColorHex: String?
+    @Published private(set) var appleMusicAuthDenied = false
+    @Published private(set) var spotifyNeedsAllowlist = false
+    @Published private(set) var isPlayerPlaying = false
+    @Published private(set) var lyricOffsetMs: Int = SharedWidgetStore.readSettings().lyricOffsetMs
 
     // Home screen bindings (design states A–D).
 
@@ -144,7 +148,18 @@ final class RideModeViewModel: ObservableObject {
 
     /// True when the active source is actually playing (drives the in-app
     /// transport icon — `isOn` is Ride Mode, not playback).
-    var isPlaybackActive: Bool { lyricStatus == .playing }
+    var isPlaybackActive: Bool { isPlayerPlaying || lyricStatus == .playing }
+
+    func adjustLyricOffset(by deltaMs: Int) {
+        let next = max(-5000, min(5000, lyricOffsetMs + deltaMs))
+        lyricOffsetMs = next
+        realPlayback.setLyricOffsetMs(next)
+    }
+
+    func resetLyricOffset() {
+        lyricOffsetMs = 0
+        realPlayback.setLyricOffsetMs(0)
+    }
 
     /// In-app transport: same routing as the widget / Live Activity buttons,
     /// so the app never drives the wrong player either.
@@ -290,6 +305,27 @@ final class RideModeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] val in
                 self?.artworkColorHex = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$appleMusicAuthDenied
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                self?.appleMusicAuthDenied = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$spotifyNeedsAllowlist
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                self?.spotifyNeedsAllowlist = val
+            }
+            .store(in: &playbackCancellables)
+
+        realPlayback.$isPlayerPlaying
+            .receive(on: RunLoop.main)
+            .sink { [weak self] val in
+                self?.isPlayerPlaying = val
             }
             .store(in: &playbackCancellables)
     }

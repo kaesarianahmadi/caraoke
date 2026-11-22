@@ -1,24 +1,22 @@
 import SwiftUI
 import UIKit
 
-/// Settings screen.
-/// Sections (top to bottom): Music connections, Display (appearance, lyric
-/// bold text, Widgets destination), Caraoke Plus (subscription entry),
-/// Support, Help & About. Pushed by the root navigation, so this screen
-/// carries no NavigationStack of its own; the Widgets and Help rows are
-/// NavigationLinks inside the shared stack. Spotify's connection flow lives
-/// in `SpotifySetupView`; this screen only opens it as a sheet.
+/// Settings screen: 4 coherent groups (Music Sources, Cockpit & Display, Caraoke Plus, Guidance & About).
 struct SettingsView: View {
     @ObservedObject var model: RideModeViewModel
     var presentingPaywall: Binding<Bool>
-    /// Shared auth — the same object the playback pipeline uses (injected by
-    /// the VM), so connecting here connects the pipeline and vice versa.
     @ObservedObject var spotifyAuth: SpotifyAuth
-    @State private var showAppearanceSheet = false
+
     @State private var showSpotifySetup = false
     @State private var showOnboarding = false
+
     @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
     @AppStorage(AppearanceSettings.boldTextKey) private var boldText = true
+    @AppStorage(AppearanceSettings.homeLayoutKey) private var layoutRaw = HomeLayoutMode.stageFocus.rawValue
+    @AppStorage(AppearanceSettings.backdropStyleKey) private var backdropRaw = LyricsBackdropStyle.ambientCover.rawValue
+    @AppStorage(AppearanceSettings.showTranslationsKey) private var showTranslations = true
+    @AppStorage(AppearanceSettings.autoOpenLyricsKey) private var autoOpenLyrics = false
+
     @Environment(\.colorScheme) private var scheme
 
     private var currentAppearanceMode: AppearanceMode {
@@ -27,17 +25,19 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            AppTheme.background(scheme)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    musicConnectionsSection
-                    displaySection
+            AppTheme.bg(scheme).ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 22) {
+                    musicSourcesSection
+                    cockpitDisplaySection
                     caraokePlusSection
-                    supportHelpAboutSection
+                    guidanceAboutSection
+                    versionFootnote
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 28)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
         }
         .navigationTitle("Settings")
@@ -45,16 +45,15 @@ struct SettingsView: View {
         .toolbar(.visible, for: .navigationBar)
         .tint(AppTheme.accent(scheme))
         .preferredColorScheme(currentAppearanceMode.colorScheme)
+        .onChange(of: appearanceRaw) { _, newValue in
+            if let mode = AppearanceMode(rawValue: newValue) {
+                AppearanceSettings.apply(mode: mode)
+            }
+        }
         .onChange(of: spotifyAuth.isConnected) { _, connected in
             if !connected, model.activeSource == .spotify {
                 model.selectMusicSource(.appleMusic)
             }
-        }
-        .sheet(isPresented: $showAppearanceSheet) {
-            AppearanceSheet()
-                .preferredColorScheme(currentAppearanceMode.colorScheme)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showSpotifySetup) {
             SpotifySetupView(spotifyAuth: spotifyAuth, onConnected: {
@@ -63,462 +62,353 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView(onDismiss: { showOnboarding = false })
-                .preferredColorScheme(currentAppearanceMode.colorScheme)
-                .presentationDetents([.large])
         }
     }
 
-    // MARK: - Design primitives
+    // MARK: - 1. Music Sources
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(AppTheme.muted(scheme))
-            .padding(.horizontal, 4)
-            .padding(.bottom, 8)
-            .accessibilityAddTraits(.isHeader)
-    }
+    private var musicSourcesSection: some View {
+        sectionGroup(title: "Music Sources") {
+            VStack(spacing: 0) {
+                sourceRow(
+                    title: "Automatic",
+                    subtitle: "Follow whichever player starts",
+                    icon: {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(AppTheme.accent(scheme))
+                            .frame(width: 28, height: 28)
+                    },
+                    badge: model.activeSource == .auto ? "Active" : nil,
+                    badgeColor: AppTheme.ok
+                ) {
+                    model.selectMusicSource(.auto)
+                }
 
-    private func group<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) { content() }
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.border(scheme), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
+                Divider().overlay(AppTheme.border(scheme))
 
-    private func rowDivider() -> some View {
-        Divider().overlay(AppTheme.border(scheme))
-    }
-
-    /// Plain neutral row symbol — no colored tile. Orange is reserved for
-    /// selected controls and actions, not a decoration on every icon.
-    private func rowIcon(_ systemName: String, active: Bool = false) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(active ? AppTheme.accent(scheme) : AppTheme.muted(scheme))
-            .frame(width: 28, height: 28)
-    }
-
-    // MARK: - Caraoke Plus (subscription entry)
-
-    private var caraokePlusSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Caraoke Plus")
-            group {
-                Button { presentingPaywall.wrappedValue = true } label: {
-                    gRow {
-                        rowIcon("star.fill")
-                        Text("Plans & pricing").gLabel()
-                        Text("View").gValue(scheme)
-                        Image(systemName: "chevron.right").gChevron()
+                sourceRow(
+                    title: "Apple Music",
+                    subtitle: model.appleMusicAuthDenied ? "Permission denied in iOS Settings" : "Built-in Music app",
+                    icon: { AppleMusicLogo(size: 28) },
+                    badge: model.appleMusicAuthDenied ? "Denied" : (model.activeSource == .appleMusic ? "Active" : nil),
+                    badgeColor: model.appleMusicAuthDenied ? AppTheme.err : AppTheme.ok
+                ) {
+                    if model.appleMusicAuthDenied, let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    } else {
+                        model.selectMusicSource(.appleMusic)
                     }
                 }
-                .buttonStyle(.plain)
-            }
-        }
-    }
 
-    // MARK: - Music connections
+                Divider().overlay(AppTheme.border(scheme))
 
-    private var musicConnectionsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Music connections")
-            group {
-                appleMusicRow
-                if FeatureFlags.spotifyEnabled {
-                    rowDivider()
-                    spotifyRow
-                    if spotifyAuth.isConnected, !model.spotifyConnected {
-                        rowDivider()
-                        makeActiveRow
+                HStack(spacing: 12) {
+                    SpotifyLogo(size: 28)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Spotify")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(AppTheme.fg(scheme))
+                        Text(spotifySubtitle)
+                            .font(.caption)
+                            .foregroundColor(model.spotifyNeedsAllowlist ? AppTheme.warn : AppTheme.muted(scheme))
+                    }
+                    Spacer()
+                    if let badge = spotifyBadge {
+                        Text(badge.text)
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(badge.color)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(badge.color.opacity(0.14)))
+                    }
+                    Button {
+                        showSpotifySetup = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(AppTheme.muted(scheme))
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(AppTheme.surfaceElevated(scheme)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Configure Spotify")
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if spotifyAuth.isConnected && !spotifyAuth.needsReconnect && !model.spotifyNeedsAllowlist {
+                        model.selectMusicSource(.spotify)
+                    } else {
+                        showSpotifySetup = true
                     }
                 }
             }
         }
     }
 
-    private var appleMusicRow: some View {
-        Button {
-            model.selectMusicSource(.appleMusic)
-        } label: {
-            gRow {
-                AppleMusicLogo().frame(width: 28, height: 28)
-                Text("Apple Music").gLabel()
-                Text(model.appleMusicConnected ? "Active source" : "Standby")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundColor(model.appleMusicConnected ? AppTheme.ok : AppTheme.muted(scheme))
-                if model.appleMusicConnected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(AppTheme.ok)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .gChevron()
-                }
-            }
-        }
-        .buttonStyle(.plain)
+    private var spotifySubtitle: String {
+        if model.spotifyNeedsAllowlist { return "403 beta limit — add your Client ID" }
+        if spotifyAuth.needsReconnect { return "Reconnect needed" }
+        if spotifyAuth.isConnected { return model.activeSource == .spotify ? "Connected · Active" : "Connected · Tap to switch" }
+        return "Not connected"
     }
 
-    /// Tapping the row opens the Spotify connection sheet (connect /
-    /// reconnect / disconnect); connecting there also makes Spotify the
-    /// active source via `onConnected`.
-    private var spotifyRow: some View {
-        Button { showSpotifySetup = true } label: {
-            gRow {
-                SpotifyLogo(size: 28).frame(width: 28, height: 28)
-                Text("Spotify").gLabel()
-                if model.spotifyConnected {
-                    Text("Active source")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundColor(AppTheme.ok)
-                } else if spotifyAuth.needsReconnect {
-                    Text("Reconnect needed")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundColor(AppTheme.warn)
-                } else if spotifyAuth.isConnected {
-                    Text("Connected (Standby)")
-                        .font(.subheadline)
+    private var spotifyBadge: (text: String, color: Color)? {
+        if model.spotifyNeedsAllowlist { return ("403", AppTheme.warn) }
+        if spotifyAuth.needsReconnect { return ("Reconnect", AppTheme.warn) }
+        if model.activeSource == .spotify && spotifyAuth.isConnected { return ("Active", AppTheme.ok) }
+        return nil
+    }
+
+    private func sourceRow<Icon: View>(
+        title: String,
+        subtitle: String,
+        @ViewBuilder icon: () -> Icon,
+        badge: String?,
+        badgeColor: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                icon()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppTheme.fg(scheme))
+                    Text(subtitle)
+                        .font(.caption)
                         .foregroundColor(AppTheme.muted(scheme))
-                } else {
-                    Text("Not connected")
-                        .font(.subheadline)
-                        .foregroundColor(AppTheme.warn)
-                        .accessibilityHint("Open Spotify connection setup")
                 }
-                if model.spotifyConnected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(AppTheme.ok)
-                } else {
-                    Image(systemName: "chevron.right").gChevron()
+                Spacer()
+                if let badge {
+                    Text(badge)
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(badgeColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(badgeColor.opacity(0.14)))
                 }
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    /// Connected but not active: one tap picks Spotify without reopening
-    /// the connection flow.
-    private var makeActiveRow: some View {
-        Button {
-            model.selectMusicSource(.spotify)
-        } label: {
-            HStack {
-                Text("Make Spotify the active source")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(AppTheme.accent(scheme))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .padding(.horizontal, 16)
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Switch now-playing to Spotify")
-    }
+    // MARK: - 2. Cockpit & Display
 
-    // MARK: - Display (appearance, lyric bold text, Widgets destination)
-
-    private var displaySection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Display")
-            group {
-                Button {
-                    showAppearanceSheet = true
-                } label: {
-                    gRow {
-                        rowIcon(currentAppearanceMode == .dark
-                            ? "moon.fill"
-                            : currentAppearanceMode == .light ? "sun.max.fill" : "circle.lefthalf.filled")
-                        Text("Appearance").gLabel()
-                        Text(currentAppearanceMode.shortLabel).gValue(scheme)
-                        Image(systemName: "chevron.right").gChevron()
+    private var cockpitDisplaySection: some View {
+        sectionGroup(title: "Cockpit & Display") {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Appearance")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(AppTheme.fg(scheme))
+                    Spacer()
+                    Picker("Appearance", selection: $appearanceRaw) {
+                        ForEach(AppearanceMode.allCases) { mode in
+                            Text(mode.shortLabel).tag(mode.rawValue)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .frame(width: 190)
                 }
-                .buttonStyle(.plain)
-                rowDivider()
-                // Bold Text switch. The faces everywhere are already bold, so
-                // this steps them down to plain when the user wants lighter
-                // type (and whenever iOS Bold Text itself is on).
-                gRow {
-                    rowIcon("bold")
-                    Text("Bold Text").gLabel()
-                    Toggle("Bold Text", isOn: $boldText)
-                        .labelsHidden()
-                        .tint(AppTheme.accent(scheme))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                HStack {
+                    Text("Home Layout")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(AppTheme.fg(scheme))
+                    Spacer()
+                    Picker("Home Layout", selection: $layoutRaw) {
+                        ForEach(HomeLayoutMode.allCases) { mode in
+                            Text(mode.title).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
-                .frame(minHeight: 52)
-                rowDivider()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                HStack {
+                    Text("Lyrics Backdrop")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(AppTheme.fg(scheme))
+                    Spacer()
+                    Picker("Lyrics Backdrop", selection: $backdropRaw) {
+                        ForEach(LyricsBackdropStyle.allCases) { style in
+                            Text(style.title).tag(style.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                Toggle("Bold Lyrics", isOn: $boldText)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                Toggle("Bilingual Translations", isOn: $showTranslations)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                Toggle("Open Full Lyrics on Launch", isOn: $autoOpenLyrics)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                Divider().overlay(AppTheme.border(scheme))
+
                 NavigationLink {
                     WidgetSettingsView(model: model)
                 } label: {
-                    gRow {
-                        rowIcon("widget.small")
-                        Text("Widgets").gLabel()
-                        Image(systemName: "chevron.right").gChevron()
+                    HStack {
+                        Text("Surfaces & Widgets")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(AppTheme.fg(scheme))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(AppTheme.muted(scheme))
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 13)
+                    .contentShape(Rectangle())
                 }
-                .accessibilityHint("Opens widget themes, cover style and previews")
+                .buttonStyle(.plain)
             }
-            Text("Dark keeps the night-drive look; Auto follows the device setting. Bold Text off renders lyrics and titles at regular weight. Widgets show live lyrics on your Home Screen and StandBy.")
-                .gNote(scheme)
         }
     }
 
-    // MARK: - Support, Help & About
+    // MARK: - 3. Caraoke Plus
 
-    private var supportHelpAboutSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionLabel("Support, Help & About")
-            group {
+    private var caraokePlusSection: some View {
+        sectionGroup(title: "Caraoke Plus") {
+            Button {
+                presentingPaywall.wrappedValue = true
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(AppTheme.accent(scheme).opacity(0.18))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(AppTheme.accent(scheme))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Caraoke Plus")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(AppTheme.fg(scheme))
+                        Text("3-day free trial · CarPlay, Island & Widgets")
+                            .font(.caption)
+                            .foregroundColor(AppTheme.muted(scheme))
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(AppTheme.muted(scheme))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - 4. Guidance & About
+
+    private var guidanceAboutSection: some View {
+        sectionGroup(title: "Guidance & About") {
+            VStack(spacing: 0) {
                 NavigationLink {
                     HelpView()
                 } label: {
-                    gRow {
-                        rowIcon("questionmark")
-                        Text("Help & setup").gLabel()
-                        Image(systemName: "chevron.right").gChevron()
-                    }
-                }
-                .accessibilityHint("Opens the offline setup and troubleshooting guide")
-                rowDivider()
-                Button { showOnboarding = true } label: {
-                    gRow {
-                        rowIcon("sparkles")
-                        Text("Welcome guide").gLabel()
-                        Image(systemName: "chevron.right").gChevron()
-                    }
+                    navRowLabel(icon: "book.closed.fill", title: "Visual Setup Guide")
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint("Replay the three-step welcome guide")
-                rowDivider()
+
+                Divider().overlay(AppTheme.border(scheme))
+
                 Button {
-                    if let url = URL(string: "mailto:support@caraoke.app?subject=Caraoke%20feedback") {
-                        UIApplication.shared.open(url)
-                    }
+                    showOnboarding = true
                 } label: {
-                    gRow {
-                        rowIcon("message.fill")
-                        Text("Feedback").gLabel()
-                        Image(systemName: "chevron.right").gChevron()
-                    }
+                    navRowLabel(icon: "sparkles.rectangle.stack.fill", title: "Replay Welcome Tour")
                 }
                 .buttonStyle(.plain)
-                rowDivider()
-                rateRow
-                rowDivider()
-                shareRow
-                rowDivider()
-                aboutRow
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                Link(destination: URL(string: "https://caraokeapp.com/privacy")!) {
+                    navRowLabel(icon: "hand.raised.fill", title: "Privacy Policy", external: true)
+                }
+
+                Divider().overlay(AppTheme.border(scheme))
+
+                Link(destination: URL(string: "https://caraokeapp.com/terms")!) {
+                    navRowLabel(icon: "doc.text.fill", title: "Terms of Use", external: true)
+                }
             }
-            HStack(spacing: 10) {
-                Link("Privacy Policy", destination: URL(string: "https://caraokeapp.com/privacy")!)
-                    .foregroundColor(AppTheme.accent(scheme))
-                    .frame(minHeight: 44)
-                Text("·")
-                    .foregroundColor(AppTheme.muted(scheme))
-                Link("Terms of Use", destination: URL(string: "https://caraokeapp.com/terms")!)
-                    .foregroundColor(AppTheme.accent(scheme))
-                    .frame(minHeight: 44)
-            }
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 4)
-            .padding(.top, 4)
         }
     }
 
-    private var rateRow: some View {
-        Button {
-            if let url = URL(string: "https://apps.apple.com/app/id6742353139?action=write-review") {
-                UIApplication.shared.open(url)
-            }
-        } label: {
-            gRow {
-                rowIcon("star.fill")
-                Text("Rate Caraoke").gLabel()
-                Image(systemName: "chevron.right").gChevron()
-            }
+    private func navRowLabel(icon: String, title: String, external: Bool = false) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15))
+                .foregroundColor(AppTheme.muted(scheme))
+                .frame(width: 24)
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(AppTheme.fg(scheme))
+            Spacer()
+            Image(systemName: external ? "arrow.up.right" : "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundColor(AppTheme.muted(scheme))
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
     }
 
-    private var shareRow: some View {
-        ShareLink(item: URL(string: "https://caraoke.app")!) {
-            gRow {
-                rowIcon("square.and.arrow.up")
-                Text("Share with friends").gLabel()
-                Image(systemName: "chevron.right").gChevron()
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var aboutRow: some View {
-        gRow {
-            BrandMark(tinted: true)
-                .frame(width: 26, height: 26)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(AppTheme.fg(scheme).opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(AppTheme.border(scheme), lineWidth: 1))
-            Text("Caraoke").gLabel()
-            Text(versionText).gValue(scheme)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Caraoke version \(versionText)")
-    }
-
-    private var footnote: some View {
-        Text("Caraoke \(versionText) · Made for passengers · Lyrics © their respective rights holders")
+    private var versionFootnote: some View {
+        let ver = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0"
+        return Text("Caraoke \(ver) · Made for passengers · Lyrics © their respective rights holders")
             .font(.caption2)
             .foregroundColor(AppTheme.muted(scheme))
+            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .padding(.top, 4)
     }
 
-    private var versionText: String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0"
-    }
+    private func sectionGroup<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption.weight(.bold))
+                .foregroundColor(AppTheme.muted(scheme))
+                .padding(.leading, 4)
 
-    /// Standard row layout: icon + label + optional trailing, 13/16 padding.
-    private func gRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 12) {
             content()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
-        .frame(minHeight: 52, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-}
-
-// MARK: - Row helper modifiers (g-label / g-value / g-chev / g-note)
-//
-// gLabel/gChevron resolve the palette through @Environment so they follow
-// the real appearance instead of a default-constructed EnvironmentValues.
-
-private struct GLabelModifier: ViewModifier {
-    @Environment(\.colorScheme) private var scheme
-    func body(content: Content) -> some View {
-        content
-            .font(.body)
-            .foregroundColor(AppTheme.fg(scheme))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .multilineTextAlignment(.leading)
-    }
-}
-
-private struct GChevronModifier: ViewModifier {
-    @Environment(\.colorScheme) private var scheme
-    func body(content: Content) -> some View {
-        content
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(AppTheme.muted(scheme))
-    }
-}
-
-private extension View {
-    /// `.g-label` — primary row label.
-    func gLabel() -> some View { modifier(GLabelModifier()) }
-
-    /// `.g-value` — muted trailing value.
-    func gValue(_ scheme: ColorScheme) -> some View {
-        font(.body)
-            .foregroundColor(AppTheme.muted(scheme))
-    }
-
-    /// `.g-chev` — chevron built from the SF Symbol.
-    func gChevron() -> some View { modifier(GChevronModifier()) }
-
-    /// `.g-note` — muted note under a group.
-    func gNote(_ scheme: ColorScheme) -> some View {
-        font(.subheadline)
-            .foregroundColor(AppTheme.muted(scheme))
-            .padding(.horizontal, 4)
-            .padding(.top, 8)
-    }
-}
-
-// MARK: - Appearance bottom sheet
-
-struct AppearanceSheet: View {
-    @AppStorage(AppearanceSettings.storageKey) private var appearanceRaw: String = AppearanceMode.auto.rawValue
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var currentMode: AppearanceMode {
-        AppearanceMode(rawValue: appearanceRaw) ?? .auto
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Appearance")
-                    .font(.headline)
-                    .foregroundColor(AppTheme.fg(scheme))
-                Spacer()
-                Button("Done") { dismiss() }
-                    .font(.headline.weight(.medium))
-                    .foregroundColor(AppTheme.accent(scheme))
-                    .frame(minHeight: 44)
-            }
-            VStack(spacing: 0) {
-                ForEach(AppearanceMode.allCases) { m in
-                    Button {
-                        withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.15)) {
-                            appearanceRaw = m.rawValue
-                            AppearanceSettings.mode = m
-                        }
-                    } label: {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle().fill(AppTheme.fg(scheme).opacity(0.10))
-                                Image(systemName: icon(for: m))
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(AppTheme.fg(scheme))
-                            }
-                            .frame(width: 28, height: 28)
-                            Text(m.sheetLabel)
-                                .font(.body)
-                                .foregroundColor(AppTheme.fg(scheme))
-                            Spacer()
-                            if currentMode == m {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(AppTheme.ok)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 13)
-                        .frame(minHeight: 52, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(currentMode == m ? "Selected" : "")
-                }
-            }
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.border(scheme), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            Spacer()
-        }
-        .padding(20)
-        .background(AppTheme.bg(scheme).ignoresSafeArea())
-        .preferredColorScheme(currentMode.colorScheme)
-    }
-
-    private func icon(for mode: AppearanceMode) -> String {
-        switch mode {
-        case .auto: return "circle.lefthalf.filled"
-        case .light: return "sun.max.fill"
-        case .dark: return "moon.fill"
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
         }
     }
 }

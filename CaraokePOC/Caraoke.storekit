@@ -5,7 +5,7 @@
   ],
   "products" : [
     {
-      "displayPrice" : "20.00",
+      "displayPrice" : "14.99",
       "familyShareable" : false,
       "internalID" : "caraoke-product-lifetime",
       "localizations" : [
@@ -50,7 +50,12 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "caraoke-product-monthly",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "internalID" : "caraoke-offer-monthly-trial",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
           "localizations" : [
             {
               "description" : "Caraoke Plus, monthly",
@@ -71,11 +76,16 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "11.99",
+          "displayPrice" : "9.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "caraoke-product-yearly",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "internalID" : "caraoke-offer-yearly-trial",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
           "localizations" : [
             {
               "description" : "Caraoke Plus, yearly",

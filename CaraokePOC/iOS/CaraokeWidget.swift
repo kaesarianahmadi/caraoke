@@ -240,7 +240,7 @@ struct CaraokeWidgetProvider: TimelineProvider {
             let spanEnd = Date(timeIntervalSince1970: Double(payload.trackStartEpochMs + payload.chainedSpanMs) / 1000.0)
             policy = .after(max(spanEnd.addingTimeInterval(-lead), now.addingTimeInterval(30)))
         } else if let last = entries.last {
-            policy = .after(last.date.addingTimeInterval(30))
+            policy = .after(max(now.addingTimeInterval(5), last.date.addingTimeInterval(-10)))
         } else {
             policy = .atEnd
         }
@@ -366,8 +366,8 @@ struct CaraokeWidget: Widget {
         }
         .configurationDisplayName("Caraoke Lyrics")
         .description("Synced lyrics for the Home Screen.")
-        .supportedFamilies([.systemMedium, .systemLarge])
-        .disfavoredLocations([.carPlay], for: [.systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .disfavoredLocations([.carPlay], for: [.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
         // StandBy and CarPlay drop the background and render the tile on
         // black; the widget palette is card-free so the content survives it.

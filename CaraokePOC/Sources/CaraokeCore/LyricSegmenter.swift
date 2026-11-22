@@ -46,4 +46,32 @@ enum LyricSegmenter {
         }
         return result
     }
+
+    /// Splits long LRC lines into timed sub-phrases (`maxWords` each) by
+    /// interpolating across the line's span for narrow glanceable surfaces.
+    static func segmentTimedLines(_ lines: [LyricLine], maxWords: Int = 6) -> [LyricLine] {
+        let limit = max(1, maxWords)
+        var out: [LyricLine] = []
+        out.reserveCapacity(lines.count)
+        for (index, line) in lines.enumerated() {
+            let words = line.text.split(whereSeparator: { $0.isWhitespace })
+            guard words.count > limit else {
+                out.append(line)
+                continue
+            }
+            let nextStart = index + 1 < lines.count ? lines[index + 1].startMs : line.startMs + 4000
+            let span = max(1, nextStart - line.startMs)
+            let chunkCount = (words.count + limit - 1) / limit
+            for chunkIndex in 0..<chunkCount {
+                let startWord = chunkIndex * limit
+                let endWord = min(words.count, startWord + limit)
+                let text = words[startWord..<endWord].joined(separator: " ")
+                let offset = (span * startWord) / words.count
+                let candidateMs = line.startMs + offset
+                let timeMs = out.last.map { max($0.startMs + 1, candidateMs) } ?? candidateMs
+                out.append(LyricLine(startMs: timeMs, text: text, translation: line.translation))
+            }
+        }
+        return out
+    }
 }

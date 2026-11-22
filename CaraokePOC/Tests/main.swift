@@ -257,6 +257,16 @@ final class TestRunner {
         checkEqual("lrcClampNegative", LRCParser.parse("[offset:2000]\n[00:01]x").first?.timeMs, 0)
         checkEqual("lrcNegativeOffset", LRCParser.parse("[offset:-1000]\n[00:01]x").first?.timeMs, 2000)
 
+        let simultaneous = LRCParser.parse("[00:10.00]Lead\n[00:10.00]Backing")
+        checkEqual("lrcSimultaneousCount", simultaneous.count, 2)
+        check("lrcSimultaneousStrict", simultaneous[0].timeMs < simultaneous[1].timeMs)
+        _ = LyricTrack(lines: simultaneous.map { LyricLine(startMs: $0.timeMs, text: $0.text) })
+
+        let clampedIntro = LRCParser.parse("[offset:5000]\n[00:01.00]A\n[00:02.00]B")
+        checkEqual("lrcClampedIntroCount", clampedIntro.count, 2)
+        check("lrcClampedIntroStrict", clampedIntro[0].timeMs == 0 && clampedIntro[1].timeMs == 1)
+        _ = LyricTrack(lines: clampedIntro.map { LyricLine(startMs: $0.timeMs, text: $0.text) })
+
         // MARK: TrackMatcher (ported from DriveVerse, vendor type decoupled)
         checkEqual("matchTitle", TrackMatcher.normalizeTitle("Song (feat. X) - Remix"), "song")
         checkEqual("matchArtist", TrackMatcher.normalizeArtist("Rihanna feat. JAY-Z"), "rihanna")
@@ -1396,10 +1406,12 @@ final class TestRunner {
               - { text: 'next', start_ms: 6000 }
             """
             let track = LyricsFileParser.parse(yaml)
-            checkEqual("wordPhraseText", track?.lines.map(\.text), ["one two three four", "five six", "next"])
-            checkEqual("wordPhraseSourceTimes", track?.lines.map(\.startMs), [1000, 3300, 6000])
-            checkEqual("wordPhraseBeforeBoundary", track?.line(at: 3299)?.text, "one two three four")
-            checkEqual("wordPhraseAtBoundary", track?.line(at: 3300)?.text, "five six")
+            checkEqual("fullLinesPreserved", track?.lines.map(\.text), ["one two three four five six", "next"])
+            checkEqual("wordPhraseText", track?.compactPhrases.map(\.text), ["one two three four", "five six", "next"])
+            checkEqual("wordPhraseSourceTimes", track?.compactPhrases.map(\.startMs), [1000, 3300, 6000])
+            let compactTrack = track.map { LyricTrack(lines: $0.compactPhrases, hasWordTiming: $0.hasWordTiming) }
+            checkEqual("wordPhraseBeforeBoundary", compactTrack?.line(at: 3299)?.text, "one two three four")
+            checkEqual("wordPhraseAtBoundary", compactTrack?.line(at: 3300)?.text, "five six")
             let broken = yaml.replacingOccurrences(of: "start_ms: 3300", with: "start_ms: 100")
             checkEqual("invalidWordTimingKeepsWholeLine", LyricsFileParser.parse(broken)?.lines.first?.text, "one two three four five six")
             let duplicate = yaml.replacingOccurrences(of: "version: '1.0'", with: "version: '1.0'\nversion: '2.0'")

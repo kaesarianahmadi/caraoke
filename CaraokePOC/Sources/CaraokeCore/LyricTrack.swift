@@ -7,13 +7,20 @@ import Foundation
 /// in milliseconds it answers which line is current and which is next.
 struct LyricTrack: Equatable, Sendable {
     let lines: [LyricLine]
+    /// Short timed phrases (`maxWords: 4–6`) for narrow surfaces (Dynamic Island, CarPlay).
+    let compactPhrases: [LyricLine]
     let hasWordTiming: Bool
 
     /// Lines must be strictly sorted by start time.
-    init(lines: [LyricLine], hasWordTiming: Bool = false) {
+    init(lines: [LyricLine], compactPhrases: [LyricLine]? = nil, hasWordTiming: Bool = false) {
         precondition(zip(lines, lines.dropFirst()).allSatisfy { $0.startMs < $1.startMs },
                      "LyricTrack lines must be strictly sorted by startMs")
+        if let compactPhrases {
+            precondition(zip(compactPhrases, compactPhrases.dropFirst()).allSatisfy { $0.startMs < $1.startMs },
+                         "LyricTrack compactPhrases must be strictly sorted by startMs")
+        }
         self.lines = lines
+        self.compactPhrases = compactPhrases ?? lines
         self.hasWordTiming = hasWordTiming
     }
 

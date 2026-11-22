@@ -1,263 +1,384 @@
 import SwiftUI
-import UIKit
-import WidgetKit
 
-/// Widget controls and live preview. The app and extension share the settings
-/// through the App Group container.
-///
-/// This view is pushed as a NavigationLink destination (e.g. from
-/// Settings → Display → Widgets), so it must not embed its own
-/// NavigationStack. The preview only ever shows the real now-playing values:
-/// when nothing is playing it says so instead of dressing up a fake track.
+/// Unified Surface Studio (Widgets, CarPlay Stack, Lock Screen & Dynamic Island).
 struct WidgetSettingsView: View {
-    @ObservedObject var model: RideModeViewModel
-    @State private var settings = SharedWidgetSettings()
-    @State private var settingsLoaded = false
-    @State private var showTips = false
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var model: RideModeViewModel? = nil
 
-    private var theme: WidgetTheme { WidgetTheme(rawValue: settings.theme) ?? .artwork }
-    private var coverStyle: WidgetCoverStyle { WidgetCoverStyle(rawValue: settings.coverStyle) ?? .vinyl }
-    private var hasTrack: Bool { !model.trackTitle.isEmpty }
+    enum SurfaceFamily: String, CaseIterable, Identifiable {
+        case widget = "Widget (2×4)"
+        case carPlay = "CarPlay Stack"
+        case lockIsland = "Lock & Island"
+        var id: String { rawValue }
+    }
+
+    @State private var family: SurfaceFamily = .widget
+    @AppStorage("widget.theme") private var themeRaw = WidgetTheme.artwork.rawValue
+    @AppStorage("widget.coverStyle") private var coverRaw = WidgetCoverStyle.vinyl.rawValue
+    @State private var offsetMs: Int = SharedWidgetStore.readSettings().lyricOffsetMs
+    @State private var showHelp = false
+    @Environment(\.colorScheme) private var scheme
+
+    private var theme: WidgetTheme { WidgetTheme(rawValue: themeRaw) ?? .artwork }
+    private var coverStyle: WidgetCoverStyle { WidgetCoverStyle(rawValue: coverRaw) ?? .vinyl }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                previewSection
-                themeSection.disabled(!settingsLoaded)
-                tipsToggle
-                if showTips { tips }
+        ZStack {
+            AppTheme.bg(scheme).ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    Picker("Surface", selection: $family) {
+                        ForEach(SurfaceFamily.allCases) { f in
+                            Text(f.rawValue).tag(f)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    // Pinned Live Preview Well
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(hex: 0x16161A), Color(hex: 0x0A0A0C)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        previewCard
+                            .padding(16)
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(AppTheme.border(scheme), lineWidth: 1)
+                    )
+
+                    // Tactile Circular Theme Swatches
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("THEME")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(AppTheme.muted(scheme))
+                            .padding(.leading, 4)
+
+                        HStack(spacing: 0) {
+                            ForEach(WidgetTheme.allCases, id: \.rawValue) { item in
+                                swatchButton(for: item)
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 8)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
+                    }
+
+                    // Cover Style & CarPlay Timing Offset
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("STYLE & TIMING")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(AppTheme.muted(scheme))
+                            .padding(.leading, 4)
+
+                        VStack(spacing: 0) {
+                            HStack {
+                                Text("Cover Style")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(AppTheme.fg(scheme))
+                                Spacer()
+                                Picker("Cover Style", selection: $coverRaw) {
+                                    Text("Vinyl").tag(WidgetCoverStyle.vinyl.rawValue)
+                                    Text("Square").tag(WidgetCoverStyle.picture.rawValue)
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(width: 150)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+
+                            Divider().overlay(AppTheme.border(scheme))
+
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("CarPlay Timing Offset")
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundColor(AppTheme.fg(scheme))
+                                    Text("Compensates wireless Bluetooth lag")
+                                        .font(.caption2)
+                                        .foregroundColor(AppTheme.muted(scheme))
+                                }
+                                Spacer()
+                                HStack(spacing: 8) {
+                                    Button {
+                                        updateOffset(offsetMs - 250)
+                                    } label: {
+                                        Image(systemName: "minus")
+                                            .font(.caption.weight(.bold))
+                                            .frame(width: 30, height: 30)
+                                            .background(Circle().fill(AppTheme.surfaceElevated(scheme)))
+                                    }
+                                    Text(offsetLabel)
+                                        .font(.subheadline.weight(.bold).monospacedDigit())
+                                        .foregroundColor(AppTheme.accent(scheme))
+                                        .frame(minWidth: 46)
+                                    Button {
+                                        updateOffset(offsetMs + 250)
+                                    } label: {
+                                        Image(systemName: "plus")
+                                            .font(.caption.weight(.bold))
+                                            .frame(width: 30, height: 30)
+                                            .background(Circle().fill(AppTheme.surfaceElevated(scheme)))
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                        }
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppTheme.surface(scheme)))
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
+                    }
+
+                    Button {
+                        showHelp = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(AppTheme.accent(scheme))
+                            Text("How to add to CarPlay, Lock Screen & StandBy")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(AppTheme.fg(scheme))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(AppTheme.muted(scheme))
+                        }
+                        .padding(14)
+                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(AppTheme.surface(scheme)))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.border(scheme), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
         }
-        .background(AppTheme.bg(scheme).ignoresSafeArea())
-        .navigationTitle("Widgets")
+        .navigationTitle("Surface Studio")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            settings = await SharedWidgetStore.readSettings()
-            settingsLoaded = true
+        .onChange(of: themeRaw) { _, newValue in
+            SharedWidgetStore.updateSettings { $0.theme = newValue }
         }
-    }
-
-    // MARK: - Write-through bindings
-
-    private func binding<T: Sendable>(_ keyPath: WritableKeyPath<SharedWidgetSettings, T>,
-                                      update: @escaping @Sendable (inout SharedWidgetSettings, T) -> Void) -> Binding<T> {
-        Binding(
-            get: { settings[keyPath: keyPath] },
-            set: { value in
-                settings[keyPath: keyPath] = value
-                SharedWidgetStore.updateSettings(reloadReason: "settings-changed") { update(&$0, value) }
-            }
-        )
-    }
-
-    // MARK: - Preview (real now-playing values only — never fake lyrics)
-
-    private var previewSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Preview")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(AppTheme.muted(scheme))
-                .padding(.horizontal, 4)
-                .accessibilityAddTraits(.isHeader)
-            Group {
-                if hasTrack || !model.currentLine.isEmpty {
-                    livePreview
-                } else {
-                    emptyPreview
-                }
+        .onChange(of: coverRaw) { _, newValue in
+            SharedWidgetStore.updateSettings { $0.coverStyle = newValue }
+        }
+        .sheet(isPresented: $showHelp) {
+            NavigationStack {
+                HelpView()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showHelp = false }
+                        }
+                    }
             }
         }
     }
 
-    private var livePreview: some View {
-        HStack(spacing: 4) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(identity)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(theme.mutedTextColor)
-                    .lineLimit(1)
-                Spacer()
-                Text(model.currentLine)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(theme.textColor)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.75)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let next = model.nextLine, !next.isEmpty {
-                    Text(next)
-                        .font(.system(size: 15))
-                        .foregroundStyle(theme.mutedTextColor.opacity(0.72))
+    @ViewBuilder
+    private var previewCard: some View {
+        let title = (model?.trackTitle.isEmpty == false) ? (model?.trackTitle ?? "Disillusioned") : "Disillusioned"
+        let artist = (model?.trackArtist.isEmpty == false) ? (model?.trackArtist ?? "Daniel Caesar") : "Daniel Caesar"
+        let line = (model?.currentLine.isEmpty == false) ? (model?.currentLine ?? "Maybe should get together") : "Maybe should get together"
+        let next = model?.nextLine ?? "We'll take it all on better"
+
+        switch family {
+        case .widget:
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(title) — \(artist)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(theme.mutedTextColor)
                         .lineLimit(1)
-                        .padding(.top, 3)
+                    Text(line)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(theme.textColor)
+                        .lineLimit(2)
+                    Text(next)
+                        .font(.system(size: 13))
+                        .foregroundColor(theme.mutedTextColor)
+                        .lineLimit(1)
+                    HStack(spacing: 18) {
+                        Image(systemName: "backward.fill")
+                        Image(systemName: "pause.fill")
+                        Image(systemName: "forward.fill")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(theme.textColor)
+                    .padding(.top, 4)
                 }
-                Spacer()
-                HStack(spacing: 18) {
-                    Image(systemName: "backward.fill")
-                        .frame(width: 30, height: 30)
-                    Image(systemName: model.isPlaybackActive ? "pause.fill" : "play.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 30, height: 30)
-                    Image(systemName: "forward.fill")
-                        .frame(width: 30, height: 30)
+                Spacer(minLength: 4)
+                if coverStyle == .vinyl {
+                    VinylRecordView(artworkData: model?.artworkData, diameter: 82, labelDiameter: 50)
+                        .vinylSpin(model?.isPlaybackActive ?? false)
+                } else {
+                    CoverArtworkView(artworkData: model?.artworkData, cornerRadius: 12, artworkColorHex: model?.artworkColorHex)
+                        .frame(width: 78, height: 78)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(theme.textColor)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(theme.backgroundColor)
+            )
 
-            previewCover
-                .frame(width: 132)
+        case .carPlay:
+            HStack(spacing: 10) {
+                VStack(spacing: 8) {
+                    CoverArtworkView(artworkData: model?.artworkData, cornerRadius: 10, artworkColorHex: model?.artworkColorHex)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    Text(title)
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    HStack(spacing: 12) {
+                        Image(systemName: "backward.fill")
+                        Image(systemName: "pause.fill")
+                        Image(systemName: "forward.fill")
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x18181B)))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(line)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                    Text(next)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.6))
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    Capsule()
+                        .fill(AppTheme.darkAccent)
+                        .frame(width: 52, height: 2.5)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.black))
+            }
+
+        case .lockIsland:
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "waveform")
+                            .foregroundColor(AppTheme.darkAccent)
+                        Text(line)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .background(Capsule().fill(Color.black))
+
+                    CoverArtworkView(artworkData: model?.artworkData, cornerRadius: 17, artworkColorHex: model?.artworkColorHex)
+                        .frame(width: 34, height: 34)
+                        .clipShape(Circle())
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(line)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                    Text(next)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.65))
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(CoverArtworkView.controlledStageWash(model?.artworkColorHex, enabled: true)
+                              ?? LinearGradient(colors: [Color(hex: 0x202026), Color.black], startPoint: .top, endPoint: .bottom))
+                )
+            }
         }
-        .padding(14)
-        .frame(height: 160)
-        .background(previewBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.08)))
-        .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
-        .accessibilityLabel("Widget preview showing \(identity)")
     }
 
-    /// Clean empty state: no invented track, no sample lyrics.
-    private var emptyPreview: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "music.note")
-                .font(.title2.weight(.semibold))
-                .foregroundColor(AppTheme.muted(scheme))
-            Text("Nothing playing")
-                .font(.body.weight(.semibold))
-                .foregroundColor(AppTheme.fg(scheme))
-            Text("The preview follows what is actually playing. Start a song in your music app and this card fills with its real lyrics.")
-                .font(.subheadline)
-                .foregroundColor(AppTheme.muted(scheme))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+    private func swatchButton(for item: WidgetTheme) -> some View {
+        let selected = theme == item
+        return Button {
+            themeRaw = item.rawValue
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(swatchFill(for: item))
+                        .frame(width: 44, height: 44)
+                        .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 1))
+                    if item == .artwork {
+                        Image(systemName: "paintpalette.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding(3)
+                .overlay(
+                    Circle().stroke(selected ? AppTheme.accent(scheme) : Color.clear, lineWidth: 2)
+                )
+
+                Text(swatchShortLabel(for: item))
+                    .font(.caption2.weight(selected ? .bold : .medium))
+                    .foregroundColor(selected ? AppTheme.fg(scheme) : AppTheme.muted(scheme))
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(24)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(AppTheme.surface(scheme)))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .stroke(AppTheme.border(scheme), lineWidth: 1))
-        .accessibilityLabel("Widget preview is empty. No song is currently playing.")
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(item.displayName) theme")
     }
 
-    private var identity: String {
-        model.trackArtist.isEmpty ? model.trackTitle : "\(model.trackTitle) — \(model.trackArtist)"
+    private func swatchFill(for item: WidgetTheme) -> LinearGradient {
+        switch item {
+        case .artwork:
+            return LinearGradient(colors: [Color(hex: 0xFF9845), Color(hex: 0x4F46E5)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .pitchBlack:
+            return LinearGradient(colors: [Color.black, Color(hex: 0x111113)], startPoint: .top, endPoint: .bottom)
+        case .simpleSlate:
+            return LinearGradient(colors: [Color(hex: 0x27272A), Color(hex: 0x18181B)], startPoint: .top, endPoint: .bottom)
+        case .ivoryWhite:
+            return LinearGradient(colors: [Color.white, Color(hex: 0xE4E4E7)], startPoint: .top, endPoint: .bottom)
+        }
     }
 
-    @ViewBuilder private var previewCover: some View {
-        if coverStyle == .vinyl {
-            VinylRecordView(artworkData: model.artworkData, diameter: 126, labelDiameter: 88)
-                .vinylSpin(model.isPlaybackActive && !reduceMotion)
+    private func swatchShortLabel(for item: WidgetTheme) -> String {
+        switch item {
+        case .artwork: return "Cover"
+        case .pitchBlack: return "OLED"
+        case .simpleSlate: return "Slate"
+        case .ivoryWhite: return "Ivory"
+        }
+    }
+
+    private var offsetLabel: String {
+        if offsetMs == 0 { return "0.0s" }
+        return String(format: "%+.2gs", Double(offsetMs) / 1000.0)
+    }
+
+    private func updateOffset(_ raw: Int) {
+        let clamped = max(-5000, min(5000, raw))
+        let delta = clamped - offsetMs
+        offsetMs = clamped
+        if let model {
+            model.adjustLyricOffset(by: delta)
         } else {
-            CoverArtworkView(artworkData: model.artworkData, cornerRadius: 14,
-                             artworkColorHex: model.artworkColorHex)
-                .frame(width: 110, height: 110)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.12)))
+            SharedWidgetStore.updateSettings { $0.lyricOffsetMs = clamped }
         }
     }
-
-    private var previewBackground: AnyShapeStyle {
-        if theme == .artwork, let image = model.artworkData.flatMap(UIImage.init(data:)),
-           let hex = image.averageColorHex, let color = Color(hexString: hex) {
-            return AnyShapeStyle(LinearGradient(colors: [color.opacity(0.92), color.opacity(0.52), .black.opacity(0.9)],
-                                                startPoint: .topLeading, endPoint: .bottomTrailing))
-        }
-        return AnyShapeStyle(theme.backgroundColor)
-    }
-
-    // MARK: - Theme controls
-
-    private var themeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Theme")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(AppTheme.muted(scheme))
-                .padding(.horizontal, 4)
-                .accessibilityAddTraits(.isHeader)
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Theme")
-                        .font(.body)
-                        .foregroundColor(AppTheme.fg(scheme))
-                    Spacer()
-                    Picker("Theme", selection: binding(\.theme) { $0.theme = $1 }) {
-                        ForEach(WidgetTheme.allCases, id: \.self) { item in
-                            Text(item.displayName).tag(item.rawValue)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(AppTheme.accent(scheme))
-                    .accessibilityLabel("Widget theme")
-                    .accessibilityValue(theme.displayName)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 13)
-                .frame(minHeight: 52, alignment: .leading)
-                divider
-                HStack {
-                    Text("Cover style")
-                        .font(.body)
-                        .foregroundColor(AppTheme.fg(scheme))
-                    Spacer()
-                    Picker("Cover style", selection: binding(\.coverStyle) { $0.coverStyle = $1 }) {
-                        ForEach(WidgetCoverStyle.allCases, id: \.self) { style in
-                            Text(style.displayName).tag(style.rawValue)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(AppTheme.accent(scheme))
-                    .accessibilityLabel("Widget cover style")
-                    .accessibilityValue(coverStyle.displayName)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 13)
-                .frame(minHeight: 52, alignment: .leading)
-            }
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AppTheme.surface(scheme)))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.border(scheme), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
-    }
-
-    private var tipsToggle: some View {
-        Button(showTips ? "Hide widget setup tips" : "Widget setup and update tips") {
-            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.2)) { showTips.toggle() }
-        }
-        .font(.headline.weight(.semibold))
-        .foregroundStyle(AppTheme.accent(scheme))
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 44)
-        .padding(.vertical, 15)
-        .background(AppTheme.surface(scheme), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .accessibilityHint(showTips ? "Hide widget update tips" : "Show widget update tips")
-    }
-
-    private var tips: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Tips")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(AppTheme.muted(scheme))
-            Text("1  How to add widgets:")
-                .font(.headline.weight(.semibold))
-            Text("Press and hold a blank area on the Home Screen, tap Edit, then Add Widget and choose Caraoke.")
-            Text("2  Keep lyrics up to date:")
-                .font(.headline.weight(.semibold))
-            Text("Song changes update automatically. Tap the cover whenever the widget needs to resync.")
-            Text("3  StandBy:")
-                .font(.headline.weight(.semibold))
-            Text("Place iPhone horizontally on a charger, then select the Caraoke lyrics widget.")
-        }
-        .font(.subheadline)
-        .foregroundStyle(AppTheme.fg(scheme))
-        .padding(.bottom, 20)
-    }
-
-    private var divider: some View { Divider().padding(.leading, 16) }
 }

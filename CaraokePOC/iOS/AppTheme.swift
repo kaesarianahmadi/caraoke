@@ -7,20 +7,24 @@ import CoreImage
 enum AppTheme {
 
     // MARK: - Dark palette (Pure OLED Black)
-    static let darkBG      = Color(hex: 0x000000)
-    static let darkSurface = Color(hex: 0x121214)
-    static let darkFG      = Color(hex: 0xFFFFFF)
-    static let darkMuted   = Color(hex: 0x8E8E93)
-    static let darkBorder  = Color(hex: 0x27272A)
-    static let darkAccent  = Color(hex: 0xFF9845)
+    static let darkBG              = Color(hex: 0x000000)
+    static let darkSurface         = Color(hex: 0x121214)
+    static let darkSurfaceElevated = Color(hex: 0x1A1A1E)
+    static let darkFG              = Color(hex: 0xFFFFFF)
+    static let darkMuted           = Color(hex: 0x9898A0)
+    static let darkSubtle          = Color(hex: 0x5A5A62)
+    static let darkBorder          = Color(hex: 0x27272A)
+    static let darkAccent          = Color(hex: 0xFF9845)
 
     // MARK: - Light palette (Ivory White)
-    static let lightBG      = Color(hex: 0xFAFAFA)
-    static let lightSurface = Color(hex: 0xFFFFFF)
-    static let lightFG      = Color(hex: 0x09090B)
-    static let lightMuted   = Color(hex: 0x71717A)
-    static let lightBorder  = Color(hex: 0xE4E4E7)
-    static let lightAccent  = Color(hex: 0xB36527)
+    static let lightBG              = Color(hex: 0xF7F7F8)
+    static let lightSurface         = Color(hex: 0xFFFFFF)
+    static let lightSurfaceElevated = Color(hex: 0xF0F0F3)
+    static let lightFG              = Color(hex: 0x09090B)
+    static let lightMuted           = Color(hex: 0x6E6E77)
+    static let lightSubtle          = Color(hex: 0xA1A1AA)
+    static let lightBorder          = Color(hex: 0xE4E4E7)
+    static let lightAccent          = Color(hex: 0xC85A00)
 
     // State colors
     static let ok   = Color(hex: 0x34C759)
@@ -30,8 +34,10 @@ enum AppTheme {
     // Adaptive accessors
     static func bg(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkBG : lightBG }
     static func surface(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkSurface : lightSurface }
+    static func surfaceElevated(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkSurfaceElevated : lightSurfaceElevated }
     static func fg(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkFG : lightFG }
     static func muted(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkMuted : lightMuted }
+    static func subtle(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkSubtle : lightSubtle }
     static func border(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkBorder : lightBorder }
     static func accent(_ scheme: ColorScheme) -> Color { scheme == .dark ? darkAccent : lightAccent }
 
@@ -139,6 +145,62 @@ extension CoverArtworkView {
             endPoint: .bottomTrailing
         )
     }
+
+    /// Controlled ambient wash for Stage Card & Full Lyrics backdrop (max alpha 0.34 over #09090B).
+    static func controlledStageWash(_ hex: String?, enabled: Bool) -> LinearGradient? {
+        guard enabled, let hex, let color = Color(hexString: hex) else { return nil }
+        return LinearGradient(
+            colors: [color.opacity(0.34), color.opacity(0.16), Color(hex: 0x09090B)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
+enum CockpitMetrics {
+    static let cardRadius: CGFloat = 22
+    static let cardPadding: CGFloat = 12
+    static let innerRadius: CGFloat = 10
+    static let consoleRadius: CGFloat = 20
+    static let consolePadding: CGFloat = 10
+    static let hitTarget: CGFloat = 44
+}
+
+enum HomeLayoutMode: String, CaseIterable, Identifiable {
+    case stageFocus = "stage_focus"
+    case surfaceStudio = "surface_studio"
+    case minimalCockpit = "minimal_cockpit"
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .stageFocus: return "Stage Focus"
+        case .surfaceStudio: return "Surface Studio"
+        case .minimalCockpit: return "Minimal Cockpit"
+        }
+    }
+}
+
+enum LyricsBackdropStyle: String, CaseIterable, Identifiable {
+    case ambientCover = "ambient_cover"
+    case oledBlack = "oled_black"
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .ambientCover: return "Ambient Cover"
+        case .oledBlack: return "OLED Pitch Black"
+        }
+    }
+}
+
+enum ExternalSurfaceTab: String, CaseIterable, Identifiable {
+    case island = "Island"
+    case carPlay = "CarPlay"
+    case lock = "Lock"
+    case widget = "Widget"
+
+    var id: String { rawValue }
 }
 
 /// Continuous vinyl rotation for the in-app discs. WidgetKit renders static
@@ -146,12 +208,14 @@ extension CoverArtworkView {
 private struct VinylSpin: ViewModifier {
     let isSpinning: Bool
     @State private var angle: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
+        let active = isSpinning && !reduceMotion
         content
             .rotationEffect(.degrees(angle))
-            .onAppear { if isSpinning { spin() } }
-            .onChange(of: isSpinning) { _, spinning in
+            .onAppear { if active { spin() } }
+            .onChange(of: active) { _, spinning in
                 spinning ? spin() : halt()
             }
     }
